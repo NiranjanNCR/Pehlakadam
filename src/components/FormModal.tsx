@@ -93,7 +93,7 @@ export default function FormModal() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
+            className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 p-4 py-10 overflow-y-auto backdrop-blur-md"
           >
             <motion.div
               id="form-modal-content"
@@ -102,7 +102,7 @@ export default function FormModal() {
               exit={{ scale: 0.9, y: 20 }}
               transition={{ type: "spring", duration: 0.4 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-zinc-900 border border-zinc-800 text-white p-8 shadow-2xl"
+              className="relative my-auto w-full max-w-lg rounded-3xl bg-zinc-900 border border-zinc-800 text-white p-6 sm:p-8 shadow-2xl"
             >
               <button
                 id="close-form-modal-btn"
