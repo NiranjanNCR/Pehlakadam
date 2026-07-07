@@ -1,0 +1,6 @@
+{
+  "name": "Pehlakadam",
+  "description": "An interactive career counselling, mentorship, and personality development platform for students and professionals to take their first step wisely.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
