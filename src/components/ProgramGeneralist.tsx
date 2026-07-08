@@ -2,6 +2,7 @@ import NavigationBar from "./NavigationBar";
 import Footer from "./Footer";
 import FormModal from "./FormModal";
 import CartCourse from "./CartCourse";
+import ProgramMediaSection from "./ProgramMediaSection";
 import { Milestone, Compass, Layers, Zap, Target, Award } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -71,6 +72,7 @@ export default function ProgramGeneralist() {
                 className="rounded-3xl w-full object-cover aspect-[4/3] shadow-xl border border-zinc-800"
               />
             </div>
+            <ProgramMediaSection programKey="generalist" />
           </div>
 
         </div>

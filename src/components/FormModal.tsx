@@ -83,7 +83,7 @@ export default function FormModal() {
       >
         <span className="flex items-center gap-2">
           <Calendar className="h-4 w-4 transition-transform duration-300 group-hover:rotate-12" />
-          Get Started / Book Consultation
+          Book Consultation
         </span>
       </button>
 

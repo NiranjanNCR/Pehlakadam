@@ -1,6 +1,7 @@
 import { useState, useEffect, ChangeEvent, FormEvent } from "react";
 import NavigationBar from "../NavigationBar";
 import Footer from "../Footer";
+import AdminProgramsConfig from "../AdminProgramsConfig";
 import {
   Search,
   Mail,
@@ -23,7 +24,10 @@ import {
   Lock,
   Unlock,
   ShieldCheck,
-  LogOut
+  LogOut,
+  CreditCard,
+  Download,
+  Settings
 } from "lucide-react";
 import { Submission, ResourceMaterial, SessionUpdate } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
@@ -33,19 +37,23 @@ import { motion, AnimatePresence } from "motion/react";
 // =========================================================================================
 // These tabs determine which management system is visible to the advisor:
 // - "leads": Reviewing registrations, goals, and user messages.
+// - "payments": Reviewing transactions and downloaded screenshots.
 // - "resources": Composing, uploading, and publishing PDF handbooks or video masterclasses.
 // - "broadcast": Dispatching simulated alerts (SMS/Email) to registered leads.
+// - "programs-config": Managing brochures and briefing video links for program landing pages.
 // =========================================================================================
-type AdminTab = "leads" | "resources" | "broadcast" | "paid-access";
+type AdminTab = "leads" | "payments" | "resources" | "broadcast" | "paid-access" | "programs-config";
 
 export default function AdminSubmissions() {
   const [activeTab, setActiveTab] = useState<AdminTab>("leads");
   
   // 💾 CORE DATA STATES
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
   const [resources, setResources] = useState<ResourceMaterial[]>([]);
   const [broadcasts, setBroadcasts] = useState<SessionUpdate[]>([]);
   const [authorizedNumbers, setAuthorizedNumbers] = useState<{ id: string, number: string, createdAt: string }[]>([]);
+  const [programsConfigs, setProgramsConfigs] = useState<any[]>([]);
   
   // 🔒 ADMIN AUTHENTICATION STATES
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -234,6 +242,21 @@ export default function AdminSubmissions() {
         setAuthorizedNumbers(authData);
       }
 
+      // 5. Fetch Payment Submissions
+      const resPay = await fetch("/api/payments", { headers: authHeaders });
+      if (resPay.ok) {
+        const payData = await resPay.json();
+        const sortedPay = payData.sort((a: any, b: any) => b.id.localeCompare(a.id));
+        setPayments(sortedPay);
+      }
+
+      // 6. Fetch Programs Configuration
+      const resProg = await fetch("/api/programs-config");
+      if (resProg.ok) {
+        const progData = await resProg.json();
+        setProgramsConfigs(progData);
+      }
+
     } catch (err) {
       console.error("Error loading admin data:", err);
       setError("Cannot sync with server database APIs.");
@@ -381,6 +404,69 @@ export default function AdminSubmissions() {
     } catch (err) {
       console.error("Delete resource error:", err);
       alert("Network failure while deleting resource.");
+    }
+  };
+
+  /**
+   * 💰 DOWNLOAD FILE UTILITY FOR RECEIPTS
+   */
+  const downloadFile = (base64Data: string, fileName: string) => {
+    if (!base64Data) {
+      alert("No proof file attached to this payment submission.");
+      return;
+    }
+    try {
+      const link = document.createElement("a");
+      link.href = base64Data;
+      link.download = fileName || "payment_screenshot";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Failed to download file:", err);
+      alert("Could not download attachment. Opening file preview instead.");
+      const win = window.open();
+      if (win) {
+        win.document.write(`<iframe src="${base64Data}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+      }
+    }
+  };
+
+  /**
+   * 🌟 APPROVE & DIRECTLY WHITELIST STUDENT FROM PAYMENT RECORD
+   */
+  const handleDirectWhitelist = async (number: string) => {
+    if (!number) return;
+    const cleanNum = number.replace(/[^0-9]/g, "");
+    if (!confirm(`Are you sure you want to approve this student and instantly whitelist +${cleanNum} for premium courses?`)) return;
+
+    try {
+      const token = localStorage.getItem("pehlakadam_admin_token");
+      const res = await fetch("/api/authorized-numbers", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ number: cleanNum })
+      });
+      if (res.ok) {
+        alert(`Successfully whitelisted and approved student contact: +${cleanNum}`);
+        // Refresh local authorized list
+        const resAuth = await fetch("/api/authorized-numbers", {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (resAuth.ok) {
+          const authData = await resAuth.json();
+          setAuthorizedNumbers(authData);
+        }
+      } else {
+        const errData = await res.json();
+        alert(errData.error || "Failed to whitelist phone number.");
+      }
+    } catch (err) {
+      console.error("Error direct whitelisting:", err);
+      alert("Error saving whitelist number.");
     }
   };
 
@@ -605,6 +691,16 @@ export default function AdminSubmissions() {
               <User className="h-4 w-4" /> Consultation Leads ({submissions.length})
             </button>
             <button
+              onClick={() => setActiveTab("payments")}
+              className={`py-4 px-6 text-xs uppercase tracking-wider font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === "payments"
+                  ? "border-emerald-600 text-emerald-700 bg-emerald-50/20"
+                  : "border-transparent text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50"
+              }`}
+            >
+              <CreditCard className="h-4 w-4" /> Payment Proofs ({payments.length})
+            </button>
+            <button
               onClick={() => setActiveTab("resources")}
               className={`py-4 px-6 text-xs uppercase tracking-wider font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
                 activeTab === "resources"
@@ -633,6 +729,16 @@ export default function AdminSubmissions() {
               }`}
             >
               <Lock className="h-4 w-4" /> Whitelist Access ({authorizedNumbers.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("programs-config")}
+              className={`py-4 px-6 text-xs uppercase tracking-wider font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === "programs-config"
+                  ? "border-emerald-600 text-emerald-700 bg-emerald-50/20"
+                  : "border-transparent text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50"
+              }`}
+            >
+              <Settings className="h-4 w-4" /> Programs Config ({programsConfigs.length})
             </button>
           </div>
         </div>
@@ -1127,6 +1233,138 @@ export default function AdminSubmissions() {
                 </motion.div>
               )}
 
+              {/* TAB: PAYMENT PROOFS VERIFICATION MANAGER */}
+              {activeTab === "payments" && (
+                <motion.div
+                  key="payments-tab"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="space-y-6"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-bold font-sans text-zinc-950">
+                        Payment Proof Submissions ({payments.length})
+                      </h2>
+                      <p className="text-zinc-500 text-xs mt-0.5">
+                        Verify screenshots, cross-check Transaction IDs, and grant course access instantly.
+                      </p>
+                    </div>
+                  </div>
+
+                  {payments.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {payments.map((pay) => {
+                        const isWhitelisted = authorizedNumbers.some(
+                          (auth) => auth.number.replace(/[^0-9]/g, "") === pay.number.replace(/[^0-9]/g, "")
+                        );
+
+                        return (
+                          <div
+                            key={pay.id}
+                            className={`bg-white rounded-2xl border p-6 shadow-sm hover:shadow-md transition-shadow relative flex flex-col justify-between ${
+                              isWhitelisted ? "border-emerald-200 bg-emerald-50/5" : "border-zinc-200"
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center justify-between gap-2 mb-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="h-10 w-10 rounded-xl bg-zinc-100 text-zinc-700 flex items-center justify-center font-bold font-sans text-sm">
+                                    {pay.firstName[0]}
+                                    {pay.lastName[0]}
+                                  </div>
+                                  <div>
+                                    <h3 className="text-sm font-bold text-zinc-950 font-sans">
+                                      {pay.firstName} {pay.lastName}
+                                    </h3>
+                                    <span className="text-[9px] font-bold text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-full uppercase tracking-wider block w-fit mt-0.5">
+                                      {pay.role}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {isWhitelisted ? (
+                                  <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100/60 border border-emerald-100 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                                    Approved
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-bold text-yellow-700 bg-yellow-100/60 border border-yellow-100 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                                    Pending
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="space-y-2 pt-4 border-t border-zinc-100 text-xs text-zinc-500">
+                                <div className="flex items-center justify-between bg-zinc-50 p-2.5 rounded-xl border border-zinc-100 font-sans">
+                                  <span className="font-semibold text-zinc-600">Transaction ID:</span>
+                                  <span className="font-bold text-zinc-900 font-mono select-all bg-white px-2 py-0.5 rounded border border-zinc-200 text-[11px]">
+                                    {pay.transactionId}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <Mail className="h-3.5 w-3.5 text-zinc-400" />
+                                  <a href={`mailto:${pay.email}`} className="hover:text-emerald-600 transition-colors font-medium">
+                                    {pay.email}
+                                  </a>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Phone className="h-3.5 w-3.5 text-zinc-400" />
+                                  <a href={`tel:${pay.number}`} className="hover:text-emerald-600 transition-colors font-medium">
+                                    {pay.number}
+                                  </a>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="h-3.5 w-3.5 text-zinc-400" />
+                                  <span>{new Date(pay.createdAt).toLocaleString()}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="mt-5 pt-4 border-t border-zinc-100 space-y-2.5">
+                              {pay.fileName && pay.fileData ? (
+                                <button
+                                  onClick={() => downloadFile(pay.fileData, pay.fileName)}
+                                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold py-2.5 px-4 text-xs transition-colors cursor-pointer border border-zinc-200"
+                                >
+                                  <Download className="h-3.5 w-3.5" />
+                                  Download Proof Screenshot
+                                </button>
+                              ) : (
+                                <div className="text-center p-2.5 bg-zinc-50 rounded-xl border border-dashed border-zinc-200 text-[11px] text-zinc-400 font-medium">
+                                  No screenshot uploaded
+                                </div>
+                              )}
+
+                              {!isWhitelisted ? (
+                                <button
+                                  onClick={() => handleDirectWhitelist(pay.number)}
+                                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 text-xs transition-colors shadow-sm cursor-pointer"
+                                >
+                                  <CheckCircle className="h-3.5 w-3.5" />
+                                  Approve & Whitelist
+                                </button>
+                              ) : (
+                                <div className="w-full text-center p-2 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-800 text-[11px] font-bold">
+                                  ✓ Access Granted Successfully
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-20 bg-white rounded-3xl border border-zinc-200 shadow-sm p-8">
+                      <CreditCard className="h-12 w-12 text-zinc-300 mx-auto mb-4" />
+                      <h3 className="text-lg font-bold text-zinc-800">No payment screenshots uploaded</h3>
+                      <p className="text-zinc-500 text-sm mt-1">Once students upload receipt screenshots, they will display here for instant authorization.</p>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
               {/* TAB 4: PAID PREMIUM STUDENT ACCESS MANAGER */}
               {activeTab === "paid-access" && (
                 <motion.div
@@ -1222,6 +1460,21 @@ export default function AdminSubmissions() {
                       )}
                     </div>
                   </div>
+                </motion.div>
+              )}
+
+              {/* TAB 5: LANDING PAGES ASSETS & MEDIA MANAGER */}
+              {activeTab === "programs-config" && (
+                <motion.div
+                  key="programs-config-tab"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                >
+                  <AdminProgramsConfig
+                    configs={programsConfigs}
+                    onRefresh={handleRefresh}
+                  />
                 </motion.div>
               )}
 

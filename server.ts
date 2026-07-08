@@ -20,9 +20,11 @@ if (fs.existsSync(envPath)) {
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const SUBMISSIONS_FILE = path.join(process.cwd(), "submissions.json");
+const PAYMENTS_FILE = path.join(process.cwd(), "payments.json");
 const RESOURCES_FILE = path.join(process.cwd(), "resources.json");
 const UPDATES_FILE = path.join(process.cwd(), "updates.json");
 const AUTHORIZED_NUMBERS_FILE = path.join(process.cwd(), "authorized_numbers.json");
+const PROGRAMS_CONFIG_FILE = path.join(process.cwd(), "programs_config.json");
 const UPLOADS_DIR = path.join(process.cwd(), "uploads");
 
 // Middleware
@@ -36,6 +38,22 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 
 if (!fs.existsSync(SUBMISSIONS_FILE)) {
   fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify([], null, 2));
+}
+
+if (!fs.existsSync(PAYMENTS_FILE)) {
+  fs.writeFileSync(PAYMENTS_FILE, JSON.stringify([], null, 2));
+}
+
+if (!fs.existsSync(PROGRAMS_CONFIG_FILE)) {
+  const initialConfigs = [
+    { programKey: "6-8", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+    { programKey: "9-10", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+    { programKey: "11-12", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+    { programKey: "graduate", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+    { programKey: "kudos", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+    { programKey: "generalist", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+  ];
+  fs.writeFileSync(PROGRAMS_CONFIG_FILE, JSON.stringify(initialConfigs, null, 2));
 }
 
 // Write mock files so default resources are physically downloadable
@@ -235,11 +253,39 @@ const AuthorizedNumberSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+// 📂 SCHEMA 5: PAYMENT SUBMISSIONS SCHEMA
+// Tracks payment transactions uploaded by students including their screenshots or PDFs.
+const PaymentSchema = new mongoose.Schema({
+  firstName: { type: String, required: true },
+  lastName: { type: String, required: true },
+  email: { type: String, required: true },
+  number: { type: String, required: true },
+  role: { type: String, required: true },
+  transactionId: { type: String, required: true },
+  fileName: { type: String },
+  fileType: { type: String },
+  fileData: { type: String }, // Stores base64 string for direct preview/download and ultimate persistence
+  createdAt: { type: Date, default: Date.now }
+});
+
 // Instantiate Mongoose models
 const SubmissionModel = mongoose.model("Submission", SubmissionSchema);
 const ResourceModel = mongoose.model("Resource", ResourceSchema);
 const UpdateModel = mongoose.model("Update", UpdateSchema);
 const AuthorizedNumberModel = mongoose.model("AuthorizedNumber", AuthorizedNumberSchema);
+const PaymentModel = mongoose.model("Payment", PaymentSchema);
+
+// 📂 SCHEMA 6: PROGRAM CONFIGURATION SCHEMA
+const ProgramConfigSchema = new mongoose.Schema({
+  programKey: { type: String, required: true, unique: true },
+  brochureUrl: { type: String, default: "" },
+  brochureFileName: { type: String, default: "" },
+  brochureFileData: { type: String, default: "" },
+  videoUrl: { type: String, default: "" },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+const ProgramConfigModel = mongoose.model("ProgramConfig", ProgramConfigSchema);
 
 /**
  * 🔒 URI MASKING UTILITY
@@ -394,6 +440,7 @@ if (hasValidScheme) {
       isMongoConnected = true;
       console.log("🟢 [Pehlakadam Server] Successfully connected to MongoDB Database Cluster.");
       seedDefaultResourcesIfEmpty(); // Seeds default resources if database is empty
+      seedDefaultProgramConfigsIfEmpty(); // Seeds default program configs if database is empty
     })
     .catch((err) => {
       console.error("🔴 [Pehlakadam Server] MongoDB connection failed:", err);
@@ -435,6 +482,31 @@ async function seedDefaultResourcesIfEmpty() {
     }
   } catch (err) {
     console.error("🔴 [Pehlakadam Server] Error seeding resources into MongoDB:", err);
+  }
+}
+
+/**
+ * 🌱 DEFAULT PROGRAM CONFIGURATION SEEDING ROUTINE
+ * Seeds MongoDB with default placeholder configs for each student track if empty.
+ */
+async function seedDefaultProgramConfigsIfEmpty() {
+  try {
+    const count = await ProgramConfigModel.countDocuments();
+    if (count === 0) {
+      console.log("🌱 [Pehlakadam Server] Seeding newly connected MongoDB with default program configs...");
+      const initialConfigs = [
+        { programKey: "6-8", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+        { programKey: "9-10", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+        { programKey: "11-12", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+        { programKey: "graduate", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+        { programKey: "kudos", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+        { programKey: "generalist", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+      ];
+      await ProgramConfigModel.insertMany(initialConfigs);
+      console.log("🌱 [Pehlakadam Server] Program configurations seeding completed successfully!");
+    }
+  } catch (err) {
+    console.error("🔴 [Pehlakadam Server] Error seeding program configs into MongoDB:", err);
   }
 }
 
@@ -534,6 +606,211 @@ app.post("/api/submit", async (req, res) => {
   } catch (error) {
     console.error("[Pehlakadam API] Error saving submission:", error);
     return res.status(500).json({ error: "Failed to submit form" });
+  }
+});
+
+// =========================================================================================
+// 🌐 API ENDPOINT: SUBMIT PAYMENT PROOF SCREENSHOT OR PDF
+// =========================================================================================
+app.post("/api/payment-submit", async (req, res) => {
+  try {
+    const { firstName, lastName, email, number, role, transactionId, fileData, fileName } = req.body;
+    
+    if (!firstName || !lastName || !email || !number || !role || !transactionId) {
+      return res.status(400).json({ error: "All text fields are required" });
+    }
+
+    let savedFileUrl = "";
+    let fileBufferLength = 0;
+
+    if (fileData && fileName) {
+      // Decode Base64 and write file to local disk
+      const matches = fileData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      let base64String = fileData;
+      if (matches && matches.length === 3) {
+        base64String = matches[2];
+      }
+      const fileBuffer = Buffer.from(base64String, "base64");
+      fileBufferLength = fileBuffer.length;
+      const tempId = Date.now().toString();
+      const safeFileName = `payment_${tempId}_${fileName.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
+      const filePath = path.join(UPLOADS_DIR, safeFileName);
+      fs.writeFileSync(filePath, fileBuffer);
+      savedFileUrl = safeFileName;
+    }
+
+    // Save to Mongo if connected, otherwise save to payments.json file
+    if (isMongoConnected) {
+      const newPayment = new PaymentModel({
+        firstName,
+        lastName,
+        email,
+        number,
+        role,
+        transactionId,
+        fileName: fileName || "",
+        fileType: fileData && fileData.includes(";") ? fileData.substring(5, fileData.indexOf(";")) : "application/octet-stream",
+        fileData: fileData || "", // full base64 string for ultimate persistence
+        createdAt: new Date()
+      });
+      await newPayment.save();
+      console.log(`[Pehlakadam MongoDB] Saved payment submission for ${firstName} ${lastName}`);
+    } else {
+      const payments = JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8"));
+      const newPayment = {
+        id: Date.now().toString(),
+        firstName,
+        lastName,
+        email,
+        number,
+        role,
+        transactionId,
+        fileName: fileName || "",
+        fileUrl: savedFileUrl,
+        createdAt: new Date().toISOString()
+      };
+      payments.push(newPayment);
+      fs.writeFileSync(PAYMENTS_FILE, JSON.stringify(payments, null, 2));
+      console.log(`[Pehlakadam JSON] Saved payment submission for ${firstName} ${lastName}`);
+    }
+
+    // compile a WhatsApp message alert
+    const rawWhatsAppNum = process.env.ADMIN_WHATSAPP_NUMBER || "919876501234";
+    const cleanAdminNum = rawWhatsAppNum.replace(/[^0-9]/g, "");
+
+    const whatsappMessageText = 
+      `💰 *Pehlakadam Payment Alert*\n\n` +
+      `🔥 *New Payment Proof Uploaded!*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `👤 *Name:* ${firstName} ${lastName}\n` +
+      `🎓 *Profile:* ${role}\n` +
+      `📧 *Email:* ${email}\n` +
+      `📞 *Contact:* ${number}\n` +
+      `🔑 *Transaction ID:* ${transactionId}\n` +
+      `📁 *Filename:* ${fileName || "None"}\n` +
+      (fileBufferLength ? `📊 *Size:* ${(fileBufferLength / (1024 * 1024)).toFixed(2)} MB\n` : "") +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `📅 *Date:* ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST\n` +
+      `⚡ *Action:* Please verify the Transaction ID and activate the student's access!`;
+
+    console.log(`\n💬 [Pehlakadam WhatsApp Gateway] Simulated Payment Proof Alert:`);
+    console.log(`   - Target Mobile Number: +${cleanAdminNum}`);
+    console.log(`   - Status: SUCCESSFULLY SENT & DISPATCHED`);
+    console.log(`   - Form Payload Captured:\n${whatsappMessageText}\n`);
+
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanAdminNum}&text=${encodeURIComponent(whatsappMessageText)}`;
+
+    return res.status(200).json({
+      success: true,
+      message: "Payment submitted successfully",
+      whatsappUrl
+    });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error saving payment proof:", error);
+    return res.status(500).json({ error: "Failed to upload payment proof. Please try again." });
+  }
+});
+
+// =========================================================================================
+// 🌐 API ENDPOINT: GET REGISTERED PAYMENTS (ADMIN SECURED)
+// =========================================================================================
+app.get("/api/payments", verifyAdmin, async (req, res) => {
+  try {
+    if (isMongoConnected) {
+      const docs = await PaymentModel.find().sort({ createdAt: -1 });
+      const payments = docs.map((doc) => ({
+        id: doc._id.toString(),
+        firstName: doc.firstName,
+        lastName: doc.lastName,
+        email: doc.email,
+        number: doc.number,
+        role: doc.role,
+        transactionId: doc.transactionId,
+        fileName: doc.fileName,
+        fileType: doc.fileType,
+        fileData: doc.fileData,
+        createdAt: doc.createdAt.toISOString()
+      }));
+      return res.status(200).json(payments);
+    } else {
+      const payments = JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8"));
+      return res.status(200).json(payments);
+    }
+  } catch (error) {
+    console.error("[Pehlakadam API] Error reading payments:", error);
+    return res.status(500).json({ error: "Failed to fetch payment submissions" });
+  }
+});
+
+// =========================================================================================
+// 🌐 API ENDPOINT: GET ALL PROGRAMS CONFIGURATIONS
+// =========================================================================================
+app.get("/api/programs-config", async (req, res) => {
+  try {
+    if (isMongoConnected) {
+      const configs = await ProgramConfigModel.find();
+      return res.status(200).json(configs);
+    } else {
+      const configs = JSON.parse(fs.readFileSync(PROGRAMS_CONFIG_FILE, "utf-8"));
+      return res.status(200).json(configs);
+    }
+  } catch (error) {
+    console.error("[Pehlakadam API] Error reading program configs:", error);
+    return res.status(500).json({ error: "Failed to fetch program configurations" });
+  }
+});
+
+// =========================================================================================
+// 🌐 API ENDPOINT: UPDATE PROGRAM CONFIGURATION (ADMIN SECURED)
+// =========================================================================================
+app.post("/api/programs-config/update", verifyAdmin, async (req, res) => {
+  try {
+    const { programKey, brochureUrl, brochureFileName, brochureFileData, videoUrl } = req.body;
+    
+    if (!programKey) {
+      return res.status(400).json({ error: "programKey is required" });
+    }
+
+    if (isMongoConnected) {
+      const updated = await ProgramConfigModel.findOneAndUpdate(
+        { programKey },
+        {
+          brochureUrl: brochureUrl || "",
+          brochureFileName: brochureFileName || "",
+          brochureFileData: brochureFileData || "",
+          videoUrl: videoUrl || "",
+          updatedAt: new Date()
+        },
+        { new: true, upsert: true }
+      );
+      console.log(`[Pehlakadam MongoDB] Updated program config for ${programKey}`);
+      return res.status(200).json({ success: true, config: updated });
+    } else {
+      const configs = JSON.parse(fs.readFileSync(PROGRAMS_CONFIG_FILE, "utf-8"));
+      const idx = configs.findIndex((c: any) => c.programKey === programKey);
+      
+      const newConfig = {
+        programKey,
+        brochureUrl: brochureUrl || "",
+        brochureFileName: brochureFileName || "",
+        brochureFileData: brochureFileData || "",
+        videoUrl: videoUrl || "",
+        updatedAt: new Date().toISOString()
+      };
+
+      if (idx !== -1) {
+        configs[idx] = newConfig;
+      } else {
+        configs.push(newConfig);
+      }
+
+      fs.writeFileSync(PROGRAMS_CONFIG_FILE, JSON.stringify(configs, null, 2));
+      console.log(`[Pehlakadam JSON] Updated program config for ${programKey}`);
+      return res.status(200).json({ success: true, config: newConfig });
+    }
+  } catch (error) {
+    console.error("[Pehlakadam API] Error updating program config:", error);
+    return res.status(500).json({ error: "Failed to update program configuration" });
   }
 });
 

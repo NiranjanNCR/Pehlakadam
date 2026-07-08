@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X, ChevronDown, Compass, CalendarCheck } from "lucide-react";
-import FormModal from "./FormModal";
+import PaymentModal from "./PaymentModal";
 import { motion, AnimatePresence } from "motion/react";
 
 export default function NavigationBar() {
@@ -134,7 +134,7 @@ export default function NavigationBar() {
 
         {/* Action Button & Menu Icon */}
         <div className="hidden md:flex items-center gap-4">
-          <FormModal />
+          <PaymentModal />
         </div>
 
         <button
@@ -218,8 +218,8 @@ export default function NavigationBar() {
                 Contact
               </Link>
 
-              <div className="pt-4 border-t border-zinc-100 flex justify-center">
-                <FormModal />
+              <div className="pt-4 border-t border-zinc-100 flex flex-col sm:flex-row gap-3 justify-center items-center">
+                <PaymentModal />
               </div>
             </div>
           </motion.div>
