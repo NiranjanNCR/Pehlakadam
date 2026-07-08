@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { X, Calendar, CheckCircle, MessageSquare } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { ContactFormData } from "../types";
+import { contactFormSchema } from "../lib/validation";
 
 export default function FormModal() {
   const [isOpen, setIsOpen] = useState(false);
@@ -15,6 +16,7 @@ export default function FormModal() {
     role: "",
     message: "",
   });
+  const [errors, setErrors] = useState<Partial<Record<keyof ContactFormData, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -24,19 +26,37 @@ export default function FormModal() {
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name as keyof ContactFormData]) {
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setSubmitError("");
+    setErrors({});
+
+    const result = contactFormSchema.safeParse(formData);
+    if (!result.success) {
+      const fieldErrors: Partial<Record<keyof ContactFormData, string>> = {};
+      result.error.issues.forEach((err) => {
+        const path = err.path[0] as keyof ContactFormData;
+        if (path) {
+          fieldErrors[path] = err.message;
+        }
+      });
+      setErrors(fieldErrors);
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       // 🚀 TRANSACTION: Post data to our full-stack endpoint
       const response = await fetch("/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(result.data),
       });
 
       if (response.ok) {
@@ -157,7 +177,7 @@ export default function FormModal() {
                       Take your first step today. Fill out your details below.
                     </p>
 
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    <form onSubmit={handleSubmit} className="space-y-4" noValidate>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
@@ -169,9 +189,15 @@ export default function FormModal() {
                             value={formData.firstName}
                             onChange={handleChange}
                             placeholder="John"
-                            required
-                            className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2.5 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                            className={`w-full rounded-xl bg-zinc-800 border px-4 py-2.5 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                              errors.firstName
+                                ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                                : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                            }`}
                           />
+                          {errors.firstName && (
+                            <p className="mt-1 text-[11px] text-red-400 font-medium text-left">{errors.firstName}</p>
+                          )}
                         </div>
                         <div>
                           <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
@@ -183,9 +209,15 @@ export default function FormModal() {
                             value={formData.lastName}
                             onChange={handleChange}
                             placeholder="Doe"
-                            required
-                            className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2.5 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                            className={`w-full rounded-xl bg-zinc-800 border px-4 py-2.5 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                              errors.lastName
+                                ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                                : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                            }`}
                           />
+                          {errors.lastName && (
+                            <p className="mt-1 text-[11px] text-red-400 font-medium text-left">{errors.lastName}</p>
+                          )}
                         </div>
                       </div>
 
@@ -200,9 +232,15 @@ export default function FormModal() {
                             value={formData.email}
                             onChange={handleChange}
                             placeholder="john@example.com"
-                            required
-                            className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2.5 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                            className={`w-full rounded-xl bg-zinc-800 border px-4 py-2.5 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                              errors.email
+                                ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                                : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                            }`}
                           />
+                          {errors.email && (
+                            <p className="mt-1 text-[11px] text-red-400 font-medium text-left">{errors.email}</p>
+                          )}
                         </div>
                         <div>
                           <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
@@ -214,9 +252,15 @@ export default function FormModal() {
                             value={formData.number}
                             onChange={handleChange}
                             placeholder="+91 98765 43210"
-                            required
-                            className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2.5 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                            className={`w-full rounded-xl bg-zinc-800 border px-4 py-2.5 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                              errors.number
+                                ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                                : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                            }`}
                           />
+                          {errors.number && (
+                            <p className="mt-1 text-[11px] text-red-400 font-medium text-left">{errors.number}</p>
+                          )}
                         </div>
                       </div>
 
@@ -228,8 +272,11 @@ export default function FormModal() {
                           name="role"
                           value={formData.role}
                           onChange={handleChange}
-                          required
-                          className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2.5 text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          className={`w-full rounded-xl bg-zinc-800 border px-4 py-2.5 text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 ${
+                            errors.role
+                              ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                              : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          }`}
                         >
                           <option value="" disabled>
                             Select a program
@@ -241,6 +288,9 @@ export default function FormModal() {
                           <option value="UG/Graduate/PG">UG/Graduate/PG</option>
                           <option value="Generalist to Specialist">Generalist to Specialist</option>
                         </select>
+                        {errors.role && (
+                          <p className="mt-1 text-[11px] text-red-400 font-medium text-left">{errors.role}</p>
+                        )}
                       </div>
 
                       <div>
@@ -252,10 +302,16 @@ export default function FormModal() {
                           value={formData.message}
                           onChange={handleChange}
                           placeholder="Tell us about your dreams, challenges, or current questions..."
-                          required
                           rows={3}
-                          className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2.5 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 resize-none"
+                          className={`w-full rounded-xl bg-zinc-800 border px-4 py-2.5 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 resize-none ${
+                            errors.message
+                              ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                              : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          }`}
                         ></textarea>
+                        {errors.message && (
+                          <p className="mt-1 text-[11px] text-red-400 font-medium text-left">{errors.message}</p>
+                        )}
                       </div>
 
                       {submitError && (

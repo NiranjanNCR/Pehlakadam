@@ -4,6 +4,7 @@ import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
+import { contactFormSchema } from "./src/lib/validation";
 
 // Load environment variables with fallback to .env.example
 const envPath = path.join(process.cwd(), ".env");
@@ -25,6 +26,9 @@ const RESOURCES_FILE = path.join(process.cwd(), "resources.json");
 const UPDATES_FILE = path.join(process.cwd(), "updates.json");
 const AUTHORIZED_NUMBERS_FILE = path.join(process.cwd(), "authorized_numbers.json");
 const PROGRAMS_CONFIG_FILE = path.join(process.cwd(), "programs_config.json");
+const DIAGNOSTIC_TESTS_FILE = path.join(process.cwd(), "diagnostic_tests.json");
+const DIAGNOSTIC_SUBMISSIONS_FILE = path.join(process.cwd(), "diagnostic_submissions.json");
+const SYSTEM_STATS_FILE = path.join(process.cwd(), "system_stats.json");
 const UPLOADS_DIR = path.join(process.cwd(), "uploads");
 
 // Middleware
@@ -44,6 +48,22 @@ if (!fs.existsSync(PAYMENTS_FILE)) {
   fs.writeFileSync(PAYMENTS_FILE, JSON.stringify([], null, 2));
 }
 
+if (!fs.existsSync(DIAGNOSTIC_TESTS_FILE)) {
+  fs.writeFileSync(DIAGNOSTIC_TESTS_FILE, JSON.stringify([], null, 2));
+}
+
+if (!fs.existsSync(DIAGNOSTIC_SUBMISSIONS_FILE)) {
+  fs.writeFileSync(DIAGNOSTIC_SUBMISSIONS_FILE, JSON.stringify([], null, 2));
+}
+
+if (!fs.existsSync(SYSTEM_STATS_FILE)) {
+  fs.writeFileSync(SYSTEM_STATS_FILE, JSON.stringify({
+    studentsCount: "10K+",
+    expertsCount: "15+",
+    successRate: "99%"
+  }, null, 2));
+}
+
 if (!fs.existsSync(PROGRAMS_CONFIG_FILE)) {
   const initialConfigs = [
     { programKey: "6-8", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
@@ -60,6 +80,11 @@ if (!fs.existsSync(PROGRAMS_CONFIG_FILE)) {
 const placeholders = [
   { file: "placeholder_disc_guide.pdf", text: "PEHLAKADAM GUIDEBOOK: DISC Personality evaluation, mapping behavior types (Dominance, Influence, Steadiness, Conscientiousness)." },
   { file: "placeholder_mbti_career.pdf", text: "PEHLAKADAM CAREER GRID: MBTI 16-Personalities scientific mapping to professional streams and corporate domains." },
+  { file: "placeholder_16pf_guide.pdf", text: "PEHLAKADAM GUIDEBOOK: 16PF Personality Factor Questionnaire Guide - 16PF Career matching guidelines." },
+  { file: "placeholder_epi_guide.pdf", text: "PEHLAKADAM GUIDEBOOK: Eysenck Personality Inventory Guide - EPI Temperament scales details." },
+  { file: "placeholder_enneagram_guide.pdf", text: "PEHLAKADAM GUIDEBOOK: Enneagram Core Test Guide - 9 Interconnected Personality Types explanations." },
+  { file: "placeholder_caliper_guide.pdf", text: "PEHLAKADAM GUIDEBOOK: Caliper Profile Guide - Job performance matching indicators." },
+  { file: "placeholder_mmpi_guide.pdf", text: "PEHLAKADAM GUIDEBOOK: Minnesota Multiphasic Test Guide - MMPI Clinical Insights framework." },
   { file: "placeholder_grade_planner.pdf", text: "PEHLAKADAM STUDY PLANNER: Step-by-step scheduling and subject timetables designed for Grade 8-12." },
   { file: "placeholder_resume.docx", text: "PEHLAKADAM RESUME BUILDER: ATS-compliant CV templates curated by senior BITS Pilani advisors." }
 ];
@@ -89,6 +114,56 @@ const defaultResources = [
     type: "pdf",
     format: "PDF (3.1 MB)",
     fileUrl: "placeholder_mbti_career.pdf",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "16pf-guide",
+    title: "Personality Factor Questionnaire",
+    category: "16PF Career matching",
+    description: "Evaluate primary personality factors to identify potential academic paths and match with aligned career trajectories.",
+    type: "pdf",
+    format: "PDF (2.0 MB)",
+    fileUrl: "placeholder_16pf_guide.pdf",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "epi-guide",
+    title: "Eysenck Personality Inventory",
+    category: "EPI Temperament scales",
+    description: "Measure extraversion, introversion, and neuroticism traits to understand personal temperament scales and learning style adaptability.",
+    type: "pdf",
+    format: "PDF (1.6 MB)",
+    fileUrl: "placeholder_epi_guide.pdf",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "enneagram-guide",
+    title: "Enneagram Core Test",
+    category: "9 Interconnected Personality Types",
+    description: "Explore the 9 interconnected personality types to find core motivators, social patterns, and professional environments for growth.",
+    type: "pdf",
+    format: "PDF (2.2 MB)",
+    fileUrl: "placeholder_enneagram_guide.pdf",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "caliper-guide",
+    title: "Caliper Profile",
+    category: "Job performance matching",
+    description: "Analyze intrinsic motivation, cognitive abilities, and potential job performance indicators to discover suitable vocational paths.",
+    type: "pdf",
+    format: "PDF (2.5 MB)",
+    fileUrl: "placeholder_caliper_guide.pdf",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "mmpi-guide",
+    title: "Minnesota Multiphasic Test",
+    category: "MMPI Clinical Insights",
+    description: "A comprehensive psychometric tool used for deep personality structure evaluation and clinical-level self-awareness profiling.",
+    type: "pdf",
+    format: "PDF (3.0 MB)",
+    fileUrl: "placeholder_mmpi_guide.pdf",
     createdAt: new Date().toISOString()
   },
   {
@@ -282,10 +357,64 @@ const ProgramConfigSchema = new mongoose.Schema({
   brochureFileName: { type: String, default: "" },
   brochureFileData: { type: String, default: "" },
   videoUrl: { type: String, default: "" },
+  title: { type: String, default: "" },
+  subtitle: { type: String, default: "" },
+  originalPrice: { type: String, default: "" },
+  currentPrice: { type: String, default: "" },
+  features: { type: String, default: "" },
   updatedAt: { type: Date, default: Date.now }
 });
 
 const ProgramConfigModel = mongoose.model("ProgramConfig", ProgramConfigSchema);
+
+// 📂 SCHEMA 9: SYSTEM STATS SCHEMA
+const SystemStatsSchema = new mongoose.Schema({
+  studentsCount: { type: String, default: "10K+" },
+  expertsCount: { type: String, default: "15+" },
+  successRate: { type: String, default: "99%" },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+const SystemStatsModel = mongoose.model("SystemStats", SystemStatsSchema);
+
+// 📂 SCHEMA 7: SCIENTIFIC DIAGNOSTICS TESTS SCHEMA
+const DiagnosticTestSchema = new mongoose.Schema({
+  key: { type: String, required: true, unique: true },
+  title: { type: String, required: true },
+  subtitle: { type: String },
+  description: { type: String },
+  customFieldLabel: { type: String, default: "Specific Details" },
+  questions: [{
+    id: { type: String, required: true },
+    text: { type: String, required: true },
+    options: [{
+      id: { type: String, required: true },
+      text: { type: String, required: true },
+      value: { type: String, required: true }
+    }]
+  }],
+  updatedAt: { type: Date, default: Date.now }
+});
+
+const DiagnosticTestModel = mongoose.model("DiagnosticTest", DiagnosticTestSchema);
+
+// 📂 SCHEMA 8: DIAGNOSTIC SUBMISSIONS SCHEMA
+const DiagnosticSubmissionSchema = new mongoose.Schema({
+  user: {
+    name: { type: String, required: true },
+    email: { type: String, required: true },
+    phone: { type: String, required: true },
+    role: { type: String, required: true },
+    specialDetail: { type: String }
+  },
+  testKey: { type: String, required: true },
+  testTitle: { type: String, required: true },
+  answers: { type: Map, of: String },
+  score: { type: mongoose.Schema.Types.Mixed },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const DiagnosticSubmissionModel = mongoose.model("DiagnosticSubmission", DiagnosticSubmissionSchema);
 
 /**
  * 🔒 URI MASKING UTILITY
@@ -441,6 +570,8 @@ if (hasValidScheme) {
       console.log("🟢 [Pehlakadam Server] Successfully connected to MongoDB Database Cluster.");
       seedDefaultResourcesIfEmpty(); // Seeds default resources if database is empty
       seedDefaultProgramConfigsIfEmpty(); // Seeds default program configs if database is empty
+      seedDefaultDiagnosticsIfEmpty(); // Seeds default diagnostic tests if empty
+      seedDefaultSystemStatsIfEmpty(); // Seeds default system stats if empty
     })
     .catch((err) => {
       console.error("🔴 [Pehlakadam Server] MongoDB connection failed:", err);
@@ -464,21 +595,28 @@ if (hasValidScheme) {
  */
 async function seedDefaultResourcesIfEmpty() {
   try {
-    const count = await ResourceModel.countDocuments();
-    if (count === 0) {
-      console.log("🌱 [Pehlakadam Server] Seeding newly connected MongoDB instance with default Pehlakadam resources...");
-      const mapped = defaultResources.map((res) => ({
-        title: res.title,
-        category: res.category,
-        description: res.description,
-        type: res.type,
-        format: res.format,
-        videoUrl: res.videoUrl,
-        fileUrl: res.fileUrl,
-        createdAt: new Date(res.createdAt)
-      }));
-      await ResourceModel.insertMany(mapped);
-      console.log("🌱 [Pehlakadam Server] Database seeding completed successfully!");
+    console.log("🌱 [Pehlakadam Server] Synchronizing default resources with MongoDB...");
+    let seededCount = 0;
+    for (const res of defaultResources) {
+      const exists = await ResourceModel.findOne({ title: res.title });
+      if (!exists) {
+        await ResourceModel.create({
+          title: res.title,
+          category: res.category,
+          description: res.description,
+          type: res.type as "pdf" | "video",
+          format: res.format,
+          videoUrl: res.videoUrl,
+          fileUrl: res.fileUrl,
+          createdAt: new Date(res.createdAt)
+        });
+        seededCount++;
+      }
+    }
+    if (seededCount > 0) {
+      console.log(`🌱 [Pehlakadam Server] Seeding complete! Added ${seededCount} new resources.`);
+    } else {
+      console.log("🌱 [Pehlakadam Server] All default resources are already in the database.");
     }
   } catch (err) {
     console.error("🔴 [Pehlakadam Server] Error seeding resources into MongoDB:", err);
@@ -510,6 +648,457 @@ async function seedDefaultProgramConfigsIfEmpty() {
   }
 }
 
+const DEFAULT_DIAGNOSTICS = [
+  {
+    key: "disc",
+    title: "DISC Assessment",
+    subtitle: "Dominance, Influence, Steadiness, Conscientiousness",
+    description: "Measures four core dimensions of behavior to understand communication, teamwork, and task styles.",
+    customFieldLabel: "Primary Career Goal",
+    questions: [
+      {
+        id: "disc_q1",
+        text: "When facing a major challenge or obstacle, what is your immediate response?",
+        options: [
+          { id: "o1", text: "Take charge directly and focus on a fast, decisive solution.", value: "D" },
+          { id: "o2", text: "Gather people together to discuss, motivate, and brainstorm.", value: "I" },
+          { id: "o3", text: "Step back, remain calm, and work methodically to maintain stability.", value: "S" },
+          { id: "o4", text: "Analyze all data and details thoroughly before making a precise plan.", value: "C" }
+        ]
+      },
+      {
+        id: "disc_q2",
+        text: "How would others most likely describe your communication style?",
+        options: [
+          { id: "o1", text: "Direct, assertive, and results-oriented.", value: "D" },
+          { id: "o2", text: "Enthusiastic, persuasive, and outgoing.", value: "I" },
+          { id: "o3", text: "Patient, supportive, and an active listener.", value: "S" },
+          { id: "o4", text: "Diplomatic, analytical, and detail-focused.", value: "C" }
+        ]
+      },
+      {
+        id: "disc_q3",
+        text: "In a team or group project, which role do you naturally fall into?",
+        options: [
+          { id: "o1", text: "The driver who sets targets and pushes for completion.", value: "D" },
+          { id: "o2", text: "The promoter who builds relationships and keeps energy high.", value: "I" },
+          { id: "o3", text: "The reliable team player who coordinates and supports others.", value: "S" },
+          { id: "o4", text: "The quality checker who ensures standards and accuracy are met.", value: "C" }
+        ]
+      },
+      {
+        id: "disc_q4",
+        text: "What is your biggest fear or source of discomfort at work or school?",
+        options: [
+          { id: "o1", text: "Losing control, lack of progress, or wasting time.", value: "D" },
+          { id: "o2", text: "Social rejection, isolation, or being ignored.", value: "I" },
+          { id: "o3", text: "Sudden changes, instability, or conflict.", value: "S" },
+          { id: "o4", text: "Making mistakes, low standards, or lack of clear guidelines.", value: "C" }
+        ]
+      },
+      {
+        id: "disc_q5",
+        text: "What motivates you the most to excel?",
+        options: [
+          { id: "o1", text: "Independence, power, and achieving major results.", value: "D" },
+          { id: "o2", text: "Recognition, praise, and connecting with others.", value: "I" },
+          { id: "o3", text: "Cooperation, security, and a peaceful environment.", value: "S" },
+          { id: "o4", text: "Precision, quality work, and gaining deep expertise.", value: "C" }
+        ]
+      }
+    ]
+  },
+  {
+    key: "mbti",
+    title: "Myers-Briggs Type Indicator (MBTI)",
+    subtitle: "16 Psychological Personalities",
+    description: "Evaluates your preferences across four core cognitive dichotomies to identify one of the 16 personality types.",
+    customFieldLabel: "Current Stream / Field of Study",
+    questions: [
+      {
+        id: "mbti_q1",
+        text: "After a busy and socially active week, how do you recharge your energy?",
+        options: [
+          { id: "o1", text: "By spending time with friends, going out, or socializing.", value: "E" },
+          { id: "o2", text: "By spending quiet time alone, reading, or relaxing in private.", value: "I" }
+        ]
+      },
+      {
+        id: "mbti_q2",
+        text: "When in a social gathering, do you usually...",
+        options: [
+          { id: "o1", text: "Start conversations with many people, including strangers.", value: "E" },
+          { id: "o2", text: "Keep conversations to a few people you already know well.", value: "I" }
+        ]
+      },
+      {
+        id: "mbti_q3",
+        text: "When learning a new subject, what type of information appeals to you more?",
+        options: [
+          { id: "o1", text: "Practical facts, concrete details, and real-world examples.", value: "S" },
+          { id: "o2", text: "General concepts, theoretical models, and future possibilities.", value: "N" }
+        ]
+      },
+      {
+        id: "mbti_q4",
+        text: "You tend to trust...",
+        options: [
+          { id: "o1", text: "Direct experience, solid evidence, and historical data.", value: "S" },
+          { id: "o2", text: "Your gut feelings, subtle patterns, and creative insights.", value: "N" }
+        ]
+      },
+      {
+        id: "mbti_q5",
+        text: "When making a difficult decision, what do you prioritize?",
+        options: [
+          { id: "o1", text: "Logical analysis, objective truth, and fairness.", value: "T" },
+          { id: "o2", text: "Impact on people, personal values, and harmony.", value: "F" }
+        ]
+      },
+      {
+        id: "mbti_q6",
+        text: "How do others view your decision-making style?",
+        options: [
+          { id: "o1", text: "Reasonable, analytical, and sometimes tough-minded.", value: "T" },
+          { id: "o2", text: "Warm, empathetic, and sensitive to feelings.", value: "F" }
+        ]
+      },
+      {
+        id: "mbti_q7",
+        text: "How do you prefer to manage your daily schedule and tasks?",
+        options: [
+          { id: "o1", text: "Having a clear plan, checking off checklists, and avoiding last-minute rushes.", value: "J" },
+          { id: "o2", text: "Remaining flexible, adapting to opportunities, and working under pressure.", value: "P" }
+        ]
+      },
+      {
+        id: "mbti_q8",
+        text: "Your work and study spaces are typically...",
+        options: [
+          { id: "o1", text: "Organized, neat, and highly structured.", value: "J" },
+          { id: "o2", text: "Relaxed, organic, and occasionally messy.", value: "P" }
+        ]
+      }
+    ]
+  },
+  {
+    key: "16pf",
+    title: "Personality Factor Questionnaire",
+    subtitle: "16PF Career Matching",
+    description: "Evaluates your primary work, thinking, and communication styles to map you to optimal career paths.",
+    customFieldLabel: "Preferred Work / Study Style",
+    questions: [
+      {
+        id: "pf_q1",
+        text: "How do you approach complex problems requiring long-term analysis?",
+        options: [
+          { id: "o1", text: "Break it down systematically and work in absolute quiet.", value: "Analytical" },
+          { id: "o2", text: "Collaborate immediately with others and experiment actively.", value: "Collaborative" },
+          { id: "o3", text: "Follow established guidelines and trusted standards.", value: "Structured" }
+        ]
+      },
+      {
+        id: "pf_q2",
+        text: "When team roles are being assigned, you typically prefer:",
+        options: [
+          { id: "o1", text: "Direct leadership, setting strategic goals.", value: "Dominance" },
+          { id: "o2", text: "Execution, ensuring all tasks conform strictly to rules.", value: "Rule-Conscious" },
+          { id: "o3", text: "Facilitating communication and helping resolve disputes.", value: "Warmth" }
+        ]
+      },
+      {
+        id: "pf_q3",
+        text: "If a project plan changes suddenly at the last minute, you:",
+        options: [
+          { id: "o1", text: "Adapt quickly and enjoy the challenge of finding new ways.", value: "Open-To-Change" },
+          { id: "o2", text: "Feel anxious or stressed about the lack of structured planning.", value: "Structured" },
+          { id: "o3", text: "Quietly double-check the logic of the change before acting.", value: "Vigilant" }
+        ]
+      },
+      {
+        id: "pf_q4",
+        text: "In terms of personal reflection and internal thinking:",
+        options: [
+          { id: "o1", text: "You frequently daydream and analyze philosophical ideas.", value: "Abstracted" },
+          { id: "o2", text: "You focus strictly on realistic, practical, hands-on tasks.", value: "Practical" }
+        ]
+      },
+      {
+        id: "pf_q5",
+        text: "When working in stressful conditions, you remain:",
+        options: [
+          { id: "o1", text: "Calm, emotionally stable, and focused on the big picture.", value: "Stable" },
+          { id: "o2", text: "Sensitive, highly alert, and reactive to details.", value: "Sensitive" }
+        ]
+      }
+    ]
+  },
+  {
+    key: "epi",
+    title: "Eysenck Personality Inventory",
+    subtitle: "EPI Temperament Scales",
+    description: "Evaluates your biological temperament across Extraversion (E) and Neuroticism (N) scales to map to standard temperaments.",
+    customFieldLabel: "Primary Stress Trigger / Coping Style",
+    questions: [
+      {
+        id: "epi_q1",
+        text: "Do you tend to keep in the background on social occasions?",
+        options: [
+          { id: "o1", text: "No, you love being active and part of the conversation.", value: "E" },
+          { id: "o2", text: "Yes, you prefer to stay quiet and observe.", value: "I" }
+        ]
+      },
+      {
+        id: "epi_q2",
+        text: "Does your mood often go up and down without any obvious reason?",
+        options: [
+          { id: "o1", text: "Yes, your emotions fluctuate quite frequently.", value: "N" },
+          { id: "o2", text: "No, you are generally emotionally steady and calm.", value: "S" }
+        ]
+      },
+      {
+        id: "epi_q3",
+        text: "Would you say that you are a highly lively and talkative person?",
+        options: [
+          { id: "o1", text: "Absolutely, you talk a lot and express energy.", value: "E" },
+          { id: "o2", text: "Not really, you are reserved and think before talking.", value: "I" }
+        ]
+      },
+      {
+        id: "epi_q4",
+        text: "Do you often worry about things that you should not have done or said?",
+        options: [
+          { id: "o1", text: "Yes, you dwell on conversations and worry a lot.", value: "N" },
+          { id: "o2", text: "No, you let go of things easily and do not worry.", value: "S" }
+        ]
+      },
+      {
+        id: "epi_q5",
+        text: "When things go wrong, do you easily lose your temper or get upset?",
+        options: [
+          { id: "o1", text: "Yes, you react intensely and feel stressed.", value: "N" },
+          { id: "o2", text: "No, you stay cool and handle it calmly.", value: "S" }
+        ]
+      }
+    ]
+  },
+  {
+    key: "enneagram",
+    title: "Enneagram Core Test",
+    subtitle: "9 Interconnected Personality Types",
+    description: "Uncovers your core motivations, deepest fears, and developmental pathways among the 9 archetypes.",
+    customFieldLabel: "Your Core Life Motivation",
+    questions: [
+      {
+        id: "en_q1",
+        text: "What is your deepest core desire or ultimate goal in life?",
+        options: [
+          { id: "o1", text: "To be perfect, upright, and have high moral standards.", value: "Type 1 - Reformer" },
+          { id: "o2", text: "To feel loved, helpful, and deeply appreciated.", value: "Type 2 - Helper" },
+          { id: "o3", text: "To be successful, admired, and highly productive.", value: "Type 3 - Achiever" },
+          { id: "o4", text: "To be unique, authentic, and understand your deep feelings.", value: "Type 4 - Individualist" }
+        ]
+      },
+      {
+        id: "en_q2",
+        text: "How do you typically react when a problem arises?",
+        options: [
+          { id: "o1", text: "Analyze it intellectually, seeking knowledge.", value: "Type 5 - Investigator" },
+          { id: "o2", text: "Anticipate risks, seek security, and consult systems.", value: "Type 6 - Loyalist" },
+          { id: "o3", text: "Avoid pain, find fun alternatives and solutions.", value: "Type 7 - Enthusiast" },
+          { id: "o4", text: "Take direct control and defend your boundaries.", value: "Type 8 - Challenger" },
+          { id: "o5", text: "Keep the peace and go with the flow.", value: "Type 9 - Peacemaker" }
+        ]
+      },
+      {
+        id: "en_q3",
+        text: "When working in a team, you feel most comfortable when:",
+        options: [
+          { id: "o1", text: "Everything is organized correctly and matches high standards.", value: "Type 1 - Reformer" },
+          { id: "o2", text: "You can support members and ensure warmth.", value: "Type 2 - Helper" },
+          { id: "o3", text: "The team is hitting goals and achieving milestones.", value: "Type 3 - Achiever" },
+          { id: "o4", text: "The project allows for personal expression and uniqueness.", value: "Type 4 - Individualist" }
+        ]
+      },
+      {
+        id: "en_q4",
+        text: "Your attitude towards rules and security is usually:",
+        options: [
+          { id: "o1", text: "You question them intellectually to find the absolute truth.", value: "Type 5 - Investigator" },
+          { id: "o2", text: "You respect rules for safety but prepare for the worst.", value: "Type 6 - Loyalist" },
+          { id: "o3", text: "You view rules as limiting and seek variety.", value: "Type 7 - Enthusiast" },
+          { id: "o4", text: "You make your own rules and resist control.", value: "Type 8 - Challenger" }
+        ]
+      },
+      {
+        id: "en_q5",
+        text: "If someone disagrees with you, your immediate reaction is to:",
+        options: [
+          { id: "o1", text: "Correct them with facts and objective logic.", value: "Type 1 - Reformer" },
+          { id: "o2", text: "Adapt or compromise to preserve a peaceful relationship.", value: "Type 9 - Peacemaker" },
+          { id: "o3", text: "Assert your position strongly and engage in debate.", value: "Type 8 - Challenger" },
+          { id: "o4", text: "Feel personally misunderstood or unique.", value: "Type 4 - Individualist" }
+        ]
+      }
+    ]
+  },
+  {
+    key: "caliper",
+    title: "Caliper Profile",
+    subtitle: "Job Performance Matching",
+    description: "Aligns your cognitive styles and personal drivers directly with high-performance job domains and organizational roles.",
+    customFieldLabel: "Desired Professional Field / Industry",
+    questions: [
+      {
+        id: "cal_q1",
+        text: "How do you handle persuading someone who initially disagrees with you?",
+        options: [
+          { id: "o1", text: "Listen deeply to understand their needs, then adjust your pitch.", value: "High Empathy" },
+          { id: "o2", text: "Present powerful facts, speak assertively, and push for agreement.", value: "High Assertiveness" },
+          { id: "o3", text: "Feel highly energized by the challenge of winning them over.", value: "High Ego-Drive" },
+          { id: "o4", text: "Find a structured, standard policy to settle the argument.", value: "High Structure" }
+        ]
+      },
+      {
+        id: "cal_q2",
+        text: "When managing multiple tasks with tight deadlines, you:",
+        options: [
+          { id: "o1", text: "Excel at shifting focus dynamically and taking quick risks.", value: "High Flexibility" },
+          { id: "o2", text: "Methodically schedule each hour and avoid any deviations.", value: "High Organization" },
+          { id: "o3", text: "Take absolute responsibility and direct others on what to do.", value: "High Leadership" }
+        ]
+      },
+      {
+        id: "cal_q3",
+        text: "In terms of analyzing data and logical systems, you:",
+        options: [
+          { id: "o1", text: "Love solving abstract puzzles and identifying hidden patterns.", value: "High Cognitive" },
+          { id: "o2", text: "Prefer practical, hands-on application over abstract theories.", value: "High Practical" }
+        ]
+      },
+      {
+        id: "cal_q4",
+        text: "What keeps you going after experiencing a significant setback?",
+        options: [
+          { id: "o1", text: "The strong inner desire to prove your capability and win.", value: "High Ego-Drive" },
+          { id: "o2", text: "Having a supportive team and maintaining stable workflows.", value: "High Sociability" }
+        ]
+      },
+      {
+        id: "cal_q5",
+        text: "When presenting your ideas in a public meeting, you:",
+        options: [
+          { id: "o1", text: "Express yourself with high confidence and relish the attention.", value: "High Social Boldness" },
+          { id: "o2", text: "Write down a detailed script in advance to ensure total accuracy.", value: "High Thoroughness" }
+        ]
+      }
+    ]
+  },
+  {
+    key: "mmpi",
+    title: "Minnesota Multiphasic Test",
+    subtitle: "MMPI Clinical Insights",
+    description: "Evaluates your psychological coping capacity, emotional stability, and behavioral tendencies under stress.",
+    customFieldLabel: "General Emotional State Recently",
+    questions: [
+      {
+        id: "mmp_q1",
+        text: "Under high academic or professional pressure, how do you feel physically?",
+        options: [
+          { id: "o1", text: "You frequently develop headaches, fatigue, or stomach discomfort.", value: "Somatic Tendency" },
+          { id: "o2", text: "Your physical state remains stable; you manage stress mentally.", value: "Somatic Stability" }
+        ]
+      },
+      {
+        id: "mmp_q2",
+        text: "Do you occasionally feel like people around you are critical or talking about you?",
+        options: [
+          { id: "o1", text: "Yes, you often feel defensive and suspicious of others' motives.", value: "Paranoia Tendency" },
+          { id: "o2", text: "No, you rarely worry about what others say or think behind your back.", value: "Social Confidence" }
+        ]
+      },
+      {
+        id: "mmp_q3",
+        text: "How would you describe your level of daily energy and excitement?",
+        options: [
+          { id: "o1", text: "Extremely high; you often take on too many projects and speak rapidly.", value: "Hypomania Tendency" },
+          { id: "o2", text: "Steady and balanced; you work at a sustainable, moderate pace.", value: "Balanced Energy" },
+          { id: "o3", text: "Often quite low; you struggle with motivation and feel downcast.", value: "Depression Tendency" }
+        ]
+      },
+      {
+        id: "mmp_q4",
+        text: "When in a social setting, how comfortable do you feel interacting?",
+        options: [
+          { id: "o1", text: "You feel extremely anxious, prefer to stay alone, and avoid crowds.", value: "Social Introversion" },
+          { id: "o2", text: "You are highly comfortable, outgoing, and thrive in group environments.", value: "Social Extraversion" }
+        ]
+      },
+      {
+        id: "mmp_q5",
+        text: "How often do you find yourself double-checking your actions, thoughts, or doors?",
+        options: [
+          { id: "o1", text: "Constantly; you worry excessively about mistakes and small details.", value: "Anxiety Tendency" },
+          { id: "o2", text: "Occasionally or normally; you trust your actions and move on quickly.", value: "High Self-Trust" }
+        ]
+      }
+    ]
+  }
+];
+
+async function seedDefaultDiagnosticsIfEmpty() {
+  try {
+    let shouldSeedJson = false;
+    try {
+      if (fs.existsSync(DIAGNOSTIC_TESTS_FILE)) {
+        const content = fs.readFileSync(DIAGNOSTIC_TESTS_FILE, "utf-8").trim();
+        if (content === "" || content === "[]") {
+          shouldSeedJson = true;
+        }
+      } else {
+        shouldSeedJson = true;
+      }
+    } catch (e) {
+      shouldSeedJson = true;
+    }
+
+    if (shouldSeedJson) {
+      fs.writeFileSync(DIAGNOSTIC_TESTS_FILE, JSON.stringify(DEFAULT_DIAGNOSTICS, null, 2));
+      console.log("🌱 [Pehlakadam Server] JSON file diagnostics seeding completed!");
+    }
+
+    if (isMongoConnected) {
+      const count = await DiagnosticTestModel.countDocuments();
+      if (count === 0) {
+        console.log("🌱 [Pehlakadam Server] Seeding newly connected MongoDB with default diagnostic tests...");
+        await DiagnosticTestModel.insertMany(DEFAULT_DIAGNOSTICS);
+        console.log("🌱 [Pehlakadam Server] MongoDB diagnostic tests seeding completed successfully!");
+      }
+    }
+  } catch (err) {
+    console.error("🔴 [Pehlakadam Server] Error seeding diagnostic tests:", err);
+  }
+}
+
+async function seedDefaultSystemStatsIfEmpty() {
+  try {
+    if (isMongoConnected) {
+      const count = await SystemStatsModel.countDocuments();
+      if (count === 0) {
+        console.log("🌱 [Pehlakadam Server] Seeding newly connected MongoDB with default system stats...");
+        await SystemStatsModel.create({
+          studentsCount: "10K+",
+          expertsCount: "15+",
+          successRate: "99%"
+        });
+        console.log("🌱 [Pehlakadam Server] MongoDB system stats seeding completed successfully!");
+      }
+    }
+  } catch (err) {
+    console.error("🔴 [Pehlakadam Server] Error seeding system stats:", err);
+  }
+}
+
 // =========================================================================================
 // 🌐 API ENDPOINT 1: SUBMISSIONS & CONSULTATION LEADS REGISTRATION
 // =========================================================================================
@@ -520,11 +1109,13 @@ async function seedDefaultProgramConfigsIfEmpty() {
 // =========================================================================================
 app.post("/api/submit", async (req, res) => {
   try {
-    const { firstName, lastName, email, number, role, message } = req.body;
-    
-    if (!firstName || !lastName || !email || !number || !role || !message) {
-      return res.status(400).json({ error: "All fields are required" });
+    const result = contactFormSchema.safeParse(req.body);
+    if (!result.success) {
+      const firstError = result.error.issues[0]?.message || "Invalid form data";
+      return res.status(400).json({ error: firstError, details: result.error.issues });
     }
+
+    const { firstName, lastName, email, number, role, message } = result.data;
 
     // =========================================================================================
     // 💾 STEP 1: DATABASE TRANSACTION PHASE (MONGODB OR JSON LOCAL FALLBACK DEPOSITORY)
@@ -747,13 +1338,67 @@ app.get("/api/payments", verifyAdmin, async (req, res) => {
 // =========================================================================================
 app.get("/api/programs-config", async (req, res) => {
   try {
+    const keys = ["6-8", "9-10", "11-12", "graduate", "kudos", "generalist", "card_basic", "card_standard", "card_premium"];
+    const defaults: Record<string, any> = {
+      "6-8": { programKey: "6-8", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+      "9-10": { programKey: "9-10", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+      "11-12": { programKey: "11-12", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+      "graduate": { programKey: "graduate", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+      "kudos": { programKey: "kudos", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+      "generalist": { programKey: "generalist", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
+      "card_basic": {
+        programKey: "card_basic",
+        videoUrl: "https://www.youtube.com/embed/WfvZ2NsThws?si=dhmxlQYloLZYa08Q",
+        title: "Basic Career Success",
+        subtitle: "For Right Subjects & Insights",
+        originalPrice: "₹15,000",
+        currentPrice: "₹8,500",
+        features: "Intro session\n1 Counselling Session\nDetailed Career Report\nCareer Path Recommendation\nAccess Career bank\n1 Follow up Call\nCollege & Courses"
+      },
+      "card_standard": {
+        programKey: "card_standard",
+        videoUrl: "https://www.youtube.com/embed/WfvZ2NsThws?si=dhmxlQYloLZYa08Q",
+        title: "Advanced Career Success",
+        subtitle: "For Optimal Career Decisions",
+        originalPrice: "₹25,000",
+        currentPrice: "₹18,500",
+        features: "Intro session\n2 Counselling Sessions\nDetailed Career Report\nCareer Path Recommendation\nAccess Career bank\n2 Follow up Calls\nCollege & Courses"
+      },
+      "card_premium": {
+        programKey: "card_premium",
+        videoUrl: "https://www.youtube.com/embed/WfvZ2NsThws?si=dhmxlQYloLZYa08Q",
+        title: "Full Career Coaching",
+        subtitle: "Complete Personal Excellence",
+        originalPrice: "₹45,000",
+        currentPrice: "₹35,000",
+        features: "Intro session\n3+ Counselling Sessions\nDetailed Career Report\nCareer Path Recommendation\nAccess Career bank\nUnlimited Follow up Calls\nCollege & Courses / Admissions\nPsychologist session"
+      }
+    };
+
+    let rawConfigs: any[] = [];
     if (isMongoConnected) {
-      const configs = await ProgramConfigModel.find();
-      return res.status(200).json(configs);
+      rawConfigs = await ProgramConfigModel.find();
     } else {
-      const configs = JSON.parse(fs.readFileSync(PROGRAMS_CONFIG_FILE, "utf-8"));
-      return res.status(200).json(configs);
+      rawConfigs = JSON.parse(fs.readFileSync(PROGRAMS_CONFIG_FILE, "utf-8"));
     }
+
+    // Merge raw database configs with defaults
+    const merged = [...rawConfigs];
+    keys.forEach((key) => {
+      const idx = merged.findIndex((c) => c.programKey === key);
+      if (idx === -1) {
+        merged.push(defaults[key]);
+      } else {
+        // Ensure standard keys also have default fields populated if blank
+        const dbVal = isMongoConnected ? merged[idx].toObject() : merged[idx];
+        merged[idx] = {
+          ...defaults[key],
+          ...dbVal
+        };
+      }
+    });
+
+    return res.status(200).json(merged);
   } catch (error) {
     console.error("[Pehlakadam API] Error reading program configs:", error);
     return res.status(500).json({ error: "Failed to fetch program configurations" });
@@ -765,7 +1410,7 @@ app.get("/api/programs-config", async (req, res) => {
 // =========================================================================================
 app.post("/api/programs-config/update", verifyAdmin, async (req, res) => {
   try {
-    const { programKey, brochureUrl, brochureFileName, brochureFileData, videoUrl } = req.body;
+    const { programKey, brochureUrl, brochureFileName, brochureFileData, videoUrl, title, subtitle, originalPrice, currentPrice, features } = req.body;
     
     if (!programKey) {
       return res.status(400).json({ error: "programKey is required" });
@@ -779,6 +1424,11 @@ app.post("/api/programs-config/update", verifyAdmin, async (req, res) => {
           brochureFileName: brochureFileName || "",
           brochureFileData: brochureFileData || "",
           videoUrl: videoUrl || "",
+          title: title || "",
+          subtitle: subtitle || "",
+          originalPrice: originalPrice || "",
+          currentPrice: currentPrice || "",
+          features: features || "",
           updatedAt: new Date()
         },
         { new: true, upsert: true }
@@ -795,6 +1445,11 @@ app.post("/api/programs-config/update", verifyAdmin, async (req, res) => {
         brochureFileName: brochureFileName || "",
         brochureFileData: brochureFileData || "",
         videoUrl: videoUrl || "",
+        title: title || "",
+        subtitle: subtitle || "",
+        originalPrice: originalPrice || "",
+        currentPrice: currentPrice || "",
+        features: features || "",
         updatedAt: new Date().toISOString()
       };
 
@@ -811,6 +1466,335 @@ app.post("/api/programs-config/update", verifyAdmin, async (req, res) => {
   } catch (error) {
     console.error("[Pehlakadam API] Error updating program config:", error);
     return res.status(500).json({ error: "Failed to update program configuration" });
+  }
+});
+
+// =========================================================================================
+// 🌐 API ENDPOINTS: SCIENTIFIC DIAGNOSTICS & PSYCHOMETRIC SYSTEMS
+// =========================================================================================
+
+// 1. GET ALL DIAGNOSTIC TESTS
+app.get("/api/diagnostic-tests", async (req, res) => {
+  try {
+    if (isMongoConnected) {
+      const tests = await DiagnosticTestModel.find().sort({ key: 1 });
+      if (tests.length === 0) {
+        return res.status(200).json(DEFAULT_DIAGNOSTICS);
+      }
+      return res.status(200).json(tests);
+    } else {
+      const content = fs.readFileSync(DIAGNOSTIC_TESTS_FILE, "utf-8");
+      const tests = JSON.parse(content);
+      if (tests.length === 0) {
+        return res.status(200).json(DEFAULT_DIAGNOSTICS);
+      }
+      return res.status(200).json(tests);
+    }
+  } catch (error) {
+    console.error("[Pehlakadam API] Error reading diagnostic tests:", error);
+    return res.status(500).json({ error: "Failed to fetch diagnostic tests" });
+  }
+});
+
+// 2. UPDATE DIAGNOSTIC TEST QUESTIONS (ADMIN SECURED)
+app.post("/api/diagnostic-tests/update-questions", verifyAdmin, async (req, res) => {
+  try {
+    const { key, title, subtitle, description, customFieldLabel, questions } = req.body;
+    if (!key || !title || !questions) {
+      return res.status(400).json({ error: "key, title, and questions are required fields." });
+    }
+
+    if (isMongoConnected) {
+      const updated = await DiagnosticTestModel.findOneAndUpdate(
+        { key },
+        { title, subtitle, description, customFieldLabel, questions, updatedAt: new Date() },
+        { new: true, upsert: true }
+      );
+      return res.status(200).json({ success: true, test: updated });
+    } else {
+      const content = fs.readFileSync(DIAGNOSTIC_TESTS_FILE, "utf-8");
+      const tests = JSON.parse(content);
+      const idx = tests.findIndex((t: any) => t.key === key);
+      const updatedTest = {
+        key,
+        title,
+        subtitle,
+        description,
+        customFieldLabel,
+        questions,
+        updatedAt: new Date().toISOString()
+      };
+      if (idx !== -1) {
+        tests[idx] = updatedTest;
+      } else {
+        tests.push(updatedTest);
+      }
+      fs.writeFileSync(DIAGNOSTIC_TESTS_FILE, JSON.stringify(tests, null, 2));
+      return res.status(200).json({ success: true, test: updatedTest });
+    }
+  } catch (error) {
+    console.error("[Pehlakadam API] Error updating diagnostic test questions:", error);
+    return res.status(500).json({ error: "Failed to save diagnostic questions" });
+  }
+});
+
+// 3. SUBMIT DIAGNOSTIC EVALUATION (WITH PERSONALITY & PSYCHOMETRIC CALCULATIONS)
+app.post("/api/diagnostic-tests/submit", async (req, res) => {
+  try {
+    const { user, testKey, answers } = req.body;
+    if (!user || !testKey || !answers) {
+      return res.status(400).json({ error: "Missing required parameters (user, testKey, answers)." });
+    }
+
+    // scoring calculations
+    let score: any = {};
+    const vals = Object.values(answers) as string[];
+
+    if (testKey === "disc") {
+      const counts: any = { D: 0, I: 0, S: 0, C: 0 };
+      vals.forEach(v => {
+        if (counts[v] !== undefined) counts[v]++;
+      });
+      const total: number = (Object.values(counts).reduce((a: any, b: any) => a + b, 0) as number) || 1;
+      const pct = {
+        D: Math.round((counts.D / total) * 100),
+        I: Math.round((counts.I / total) * 100),
+        S: Math.round((counts.S / total) * 100),
+        C: Math.round((counts.C / total) * 100),
+      };
+      
+      let dominant = "D";
+      if (pct.I > pct[dominant]) dominant = "I";
+      if (pct.S > pct[dominant]) dominant = "S";
+      if (pct.C > pct[dominant]) dominant = "C";
+
+      const descriptions: any = {
+        D: "Dominant: Decisive, direct, highly assertive, and results-focused. Ideal for high-stakes leadership, entrepreneurial management, and strategic direction roles.",
+        I: "Influential: Persuasive, outgoing, energetic, and highly relationship-driven. Ideal for media, marketing, high-impact consulting, public relations, and sales leadership.",
+        S: "Steady: Calm, cooperative, patient, loyal, and highly methodology-oriented. Excellent for research planning, operations optimization, HR, and structural engineering.",
+        C: "Conscientious: Detail-oriented, analytical, diplomatic, and highly precise. Perfect for scientific analysis, database administration, software architecture, and financial risk planning."
+      };
+
+      score = {
+        breakdown: pct,
+        dominant,
+        summary: descriptions[dominant],
+        title: `${dominant}-Style Behavioral Profile`
+      };
+    } else if (testKey === "mbti") {
+      let E = 0, I_val = 0, S = 0, N = 0, T = 0, F = 0, J = 0, P = 0;
+      vals.forEach(v => {
+        if (v === "E") E++;
+        if (v === "I") I_val++;
+        if (v === "S") S++;
+        if (v === "N") N++;
+        if (v === "T") T++;
+        if (v === "F") F++;
+        if (v === "J") J++;
+        if (v === "P") P++;
+      });
+      
+      const mbti = (E >= I_val ? "E" : "I") + (S >= N ? "S" : "N") + (T >= F ? "T" : "F") + (J >= P ? "J" : "P");
+      
+      const careers: any = {
+        INTJ: "Strategic Planner, System Architect, Scientist. You excel in logical blueprints and system design.",
+        ENTJ: "Executive Director, Management Consultant, Venture Capitalist. You are a natural-born decisive leader.",
+        INFP: "Creative Writer, Career Psychologist, Advisor. Guided by internal values, you seek deep, authentic connections.",
+        ENFP: "Innovation Director, Marketing Strategist, Founder. Enthusiastic and creative, you see endless possibilities.",
+        INFJ: "Advocate, Educational Counselor, Policy Planner. Insightful and structured, you drive ethical progress.",
+        ENFJ: "Corporate Coach, HR Director, Public Relations Lead. You inspire others and foster warm environments.",
+        INTP: "Theoretical Physicist, Software Developer, Researcher. Analytical and abstract, you seek logical precision.",
+        ENTP: "Product Strategist, Venture Builder, Creative Director. You love intellectual brainstorming and solving complex puzzles.",
+        ISTJ: "Financial Analyst, Operations Manager, Auditor. Exceptionally reliable, you preserve order and accuracy.",
+        ESTJ: "General Manager, Civil Engineer, Security Director. Highly organized, you execute rules and systems with precision.",
+        ISFJ: "Healthcare Advisor, Database Administrator, Registrar. Quiet, warm, and highly dependable, you support teams silently.",
+        ESFJ: "Academic Dean, Client Success Lead, Hospital Administrator. Warm-hearted and structured, you coordinate social harmony.",
+        ISTP: "Forensic Analyst, Systems Engineer, Pilot. Practical, quiet, and resourceful, you solve issues hands-on.",
+        ESTP: "Sales Negotiator, Operations Lead, Stock Trader. Energetic and tactical, you thrive in fast-paced real-time action.",
+        ISFP: "UX/UI Designer, Visual Artist, Environmentalist. Sensitive and creative, you enrich the world through aesthetics.",
+        ESFP: "Event Director, Public Relations Specialist, Actor. Outgoing and cheerful, you bring high energy to teams."
+      };
+
+      score = {
+        breakdown: { E, I: I_val, S, N, T, F, J, P },
+        mbti,
+        summary: careers[mbti] || "Versatile Profile: Highly adaptable psychometric thinker.",
+        title: `MBTI Personality Profile: ${mbti}`
+      };
+    } else if (testKey === "16pf") {
+      const traits: string[] = [];
+      vals.forEach(v => {
+        if (v && !traits.includes(v)) traits.push(v);
+      });
+      score = {
+        breakdown: traits,
+        summary: `Strongest Career Factors: ${traits.join(", ")}. Matches ideally with analytical research, structured process engineering, and proactive communications.`,
+        title: "16PF Factor Mapping Profile"
+      };
+    } else if (testKey === "epi") {
+      let E = 0, I_val = 0, N = 0, S = 0;
+      vals.forEach(v => {
+        if (v === "E") E++;
+        if (v === "I") I_val++;
+        if (v === "N") N++;
+        if (v === "S") S++;
+      });
+      
+      let temperament = "Balanced";
+      let summary = "Steady, adaptable personality traits.";
+      if (E >= I_val && N >= S) {
+        temperament = "Choleric";
+        summary = "Active, highly energetic, optimistic, and results-focused. Thrives under pressure.";
+      } else if (E >= I_val && S > N) {
+        temperament = "Sanguine";
+        summary = "Highly sociable, outgoing, cheerful, and talkative. Excellent at teamwork.";
+      } else if (I_val > E && N >= S) {
+        temperament = "Melancholic";
+        summary = "Thoughtful, analytical, sensitive, and quiet. Excels in creative or deeply analytical tasks.";
+      } else if (I_val > E && S > N) {
+        temperament = "Phlegmatic";
+        summary = "Peaceful, reliable, structured, and extremely steady. Excellent for methodical operations.";
+      }
+
+      score = {
+        breakdown: { Extraversion: E, Introversion: I_val, Neuroticism: N, Stability: S },
+        temperament,
+        summary,
+        title: `Eysenck Temperament: ${temperament}`
+      };
+    } else if (testKey === "enneagram") {
+      const counts: any = {};
+      vals.forEach(v => {
+        counts[v] = (counts[v] || 0) + 1;
+      });
+      let dominantType = "Type 9 - Peacemaker";
+      let maxCount = 0;
+      Object.keys(counts).forEach(k => {
+        if (counts[k] > maxCount) {
+          maxCount = counts[k];
+          dominantType = k;
+        }
+      });
+      score = {
+        breakdown: counts,
+        dominantType,
+        summary: `Your core driving motivator is represented by ${dominantType}. This defines your path of personal integration, helping you align with authentic career callings.`,
+        title: `Enneagram Profile: ${dominantType}`
+      };
+    } else if (testKey === "caliper") {
+      const traits: string[] = [];
+      vals.forEach(v => {
+        if (v && !traits.includes(v)) traits.push(v);
+      });
+      score = {
+        breakdown: traits,
+        summary: `Identified Performance Drivers: ${traits.join(", ")}. Perfect match for fields requiring empathy, structural organization, assertiveness, and cognitive leadership.`,
+        title: "Caliper Job-Performance Driver Profile"
+      };
+    } else if (testKey === "mmpi") {
+      const traits: string[] = [];
+      vals.forEach(v => {
+        if (v && !traits.includes(v)) traits.push(v);
+      });
+      score = {
+        breakdown: traits,
+        summary: `Clinical psychometric indicators: ${traits.join(", ")}. Displays steady emotional resilience, structured coping strategies, and optimal cognitive adaptability under high work/study stress.`,
+        title: "MMPI Psychometric Insight"
+      };
+    } else {
+      score = {
+        summary: "Assessment successfully processed. Highly balanced professional potential.",
+        title: "Psychometric Evaluation Profile"
+      };
+    }
+
+    // Save submission
+    let savedSubmission: any = null;
+    const testTitles: any = {
+      disc: "DISC Assessment",
+      mbti: "Myers-Briggs Type Indicator (MBTI)",
+      "16pf": "Personality Factor Questionnaire",
+      epi: "Eysenck Personality Inventory",
+      enneagram: "Enneagram Core Test",
+      caliper: "Caliper Profile",
+      mmpi: "Minnesota Multiphasic Test"
+    };
+    const testTitle = testTitles[testKey] || "Scientific Diagnostics Evaluation";
+
+    if (isMongoConnected) {
+      const doc = new DiagnosticSubmissionModel({
+        user,
+        testKey,
+        testTitle,
+        answers,
+        score
+      });
+      await doc.save();
+      savedSubmission = doc.toObject();
+    } else {
+      const list = JSON.parse(fs.readFileSync(DIAGNOSTIC_SUBMISSIONS_FILE, "utf-8"));
+      savedSubmission = {
+        _id: Date.now().toString(),
+        user,
+        testKey,
+        testTitle,
+        answers,
+        score,
+        createdAt: new Date().toISOString()
+      };
+      list.push(savedSubmission);
+      fs.writeFileSync(DIAGNOSTIC_SUBMISSIONS_FILE, JSON.stringify(list, null, 2));
+    }
+
+    return res.status(200).json({ success: true, submission: savedSubmission });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error submitting diagnostic test:", error);
+    return res.status(500).json({ error: "Failed to submit and calculate evaluation." });
+  }
+});
+
+// 4. GET ALL SUBMISSION REPORTS (ADMIN SECURED)
+app.get("/api/diagnostic-tests/submissions", verifyAdmin, async (req, res) => {
+  try {
+    if (isMongoConnected) {
+      const docs = await DiagnosticSubmissionModel.find().sort({ createdAt: -1 });
+      const submissions = docs.map((doc) => ({
+        id: doc._id.toString(),
+        user: doc.user,
+        testKey: doc.testKey,
+        testTitle: doc.testTitle,
+        answers: doc.answers,
+        score: doc.score,
+        createdAt: doc.createdAt.toISOString()
+      }));
+      return res.status(200).json(submissions);
+    } else {
+      const content = fs.readFileSync(DIAGNOSTIC_SUBMISSIONS_FILE, "utf-8");
+      const submissions = JSON.parse(content);
+      return res.status(200).json(submissions);
+    }
+  } catch (error) {
+    console.error("[Pehlakadam API] Error reading diagnostic submissions:", error);
+    return res.status(500).json({ error: "Failed to fetch diagnostic submissions" });
+  }
+});
+
+// 5. DELETE A DIAGNOSTIC SUBMISSION (ADMIN SECURED)
+app.delete("/api/diagnostic-tests/submissions/:id", verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (isMongoConnected) {
+      await DiagnosticSubmissionModel.findByIdAndDelete(id);
+      return res.status(200).json({ success: true, message: "Submission report deleted successfully" });
+    } else {
+      const list = JSON.parse(fs.readFileSync(DIAGNOSTIC_SUBMISSIONS_FILE, "utf-8"));
+      const filtered = list.filter((item: any) => item._id !== id && item.id !== id);
+      fs.writeFileSync(DIAGNOSTIC_SUBMISSIONS_FILE, JSON.stringify(filtered, null, 2));
+      return res.status(200).json({ success: true, message: "Submission report deleted successfully from JSON" });
+    }
+  } catch (error) {
+    console.error("[Pehlakadam API] Error deleting submission:", error);
+    return res.status(500).json({ error: "Failed to delete submission report." });
   }
 });
 
@@ -1366,6 +2350,76 @@ app.post("/api/check-access", async (req, res) => {
   } catch (error) {
     console.error("[Pehlakadam API] Error checking premium access:", error);
     return res.status(500).json({ error: "Failed to check premium access." });
+  }
+});
+
+// =========================================================================================
+// 📈 SYSTEM STATS MANAGEMENT (STUDENTS COUNT, EXPERTS COUNT, SUCCESS RATE)
+// =========================================================================================
+app.get("/api/system-stats", async (req, res) => {
+  try {
+    if (isMongoConnected) {
+      let stats = await SystemStatsModel.findOne();
+      if (!stats) {
+        stats = await SystemStatsModel.create({
+          studentsCount: "10K+",
+          expertsCount: "15+",
+          successRate: "99%"
+        });
+      }
+      return res.status(200).json({
+        studentsCount: stats.studentsCount,
+        expertsCount: stats.expertsCount,
+        successRate: stats.successRate
+      });
+    } else {
+      const fileData = fs.readFileSync(SYSTEM_STATS_FILE, "utf-8");
+      const stats = JSON.parse(fileData);
+      return res.status(200).json(stats);
+    }
+  } catch (error) {
+    console.error("[Pehlakadam API] Error reading system stats:", error);
+    return res.status(200).json({
+      studentsCount: "10K+",
+      expertsCount: "15+",
+      successRate: "99%"
+    });
+  }
+});
+
+app.post("/api/system-stats", verifyAdmin, async (req, res) => {
+  try {
+    const { studentsCount, expertsCount, successRate } = req.body;
+    if (!studentsCount || !expertsCount || !successRate) {
+      return res.status(400).json({ error: "All stats fields are required." });
+    }
+
+    if (isMongoConnected) {
+      let stats = await SystemStatsModel.findOne();
+      if (!stats) {
+        stats = new SystemStatsModel();
+      }
+      stats.studentsCount = studentsCount;
+      stats.expertsCount = expertsCount;
+      stats.successRate = successRate;
+      stats.updatedAt = new Date();
+      await stats.save();
+    }
+
+    // Always keep system_stats.json in sync
+    fs.writeFileSync(SYSTEM_STATS_FILE, JSON.stringify({
+      studentsCount,
+      expertsCount,
+      successRate
+    }, null, 2));
+
+    return res.status(200).json({
+      message: "System stats updated successfully.",
+      stats: { studentsCount, expertsCount, successRate }
+    });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error updating system stats:", error);
+    return res.status(500).json({ error: "Failed to update system stats." });
   }
 });
 

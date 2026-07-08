@@ -22,15 +22,17 @@ export default function Footer() {
           {/* Section 1: About Us */}
           <div className="md:col-span-5 flex flex-col gap-6">
             <Link to="/" className="flex items-center gap-2.5 group w-fit">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm shadow-emerald-500/10">
-                <Compass className="h-5 w-5" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-emerald-600/30 p-0.5 group-hover:scale-105 transition-transform duration-250">
+                <div className="flex h-full w-full items-center justify-center rounded-full bg-emerald-600 text-white shadow-sm shadow-emerald-500/10">
+                  <span className="text-sm font-black tracking-wider animate-pulse font-sans">PK</span>
+                </div>
               </div>
               <div>
                 <span className="text-lg font-black tracking-tight text-white font-sans block leading-none">
                   PEHLAKADAM
                 </span>
-                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider block mt-0.5">
-                  N & M MENTO GROUP
+                <span className="text-[9px] font-medium text-zinc-500 tracking-wide block mt-0.5 italic">
+                  Choose best Get best
                 </span>
               </div>
             </Link>
@@ -70,16 +72,18 @@ export default function Footer() {
             </h3>
             <ul className="space-y-3.5">
               {programs.map((prog, index) => (
-                <li key={index} className="group flex items-start gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
-                  <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500/60 group-hover:text-emerald-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                  <div>
-                    <span className="font-semibold text-zinc-400 group-hover:text-white transition-colors block">
-                      {prog.name}
-                    </span>
-                    <span className="text-[10px] text-zinc-600 block mt-0.5">
-                      {prog.desc}
-                    </span>
-                  </div>
+                <li key={index}>
+                  <Link to="/diagnostics" className="group flex items-start gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                    <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500/60 group-hover:text-emerald-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                    <div>
+                      <span className="font-semibold text-zinc-400 group-hover:text-white transition-colors block">
+                        {prog.name}
+                      </span>
+                      <span className="text-[10px] text-zinc-600 block mt-0.5">
+                        {prog.desc}
+                      </span>
+                    </div>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -99,6 +103,11 @@ export default function Footer() {
               <li>
                 <Link to="/about" className="text-zinc-500 hover:text-emerald-400 transition-colors">
                   About Us
+                </Link>
+              </li>
+              <li>
+                <Link to="/diagnostics" className="text-zinc-500 hover:text-emerald-400 transition-colors">
+                  Diagnostics Suite
                 </Link>
               </li>
               <li>
@@ -138,8 +147,8 @@ export default function Footer() {
           <p className="text-xs text-zinc-600 font-mono">
             &copy; {currentYear} PEHLAKADAM. All rights reserved.
           </p>
-          <p className="text-xs text-zinc-600 font-mono tracking-widest">
-            ALL RIGHTS RESERVED AT N & M MENTO
+          <p className="text-xs text-zinc-500 font-sans italic">
+            Choose best Get best
           </p>
         </div>
       </div>

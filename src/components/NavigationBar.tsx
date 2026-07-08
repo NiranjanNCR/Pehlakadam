@@ -37,21 +37,23 @@ export default function NavigationBar() {
           to="/" 
           className="flex items-center gap-2.5 group hover:opacity-90 transition-opacity"
         >
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform duration-250">
-            <Compass className="h-6 w-6 animate-pulse" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-emerald-600/30 p-0.5 group-hover:scale-105 transition-transform duration-250">
+            <div className="flex h-full w-full items-center justify-center rounded-full bg-emerald-600 text-white shadow-md shadow-emerald-500/20">
+              <span className="text-base font-black tracking-wider animate-pulse font-sans">PK</span>
+            </div>
           </div>
           <div>
             <span className="text-xl font-extrabold tracking-tight text-zinc-950 font-sans block leading-tight">
               PEHLAKADAM
             </span>
-            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block -mt-0.5">
-              N & M MENTO GROUP
+            <span className="text-[10px] font-medium text-zinc-500 tracking-wide block -mt-0.5 italic">
+              Choose best Get best
             </span>
           </div>
         </Link>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-8">
+        <nav className="hidden lg:flex items-center gap-6 xl:gap-8">
           <Link
             to="/"
             className={`text-sm font-semibold transition-colors duration-200 ${
@@ -123,6 +125,15 @@ export default function NavigationBar() {
           </Link>
 
           <Link
+            to="/diagnostics"
+            className={`text-sm font-semibold transition-colors duration-200 ${
+              isActive("/diagnostics") ? "text-emerald-600" : "text-zinc-600 hover:text-emerald-600"
+            }`}
+          >
+            Diagnostics
+          </Link>
+
+          <Link
             to="/contact"
             className={`text-sm font-semibold transition-colors duration-200 ${
               isActive("/contact") ? "text-emerald-600" : "text-zinc-600 hover:text-emerald-600"
@@ -133,14 +144,14 @@ export default function NavigationBar() {
         </nav>
 
         {/* Action Button & Menu Icon */}
-        <div className="hidden md:flex items-center gap-4">
+        <div className="hidden lg:flex items-center gap-4">
           <PaymentModal />
         </div>
 
         <button
           id="nav-mobile-menu-toggle"
           onClick={toggleMenu}
-          className="rounded-xl border border-zinc-200 p-2 text-zinc-600 hover:bg-zinc-50 md:hidden"
+          className="rounded-xl border border-zinc-200 p-2 text-zinc-600 hover:bg-zinc-50 lg:hidden"
           aria-label="Toggle menu"
         >
           {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -154,7 +165,7 @@ export default function NavigationBar() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="border-t border-zinc-200 bg-white md:hidden overflow-hidden"
+            className="border-t border-zinc-200 bg-white lg:hidden overflow-hidden"
           >
             <div className="flex flex-col gap-4 px-6 py-6 font-sans">
               <Link
@@ -206,6 +217,16 @@ export default function NavigationBar() {
                 }`}
               >
                 Resources
+              </Link>
+
+              <Link
+                to="/diagnostics"
+                onClick={toggleMenu}
+                className={`text-base font-semibold py-1.5 ${
+                  isActive("/diagnostics") ? "text-emerald-600" : "text-zinc-700"
+                }`}
+              >
+                Diagnostics
               </Link>
 
               <Link

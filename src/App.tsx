@@ -6,6 +6,7 @@ import Resources from "./components/page/Resources";
 import Contact from "./components/page/Contact";
 import Programs from "./components/page/Programs";
 import AdminSubmissions from "./components/page/AdminSubmissions";
+import Diagnostics from "./components/page/Diagnostics";
 import AnnouncementBanner from "./components/AnnouncementBanner";
 import AutoTriggerForm from "./components/AutoTriggerForm";
 
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="/resources" element={<Resources />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/programs/*" element={<Programs />} />
+          <Route path="/diagnostics" element={<Diagnostics />} />
           <Route path="/admin" element={<AdminSubmissions />} />
           <Route path="/resources/admin" element={<AdminSubmissions />} />
         </Routes>

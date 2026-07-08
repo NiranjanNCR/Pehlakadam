@@ -3,6 +3,7 @@ import { useState, useEffect, ChangeEvent, FormEvent } from "react";
 import { X, Sparkles, CheckCircle, Calendar, GraduationCap, ArrowRight, Timer, MessageSquare } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { ContactFormData } from "../types";
+import { contactFormSchema } from "../lib/validation";
 
 export default function AutoTriggerForm() {
   const [isOpen, setIsOpen] = useState(false);
@@ -15,6 +16,7 @@ export default function AutoTriggerForm() {
     role: "",
     message: "",
   });
+  const [errors, setErrors] = useState<Partial<Record<keyof ContactFormData, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -48,6 +50,9 @@ export default function AutoTriggerForm() {
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name as keyof ContactFormData]) {
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
   };
 
   const handleDismiss = () => {
@@ -57,8 +62,33 @@ export default function AutoTriggerForm() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setSubmitError("");
+    setErrors({});
+
+    // Smart default for empty or missing message so Zod validation passes and provides a great default message context!
+    const targetMessage = formData.message.trim()
+      ? formData.message.trim()
+      : "I want to request a free diagnostic career consultation.";
+
+    const submissionPayload = {
+      ...formData,
+      message: targetMessage
+    };
+
+    const result = contactFormSchema.safeParse(submissionPayload);
+    if (!result.success) {
+      const fieldErrors: Partial<Record<keyof ContactFormData, string>> = {};
+      result.error.issues.forEach((err) => {
+        const path = err.path[0] as keyof ContactFormData;
+        if (path) {
+          fieldErrors[path] = err.message;
+        }
+      });
+      setErrors(fieldErrors);
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       // 🚀 TRANSACTION: Post data to our full-stack endpoint
@@ -66,9 +96,9 @@ export default function AutoTriggerForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...formData,
+          ...result.data,
           // Explicitly tag that this came from the 30-second conversion pop-up
-          message: `[30-Sec Conversion Pop-up Alert] Goal: ${formData.message || "Diagnostic psychometrics evaluation"}`
+          message: `[30-Sec Conversion Pop-up Alert] Goal: ${result.data.message}`
         }),
       });
 
@@ -201,7 +231,7 @@ export default function AutoTriggerForm() {
                     </p>
                   </div>
 
-                  <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+                  <form onSubmit={handleSubmit} className="space-y-4 pt-2" noValidate>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
@@ -213,9 +243,15 @@ export default function AutoTriggerForm() {
                           value={formData.firstName}
                           onChange={handleChange}
                           placeholder="Arjun"
-                          required
-                          className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          className={`w-full rounded-xl bg-zinc-800 border px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                            errors.firstName
+                              ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                              : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          }`}
                         />
+                        {errors.firstName && (
+                          <p className="mt-1 text-[10px] text-red-400 font-medium text-left">{errors.firstName}</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
@@ -227,9 +263,15 @@ export default function AutoTriggerForm() {
                           value={formData.lastName}
                           onChange={handleChange}
                           placeholder="Sharma"
-                          required
-                          className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          className={`w-full rounded-xl bg-zinc-800 border px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                            errors.lastName
+                              ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                              : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          }`}
                         />
+                        {errors.lastName && (
+                          <p className="mt-1 text-[10px] text-red-400 font-medium text-left">{errors.lastName}</p>
+                        )}
                       </div>
                     </div>
 
@@ -244,9 +286,15 @@ export default function AutoTriggerForm() {
                           value={formData.email}
                           onChange={handleChange}
                           placeholder="arjun@gmail.com"
-                          required
-                          className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          className={`w-full rounded-xl bg-zinc-800 border px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                            errors.email
+                              ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                              : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          }`}
                         />
+                        {errors.email && (
+                          <p className="mt-1 text-[10px] text-red-400 font-medium text-left">{errors.email}</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
@@ -257,10 +305,16 @@ export default function AutoTriggerForm() {
                           name="number"
                           value={formData.number}
                           onChange={handleChange}
-                          placeholder="+91 9876543210"
-                          required
-                          className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          placeholder="+91 98765 43210"
+                          className={`w-full rounded-xl bg-zinc-800 border px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                            errors.number
+                              ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                              : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          }`}
                         />
+                        {errors.number && (
+                          <p className="mt-1 text-[10px] text-red-400 font-medium text-left">{errors.number}</p>
+                        )}
                       </div>
                     </div>
 
@@ -272,8 +326,11 @@ export default function AutoTriggerForm() {
                         name="role"
                         value={formData.role}
                         onChange={handleChange}
-                        required
-                        className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2 text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                        className={`w-full rounded-xl bg-zinc-800 border px-4 py-2 text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 ${
+                          errors.role
+                            ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                            : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                        }`}
                       >
                         <option value="" disabled>
                           Select a program
@@ -285,6 +342,9 @@ export default function AutoTriggerForm() {
                         <option value="UG/Graduate/PG">UG/Graduate/PG</option>
                         <option value="Generalist to Specialist">Generalist to Specialist</option>
                       </select>
+                      {errors.role && (
+                        <p className="mt-1 text-[10px] text-red-400 font-medium text-left">{errors.role}</p>
+                      )}
                     </div>
 
                     <div>
@@ -296,10 +356,16 @@ export default function AutoTriggerForm() {
                         name="message"
                         value={formData.message}
                         onChange={handleChange}
-                        required
                         placeholder="e.g. Want to specialize in Artificial Intelligence, select engineering vs tech management"
-                        className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2.5 text-xs text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                        className={`w-full rounded-xl bg-zinc-800 border px-4 py-2.5 text-xs text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                          errors.message
+                            ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                            : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                        }`}
                       />
+                      {errors.message && (
+                        <p className="mt-1 text-[10px] text-red-400 font-medium text-left">{errors.message}</p>
+                      )}
                     </div>
 
                     {submitError && (

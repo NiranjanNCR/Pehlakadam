@@ -2,6 +2,7 @@ import { useState, useEffect, ChangeEvent, FormEvent } from "react";
 import NavigationBar from "../NavigationBar";
 import Footer from "../Footer";
 import AdminProgramsConfig from "../AdminProgramsConfig";
+import AdminDiagnostics from "../AdminDiagnostics";
 import {
   Search,
   Mail,
@@ -27,7 +28,8 @@ import {
   LogOut,
   CreditCard,
   Download,
-  Settings
+  Settings,
+  BrainCircuit
 } from "lucide-react";
 import { Submission, ResourceMaterial, SessionUpdate } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
@@ -42,7 +44,7 @@ import { motion, AnimatePresence } from "motion/react";
 // - "broadcast": Dispatching simulated alerts (SMS/Email) to registered leads.
 // - "programs-config": Managing brochures and briefing video links for program landing pages.
 // =========================================================================================
-type AdminTab = "leads" | "payments" | "resources" | "broadcast" | "paid-access" | "programs-config";
+type AdminTab = "leads" | "payments" | "resources" | "broadcast" | "paid-access" | "programs-config" | "diagnostics" | "system-stats";
 
 export default function AdminSubmissions() {
   const [activeTab, setActiveTab] = useState<AdminTab>("leads");
@@ -54,6 +56,15 @@ export default function AdminSubmissions() {
   const [broadcasts, setBroadcasts] = useState<SessionUpdate[]>([]);
   const [authorizedNumbers, setAuthorizedNumbers] = useState<{ id: string, number: string, createdAt: string }[]>([]);
   const [programsConfigs, setProgramsConfigs] = useState<any[]>([]);
+  
+  // 📈 SYSTEM STATS STATE FOR ADMIN EDITING
+  const [adminStats, setAdminStats] = useState({
+    studentsCount: "10K+",
+    expertsCount: "15+",
+    successRate: "99%"
+  });
+  const [updatingStats, setUpdatingStats] = useState(false);
+  const [updateStatsSuccess, setUpdateStatsSuccess] = useState(false);
   
   // 🔒 ADMIN AUTHENTICATION STATES
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -257,12 +268,48 @@ export default function AdminSubmissions() {
         setProgramsConfigs(progData);
       }
 
+      // 7. Fetch System Stats
+      const resStats = await fetch("/api/system-stats");
+      if (resStats.ok) {
+        const statsData = await resStats.json();
+        setAdminStats(statsData);
+      }
+
     } catch (err) {
       console.error("Error loading admin data:", err);
       setError("Cannot sync with server database APIs.");
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const handleUpdateStats = async (e: FormEvent) => {
+    e.preventDefault();
+    setUpdatingStats(true);
+    setUpdateStatsSuccess(false);
+    try {
+      const token = localStorage.getItem("pehlakadam_admin_token");
+      const res = await fetch("/api/system-stats", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(adminStats)
+      });
+      if (res.ok) {
+        setUpdateStatsSuccess(true);
+        setTimeout(() => setUpdateStatsSuccess(false), 3000);
+      } else {
+        const err = await res.json();
+        alert(err.error || "Failed to update stats.");
+      }
+    } catch (err) {
+      console.error("Error updating system stats:", err);
+      alert("Failed to update system stats.");
+    } finally {
+      setUpdatingStats(false);
     }
   };
 
@@ -739,6 +786,26 @@ export default function AdminSubmissions() {
               }`}
             >
               <Settings className="h-4 w-4" /> Programs Config ({programsConfigs.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("diagnostics")}
+              className={`py-4 px-6 text-xs uppercase tracking-wider font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === "diagnostics"
+                  ? "border-emerald-600 text-emerald-700 bg-emerald-50/20"
+                  : "border-transparent text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50"
+              }`}
+            >
+              <BrainCircuit className="h-4 w-4" /> Scientific Diagnostics
+            </button>
+            <button
+              onClick={() => setActiveTab("system-stats")}
+              className={`py-4 px-6 text-xs uppercase tracking-wider font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === "system-stats"
+                  ? "border-emerald-600 text-emerald-700 bg-emerald-50/20"
+                  : "border-transparent text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50"
+              }`}
+            >
+              <Settings className="h-4 w-4" /> Home Page Stats
             </button>
           </div>
         </div>
@@ -1475,6 +1542,125 @@ export default function AdminSubmissions() {
                     configs={programsConfigs}
                     onRefresh={handleRefresh}
                   />
+                </motion.div>
+              )}
+
+              {/* TAB 6: SCIENTIFIC DIAGNOSTICS & EVALUATIONS MANAGER */}
+              {activeTab === "diagnostics" && (
+                <motion.div
+                  key="diagnostics-tab"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                >
+                  <AdminDiagnostics />
+                </motion.div>
+              )}
+
+              {/* TAB 7: HOME PAGE STATS EDITOR */}
+              {activeTab === "system-stats" && (
+                <motion.div
+                  key="system-stats-tab"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="space-y-6"
+                >
+                  <div className="bg-white rounded-3xl border border-zinc-200 p-8 shadow-sm">
+                    <div className="flex items-center gap-3 border-b border-zinc-100 pb-5 mb-6">
+                      <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-2xl">
+                        <Settings className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-bold text-zinc-900">Home Page Trust Highlights</h2>
+                        <p className="text-zinc-500 text-xs mt-0.5">
+                          Change the numbers and success rates shown in the Hero section of the home page.
+                        </p>
+                      </div>
+                    </div>
+
+                    <form onSubmit={handleUpdateStats} className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                            Students Count
+                          </label>
+                          <input
+                            type="text"
+                            value={adminStats.studentsCount}
+                            onChange={(e) => setAdminStats({ ...adminStats, studentsCount: e.target.value })}
+                            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                            placeholder="e.g. 10K+"
+                            required
+                          />
+                          <p className="text-[10px] text-zinc-400 mt-1.5">
+                            Displayed under the first icon on the left (e.g., 10K+, 12,000+).
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                            Experts Count
+                          </label>
+                          <input
+                            type="text"
+                            value={adminStats.expertsCount}
+                            onChange={(e) => setAdminStats({ ...adminStats, expertsCount: e.target.value })}
+                            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                            placeholder="e.g. 15+"
+                            required
+                          />
+                          <p className="text-[10px] text-zinc-400 mt-1.5">
+                            Displayed under the center group icon (e.g., 15+, 20+, 50+).
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                            Success Rate
+                          </label>
+                          <input
+                            type="text"
+                            value={adminStats.successRate}
+                            onChange={(e) => setAdminStats({ ...adminStats, successRate: e.target.value })}
+                            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                            placeholder="e.g. 99%"
+                            required
+                          />
+                          <p className="text-[10px] text-zinc-400 mt-1.5">
+                            Displayed under the right trophy icon (e.g., 99%, 99.4%, 100%).
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 pt-4 border-t border-zinc-100">
+                        <button
+                          type="submit"
+                          disabled={updatingStats}
+                          className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-6 py-3 shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                        >
+                          {updatingStats ? (
+                            <>
+                              <RefreshCw className="h-4 w-4 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="h-4 w-4" />
+                              Save Changes
+                            </>
+                          )}
+                        </button>
+
+                        {updateStatsSuccess && (
+                          <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1.5 animate-pulse">
+                            <CheckCircle className="h-4 w-4" />
+                            Statistics updated and published successfully!
+                          </span>
+                        )}
+                      </div>
+                    </form>
+                  </div>
                 </motion.div>
               )}
 

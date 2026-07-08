@@ -7,6 +7,11 @@ interface ProgramConfig {
   brochureFileName: string;
   brochureFileData: string;
   videoUrl: string;
+  title?: string;
+  subtitle?: string;
+  originalPrice?: string;
+  currentPrice?: string;
+  features?: string;
 }
 
 interface AdminProgramsConfigProps {
@@ -16,12 +21,15 @@ interface AdminProgramsConfigProps {
 
 // Map database program keys to user-friendly titles
 const PROGRAM_KEY_TO_NAME: Record<string, string> = {
-  "6-8": "6-8 Grade Student",
-  "9-10": "8-10 Grade Student",
-  "11-12": "11-12 Grade Student",
-  graduate: "UG/Graduate/PG",
-  kudos: "Primary Kudos",
-  generalist: "Generalist to Specialist"
+  "6-8": "6-8 Grade Student Page",
+  "9-10": "8-10 Grade Student Page",
+  "11-12": "11-12 Grade Student Page",
+  graduate: "UG/Graduate/PG Page",
+  kudos: "Primary Kudos Page",
+  generalist: "Generalist to Specialist Page",
+  "card_basic": "Pricing Card: Basic Plan",
+  "card_standard": "Pricing Card: Standard Plan",
+  "card_premium": "Pricing Card: Premium Plan"
 };
 
 export default function AdminProgramsConfig({ configs, onRefresh }: AdminProgramsConfigProps) {
@@ -35,14 +43,56 @@ export default function AdminProgramsConfig({ configs, onRefresh }: AdminProgram
     if (localConfigs[programKey]) {
       return localConfigs[programKey];
     }
+
+    let defaultTitle = "";
+    let defaultSubtitle = "";
+    let defaultOriginalPrice = "";
+    let defaultCurrentPrice = "";
+    let defaultFeatures = "";
+    let defaultVideoUrl = "https://www.youtube.com/embed/WfvZ2NsThws?si=dhmxlQYloLZYa08Q";
+
+    if (programKey === "card_basic") {
+      defaultTitle = "Basic Career Success";
+      defaultSubtitle = "For Right Subjects & Insights";
+      defaultOriginalPrice = "₹15,000";
+      defaultCurrentPrice = "₹8,500";
+      defaultFeatures = "Intro session\n1 Counselling Session\nDetailed Career Report\nCareer Path Recommendation\nAccess Career bank\n1 Follow up Call\nCollege & Courses";
+    } else if (programKey === "card_standard") {
+      defaultTitle = "Advanced Career Success";
+      defaultSubtitle = "For Optimal Career Decisions";
+      defaultOriginalPrice = "₹25,000";
+      defaultCurrentPrice = "₹18,500";
+      defaultFeatures = "Intro session\n2 Counselling Sessions\nDetailed Career Report\nCareer Path Recommendation\nAccess Career bank\n2 Follow up Calls\nCollege & Courses";
+    } else if (programKey === "card_premium") {
+      defaultTitle = "Full Career Coaching";
+      defaultSubtitle = "Complete Personal Excellence";
+      defaultOriginalPrice = "₹45,000";
+      defaultCurrentPrice = "₹35,000";
+      defaultFeatures = "Intro session\n3+ Counselling Sessions\nDetailed Career Report\nCareer Path Recommendation\nAccess Career bank\nUnlimited Follow up Calls\nCollege & Courses / Admissions\nPsychologist session";
+    }
+
     const base = dbConfig || {
       programKey,
       brochureUrl: "",
       brochureFileName: "",
       brochureFileData: "",
-      videoUrl: ""
+      videoUrl: defaultVideoUrl,
+      title: defaultTitle,
+      subtitle: defaultSubtitle,
+      originalPrice: defaultOriginalPrice,
+      currentPrice: defaultCurrentPrice,
+      features: defaultFeatures
     };
-    return base;
+
+    return {
+      ...base,
+      title: base.title || defaultTitle,
+      subtitle: base.subtitle || defaultSubtitle,
+      originalPrice: base.originalPrice || defaultOriginalPrice,
+      currentPrice: base.currentPrice || defaultCurrentPrice,
+      features: base.features || defaultFeatures,
+      videoUrl: base.videoUrl || defaultVideoUrl
+    };
   };
 
   const updateLocalField = (programKey: string, field: keyof ProgramConfig, value: string) => {
@@ -180,77 +230,162 @@ export default function AdminProgramsConfig({ configs, onRefresh }: AdminProgram
                 </div>
 
                 {/* 1. PDF BROCHURE SECTION */}
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-1.5">
-                    <FileText className="h-3.5 w-3.5 text-emerald-600" />
-                    Program Brochure (PDF)
-                  </h4>
-
-                  {/* Direct File Upload Option */}
-                  <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-150 space-y-3">
-                    <label className="block text-[11px] font-semibold text-zinc-600">
-                      Upload Brochure File directly:
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-2 bg-white hover:bg-zinc-100 border border-zinc-200 px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer text-zinc-800 transition-all hover:border-zinc-300">
-                        <Upload className="h-3.5 w-3.5 text-zinc-500" />
-                        <span>Choose PDF File</span>
-                        <input
-                          type="file"
-                          accept=".pdf"
-                          onChange={(e) => handlePdfUpload(key, e)}
-                          className="hidden"
-                        />
+                {key.startsWith("card_") ? (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1.5">
+                        Card Title
                       </label>
-                      <span className="text-xs text-zinc-500 truncate max-w-[150px]">
-                        {current.brochureFileName || "No file uploaded yet"}
-                      </span>
+                      <input
+                        type="text"
+                        value={current.title || ""}
+                        onChange={(e) => updateLocalField(key, "title", e.target.value)}
+                        placeholder="e.g. Basic Career Success"
+                        className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-800 focus:outline-none focus:ring-1.5 focus:ring-emerald-500/40 focus:bg-white transition-all font-semibold"
+                      />
                     </div>
 
-                    {/* Or Manual URL Option */}
-                    <div className="pt-2">
-                      <label className="block text-[11px] font-semibold text-zinc-600 mb-1.5">
-                        Or enter PDF URL path manually:
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1.5">
+                        Card Subtitle / Description
+                      </label>
+                      <input
+                        type="text"
+                        value={current.subtitle || ""}
+                        onChange={(e) => updateLocalField(key, "subtitle", e.target.value)}
+                        placeholder="e.g. For Right Subjects & Insights"
+                        className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-800 focus:outline-none focus:ring-1.5 focus:ring-emerald-500/40 focus:bg-white transition-all"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1.5">
+                          Original Price (with ₹ crossed out)
+                        </label>
+                        <input
+                          type="text"
+                          value={current.originalPrice || ""}
+                          onChange={(e) => updateLocalField(key, "originalPrice", e.target.value)}
+                          placeholder="e.g. ₹15,000"
+                          className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-800 focus:outline-none focus:ring-1.5 focus:ring-emerald-500/40 focus:bg-white transition-all font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1.5">
+                          Current Price (with ₹ currency)
+                        </label>
+                        <input
+                          type="text"
+                          value={current.currentPrice || ""}
+                          onChange={(e) => updateLocalField(key, "currentPrice", e.target.value)}
+                          placeholder="e.g. ₹8,500"
+                          className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-800 focus:outline-none focus:ring-1.5 focus:ring-emerald-500/40 focus:bg-white transition-all font-bold font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1.5">
+                        Points Offered (Features - one per line)
+                      </label>
+                      <textarea
+                        rows={4}
+                        value={current.features || ""}
+                        onChange={(e) => updateLocalField(key, "features", e.target.value)}
+                        placeholder="e.g. Intro session&#10;1 Counselling Session"
+                        className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-800 focus:outline-none focus:ring-1.5 focus:ring-emerald-500/40 focus:bg-white transition-all font-sans leading-relaxed"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-1.5">
+                        Watch Details - Video Link (YouTube/Vimeo/MP4)
                       </label>
                       <input
                         type="url"
-                        value={current.brochureUrl || ""}
-                        onChange={(e) => updateLocalField(key, "brochureUrl", e.target.value)}
-                        placeholder="e.g. https://example.com/assets/brochure.pdf"
-                        className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-800 focus:outline-none focus:ring-1.5 focus:ring-emerald-500/40"
+                        value={current.videoUrl || ""}
+                        onChange={(e) => updateLocalField(key, "videoUrl", e.target.value)}
+                        placeholder="e.g. https://www.youtube.com/embed/dQw4w9WgXcQ"
+                        className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-800 focus:outline-none focus:ring-1.5 focus:ring-emerald-500/40 focus:bg-white transition-all"
                       />
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-1.5">
+                        <FileText className="h-3.5 w-3.5 text-emerald-600" />
+                        Program Brochure (PDF)
+                      </h4>
 
-                {/* 2. BRIEFING VIDEO LINK SECTION */}
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-1.5">
-                    <Play className="h-3.5 w-3.5 text-emerald-600" />
-                    Briefing Video Stream Link
-                  </h4>
-                  <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-150 space-y-2">
-                    <label className="block text-[11px] font-semibold text-zinc-600">
-                      YouTube, Vimeo, or direct MP4 URL:
-                    </label>
-                    <input
-                      type="url"
-                      required
-                      value={current.videoUrl || ""}
-                      onChange={(e) => updateLocalField(key, "videoUrl", e.target.value)}
-                      placeholder="e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-                      className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-800 focus:outline-none focus:ring-1.5 focus:ring-emerald-500/40"
-                    />
-                    {current.videoUrl && (
-                      <div className="text-[10px] text-emerald-700 bg-emerald-50/50 p-1.5 rounded-lg border border-emerald-100 flex items-center gap-1.5 font-medium">
-                        <CheckCircle className="h-3.5 w-3.5 shrink-0" /> Real-time embedding dynamic translation active
+                      {/* Direct File Upload Option */}
+                      <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-150 space-y-3">
+                        <label className="block text-[11px] font-semibold text-zinc-600">
+                          Upload Brochure File directly:
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <label className="flex items-center gap-2 bg-white hover:bg-zinc-100 border border-zinc-200 px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer text-zinc-800 transition-all hover:border-zinc-300">
+                            <Upload className="h-3.5 w-3.5 text-zinc-500" />
+                            <span>Choose PDF File</span>
+                            <input
+                              type="file"
+                              accept=".pdf"
+                              onChange={(e) => handlePdfUpload(key, e)}
+                              className="hidden"
+                            />
+                          </label>
+                          <span className="text-xs text-zinc-500 truncate max-w-[150px]">
+                            {current.brochureFileName || "No file uploaded yet"}
+                          </span>
+                        </div>
+
+                        {/* Or Manual URL Option */}
+                        <div className="pt-2">
+                          <label className="block text-[11px] font-semibold text-zinc-600 mb-1.5">
+                            Or enter PDF URL path manually:
+                          </label>
+                          <input
+                            type="url"
+                            value={current.brochureUrl || ""}
+                            onChange={(e) => updateLocalField(key, "brochureUrl", e.target.value)}
+                            placeholder="e.g. https://example.com/assets/brochure.pdf"
+                            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-800 focus:outline-none focus:ring-1.5 focus:ring-emerald-500/40"
+                          />
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+                    </div>
 
-              {/* Footer Save CTA */}
+                    {/* 2. BRIEFING VIDEO LINK SECTION */}
+                    <div className="space-y-3 pt-4">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-1.5">
+                        <Play className="h-3.5 w-3.5 text-emerald-600" />
+                        Briefing Video Stream Link
+                      </h4>
+                      <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-150 space-y-2">
+                        <label className="block text-[11px] font-semibold text-zinc-600">
+                          YouTube, Vimeo, or direct MP4 URL:
+                        </label>
+                        <input
+                          type="url"
+                          required
+                          value={current.videoUrl || ""}
+                          onChange={(e) => updateLocalField(key, "videoUrl", e.target.value)}
+                          placeholder="e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+                          className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-800 focus:outline-none focus:ring-1.5 focus:ring-emerald-500/40"
+                        />
+                        {current.videoUrl && (
+                          <div className="text-[10px] text-emerald-700 bg-emerald-50/50 p-1.5 rounded-lg border border-emerald-100 flex items-center gap-1.5 font-medium">
+                            <CheckCircle className="h-3.5 w-3.5 shrink-0" /> Real-time embedding dynamic translation active
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+ 
+               {/* Footer Save CTA */}
               <div className="pt-6 mt-6 border-t border-zinc-100">
                 <button
                   onClick={() => handleSaveConfig(key)}
@@ -265,7 +400,7 @@ export default function AdminProgramsConfig({ configs, onRefresh }: AdminProgram
                   ) : (
                     <>
                       <Save className="h-4 w-4 text-emerald-400" />
-                      Update {key} Landing Page
+                      {key.startsWith("card_") ? `Update ${current.title}` : `Update ${key} Landing Page`}
                     </>
                   )}
                 </button>

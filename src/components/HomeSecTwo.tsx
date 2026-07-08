@@ -19,7 +19,7 @@ export default function HomeSecTwo() {
     {
       title: "Restart your Career",
       description: "Tailored counseling for professionals re-entering the workforce after career gaps or transitions.",
-      image: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=400&q=80",
+      image: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=400&q=80",
       icon: Layers,
     },
   ];

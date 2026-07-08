@@ -11,12 +11,35 @@ const HERO_IMAGES = [
 
 export default function HeroSection() {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [stats, setStats] = useState({
+    studentsCount: "10K+",
+    expertsCount: "15+",
+    successRate: "99%"
+  });
 
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % HERO_IMAGES.length);
     }, 5000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/system-stats")
+      .then((res) => {
+        if (res.ok) return res.json();
+        throw new Error("Failed to load system stats.");
+      })
+      .then((data) => {
+        if (data && data.studentsCount) {
+          setStats({
+            studentsCount: data.studentsCount,
+            expertsCount: data.expertsCount,
+            successRate: data.successRate
+          });
+        }
+      })
+      .catch((err) => console.error("Error fetching system stats:", err));
   }, []);
 
   return (
@@ -75,21 +98,21 @@ export default function HeroSection() {
             <div className="text-center lg:text-left">
               <div className="flex items-center justify-center lg:justify-start gap-1.5 text-zinc-800 font-bold font-mono">
                 <GraduationCap className="h-4 w-4 text-emerald-600" />
-                <span>10K+</span>
+                <span>{stats.studentsCount}</span>
               </div>
               <p className="text-[11px] text-zinc-500 font-medium uppercase tracking-wider mt-0.5">Students</p>
             </div>
             <div className="text-center lg:text-left">
               <div className="flex items-center justify-center lg:justify-start gap-1.5 text-zinc-800 font-bold font-mono">
                 <Users className="h-4 w-4 text-emerald-600" />
-                <span>15+</span>
+                <span>{stats.expertsCount}</span>
               </div>
               <p className="text-[11px] text-zinc-500 font-medium uppercase tracking-wider mt-0.5">Experts</p>
             </div>
             <div className="text-center lg:text-left">
               <div className="flex items-center justify-center lg:justify-start gap-1.5 text-zinc-800 font-bold font-mono">
                 <Trophy className="h-4 w-4 text-emerald-600" />
-                <span>99%</span>
+                <span>{stats.successRate}</span>
               </div>
               <p className="text-[11px] text-zinc-500 font-medium uppercase tracking-wider mt-0.5">Success</p>
             </div>

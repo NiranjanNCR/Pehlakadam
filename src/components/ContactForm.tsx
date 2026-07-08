@@ -2,6 +2,7 @@ import { useState, ChangeEvent, FormEvent } from "react";
 import { Mail, Phone, MapPin, User, MessageSquare, Send, CheckCircle } from "lucide-react";
 import { ContactFormData } from "../types";
 import { motion } from "motion/react";
+import { contactFormSchema } from "../lib/validation";
 
 export default function ContactForm() {
   const [formData, setFormData] = useState<ContactFormData>({
@@ -12,6 +13,7 @@ export default function ContactForm() {
     role: "",
     message: "",
   });
+  const [errors, setErrors] = useState<Partial<Record<keyof ContactFormData, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -21,19 +23,37 @@ export default function ContactForm() {
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name as keyof ContactFormData]) {
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setSubmitError("");
+    setErrors({});
+
+    const result = contactFormSchema.safeParse(formData);
+    if (!result.success) {
+      const fieldErrors: Partial<Record<keyof ContactFormData, string>> = {};
+      result.error.issues.forEach((err) => {
+        const path = err.path[0] as keyof ContactFormData;
+        if (path) {
+          fieldErrors[path] = err.message;
+        }
+      });
+      setErrors(fieldErrors);
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       // 🚀 TRANSACTION: Submitting form data to our full-stack API endpoint
       const response = await fetch("/api/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(result.data),
       });
 
       if (response.ok) {
@@ -171,7 +191,7 @@ export default function ContactForm() {
                   )}
                 </motion.div>
               ) : (
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-6" noValidate>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">
@@ -185,10 +205,16 @@ export default function ContactForm() {
                           value={formData.firstName}
                           onChange={handleChange}
                           placeholder="Your first name"
-                          required
-                          className="w-full rounded-xl bg-zinc-950 border border-zinc-800 pl-11 pr-4 py-3 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          className={`w-full rounded-xl bg-zinc-950 border pl-11 pr-4 py-3 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                            errors.firstName
+                              ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                              : "border-zinc-800 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          }`}
                         />
                       </div>
+                      {errors.firstName && (
+                        <p className="mt-1.5 text-xs text-red-400 font-medium text-left px-1">{errors.firstName}</p>
+                      )}
                     </div>
 
                     <div>
@@ -203,10 +229,16 @@ export default function ContactForm() {
                           value={formData.lastName}
                           onChange={handleChange}
                           placeholder="Your last name"
-                          required
-                          className="w-full rounded-xl bg-zinc-950 border border-zinc-800 pl-11 pr-4 py-3 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          className={`w-full rounded-xl bg-zinc-950 border pl-11 pr-4 py-3 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                            errors.lastName
+                              ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                              : "border-zinc-800 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          }`}
                         />
                       </div>
+                      {errors.lastName && (
+                        <p className="mt-1.5 text-xs text-red-400 font-medium text-left px-1">{errors.lastName}</p>
+                      )}
                     </div>
                   </div>
 
@@ -223,10 +255,16 @@ export default function ContactForm() {
                           value={formData.email}
                           onChange={handleChange}
                           placeholder="you@example.com"
-                          required
-                          className="w-full rounded-xl bg-zinc-950 border border-zinc-800 pl-11 pr-4 py-3 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          className={`w-full rounded-xl bg-zinc-950 border pl-11 pr-4 py-3 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                            errors.email
+                              ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                              : "border-zinc-800 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          }`}
                         />
                       </div>
+                      {errors.email && (
+                        <p className="mt-1.5 text-xs text-red-400 font-medium text-left px-1">{errors.email}</p>
+                      )}
                     </div>
 
                     <div>
@@ -241,10 +279,16 @@ export default function ContactForm() {
                           value={formData.number}
                           onChange={handleChange}
                           placeholder="Mobile with code"
-                          required
-                          className="w-full rounded-xl bg-zinc-950 border border-zinc-800 pl-11 pr-4 py-3 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          className={`w-full rounded-xl bg-zinc-950 border pl-11 pr-4 py-3 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                            errors.number
+                              ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                              : "border-zinc-800 focus:ring-emerald-500/50 focus:border-emerald-500"
+                          }`}
                         />
                       </div>
+                      {errors.number && (
+                        <p className="mt-1.5 text-xs text-red-400 font-medium text-left px-1">{errors.number}</p>
+                      )}
                     </div>
                   </div>
 
@@ -256,8 +300,11 @@ export default function ContactForm() {
                       name="role"
                       value={formData.role}
                       onChange={handleChange}
-                      required
-                      className="w-full rounded-xl bg-zinc-950 border border-zinc-800 px-4 py-3 text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                      className={`w-full rounded-xl bg-zinc-950 border px-4 py-3 text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 ${
+                        errors.role
+                          ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                          : "border-zinc-800 focus:ring-emerald-500/50 focus:border-emerald-500"
+                      }`}
                     >
                       <option value="" disabled>
                         Select a program
@@ -269,6 +316,9 @@ export default function ContactForm() {
                       <option value="UG/Graduate/PG">UG/Graduate/PG</option>
                       <option value="Generalist to Specialist">Generalist to Specialist</option>
                     </select>
+                    {errors.role && (
+                      <p className="mt-1.5 text-xs text-red-400 font-medium text-left px-1">{errors.role}</p>
+                    )}
                   </div>
 
                   <div>
@@ -282,11 +332,17 @@ export default function ContactForm() {
                         value={formData.message}
                         onChange={handleChange}
                         placeholder="Write your message here..."
-                        required
                         rows={4}
-                        className="w-full rounded-xl bg-zinc-950 border border-zinc-800 pl-11 pr-4 py-3 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 resize-none"
+                        className={`w-full rounded-xl bg-zinc-950 border pl-11 pr-4 py-3 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 resize-none ${
+                          errors.message
+                            ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                            : "border-zinc-800 focus:ring-emerald-500/50 focus:border-emerald-500"
+                        }`}
                       ></textarea>
                     </div>
+                    {errors.message && (
+                      <p className="mt-1.5 text-xs text-red-400 font-medium text-left px-1">{errors.message}</p>
+                    )}
                   </div>
 
                   {submitError && (

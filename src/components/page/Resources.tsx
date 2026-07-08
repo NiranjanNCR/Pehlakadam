@@ -3,13 +3,14 @@ import { useNavigate } from "react-router-dom";
 import NavigationBar from "../NavigationBar";
 import Footer from "../Footer";
 import YouTubeModal from "../YouTubeModal";
-import { BookOpen, Download, Search, FileText, Check, Play, Film, Loader2, AlertCircle, Lock, Unlock, MessageSquare, Key, ShieldCheck, LogOut } from "lucide-react";
+import { BookOpen, Download, Search, FileText, Check, Play, Film, Loader2, AlertCircle, Lock, Unlock, MessageSquare, Key, ShieldCheck, LogOut, BrainCircuit } from "lucide-react";
 import { ResourceMaterial } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
 
 export default function Resources() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTest, setSelectedTest] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"all" | "pdf" | "video">("all");
   const [resources, setResources] = useState<ResourceMaterial[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,11 +142,27 @@ export default function Resources() {
   const filteredResources = resources.filter((res) => {
     const matchesAccess = accessFilter === "paid" ? !!res.isPaid : !res.isPaid;
     const matchesTab = activeTab === "all" || res.type === activeTab;
-    const matchesSearch =
-      res.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      res.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      res.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesAccess && matchesTab && matchesSearch;
+    
+    const titleVal = res.title || "";
+    const catVal = res.category || "";
+    const descVal = res.description || "";
+    const queryVal = searchQuery.toLowerCase().trim();
+
+    const matchesSearch = !queryVal ||
+      titleVal.toLowerCase().includes(queryVal) ||
+      catVal.toLowerCase().includes(queryVal) ||
+      descVal.toLowerCase().includes(queryVal);
+    
+    let matchesTest = true;
+    if (selectedTest !== "all") {
+      const testVal = selectedTest.toLowerCase();
+      matchesTest = 
+        titleVal.toLowerCase().includes(testVal) || 
+        catVal.toLowerCase().includes(testVal) || 
+        descVal.toLowerCase().includes(testVal);
+    }
+    
+    return matchesAccess && matchesTab && matchesSearch && matchesTest;
   });
 
   return (
@@ -185,6 +202,37 @@ export default function Resources() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-11 pr-4 py-3.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
                 />
+              </div>
+
+              {/* Personality Test Quick Filter Bar */}
+              <div className="py-1 text-left">
+                <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mb-2 px-1">
+                  Quick Filter by Personality Assessment:
+                </p>
+                <div className="flex flex-wrap gap-1.5 justify-start">
+                  {[
+                    { label: "All Tests", value: "all" },
+                    { label: "DISC", value: "DISC" },
+                    { label: "MBTI", value: "MBTI" },
+                    { label: "16PF", value: "16PF" },
+                    { label: "EPI", value: "EPI" },
+                    { label: "Enneagram", value: "Enneagram" },
+                    { label: "Caliper", value: "Caliper" },
+                    { label: "MMPI", value: "Minnesota" }
+                  ].map((test) => (
+                    <button
+                      key={test.value}
+                      onClick={() => setSelectedTest(test.value)}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all cursor-pointer ${
+                        selectedTest === test.value
+                          ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50 font-bold shadow-sm shadow-emerald-500/10"
+                          : "bg-zinc-900/50 hover:bg-zinc-800 text-zinc-400 hover:text-white border-zinc-800/80"
+                      }`}
+                    >
+                      {test.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Segmented Tab Filter */}
@@ -413,7 +461,7 @@ export default function Resources() {
                     <p className="text-zinc-500 text-sm leading-relaxed">{res.description}</p>
                   </div>
 
-                  <div className="pt-6 mt-6 border-t border-zinc-100 flex items-center justify-between">
+                  <div className="pt-6 mt-6 border-t border-zinc-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <p className="text-xs text-zinc-400 font-medium flex items-center gap-1">
                       {res.isPaid ? (
                         <>
@@ -425,26 +473,35 @@ export default function Resources() {
                     </p>
                     
                     {res.type === "pdf" ? (
-                      <button
-                        id={`download-btn-${res.id}`}
-                        onClick={() => handleDownload(res.id)}
-                        disabled={downloadingItem === res.id}
-                        className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${
-                          downloadingItem === res.id
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : "bg-zinc-900 hover:bg-emerald-600 text-white hover:shadow-md cursor-pointer"
-                        }`}
-                      >
-                        {downloadingItem === res.id ? (
-                          <>
-                            <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" /> Downloading...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="h-3.5 w-3.5" /> Download Guide
-                          </>
-                        )}
-                      </button>
+                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                        <button
+                          id={`start-test-btn-${res.id}`}
+                          onClick={() => navigate("/diagnostics")}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 text-xs font-bold transition-all cursor-pointer hover:shadow-md shadow-sm shadow-emerald-900/10"
+                        >
+                          <BrainCircuit className="h-3.5 w-3.5 text-emerald-300" /> Start Test
+                        </button>
+                        <button
+                          id={`download-btn-${res.id}`}
+                          onClick={() => handleDownload(res.id)}
+                          disabled={downloadingItem === res.id}
+                          className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${
+                            downloadingItem === res.id
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : "bg-zinc-900 hover:bg-emerald-600 text-white hover:shadow-md cursor-pointer"
+                          }`}
+                        >
+                          {downloadingItem === res.id ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" /> Downloading...
+                            </>
+                          ) : (
+                            <>
+                              <Download className="h-3.5 w-3.5" /> Download Guide
+                            </>
+                          )}
+                        </button>
+                      </div>
                     ) : (
                       <button
                         id={`watch-btn-${res.id}`}

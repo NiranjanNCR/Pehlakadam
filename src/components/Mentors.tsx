@@ -4,13 +4,6 @@ import { motion } from "motion/react";
 export default function Mentors() {
   const mentorList = [
     {
-      name: "MOHIT ANAND DUBEY",
-      institution: "BITS PILANI",
-      qualification: "M.Tech in Technical Communications",
-      roleDescription: "Unified Communications and Collaboration Consultant",
-      image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80",
-    },
-    {
       name: "NIRANJAN SINGH",
       institution: "PUNJABI UNIVERSITY, PATIALA",
       qualification: "B.Tech & Career Psychology Consultant",
@@ -44,7 +37,7 @@ export default function Mentors() {
         </div>
 
         {/* Mentors Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto">
           {mentorList.map((mentor, index) => (
             <motion.div
               key={index}

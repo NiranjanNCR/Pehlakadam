@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Check, X, Play, ShieldCheck, Sparkles, UserCheck } from "lucide-react";
 import YouTubeModal from "./YouTubeModal";
 import FormModal from "./FormModal";
@@ -7,6 +7,8 @@ import { motion } from "motion/react";
 export default function CartCourse() {
   const [isOpen, setIsOpen] = useState(false);
   const [videoUrl, setVideoUrl] = useState("");
+  const [configs, setConfigs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const openModal = (url: string) => {
     setVideoUrl(url);
@@ -18,38 +20,116 @@ export default function CartCourse() {
     setVideoUrl("");
   };
 
-  const basicFeatures = [
-    { name: "Intro session", included: true },
-    { name: "1 Counselling Session", included: true },
-    { name: "Detailed Career Report", included: true },
-    { name: "Career Path Recommendation", included: true },
-    { name: "Access Career bank", included: true },
-    { name: "1 Follow up Call", included: true },
-    { name: "College & Courses", included: true },
-    { name: "Psychologist session", included: false },
-  ];
+  useEffect(() => {
+    fetch("/api/programs-config")
+      .then((res) => {
+        if (res.ok) return res.json();
+        throw new Error("Failed to load configs");
+      })
+      .then((data) => {
+        setConfigs(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Error loading pricing card configs:", err);
+        setLoading(false);
+      });
+  }, []);
 
-  const standardFeatures = [
-    { name: "Intro session", included: true },
-    { name: "2 Counselling Sessions", included: true },
-    { name: "Detailed Career Report", included: true },
-    { name: "Career Path Recommendation", included: true },
-    { name: "Access Career bank", included: true },
-    { name: "2 Follow up Calls", included: true },
-    { name: "College & Courses", included: true },
-    { name: "Psychologist session", included: false },
-  ];
+  const getCardDetails = (
+    key: string,
+    defaultTitle: string,
+    defaultSubtitle: string,
+    defaultOriginalPrice: string,
+    defaultCurrentPrice: string,
+    defaultFeatures: string[],
+    defaultVideoUrl: string
+  ) => {
+    const config = configs.find((c) => c.programKey === key);
+    
+    const title = config?.title || defaultTitle;
+    const subtitle = config?.subtitle || defaultSubtitle;
+    const originalPrice = config?.originalPrice !== undefined ? config.originalPrice : defaultOriginalPrice;
+    const currentPrice = config?.currentPrice || defaultCurrentPrice;
+    const videoLink = config?.videoUrl || defaultVideoUrl;
 
-  const premiumFeatures = [
-    { name: "Intro session", included: true },
-    { name: "3+ Counselling Sessions", included: true },
-    { name: "Detailed Career Report", included: true },
-    { name: "Career Path Recommendation", included: true },
-    { name: "Access Career bank", included: true },
-    { name: "Unlimited Follow up Calls", included: true },
-    { name: "College & Courses / Admissions", included: true },
-    { name: "Psychologist session", included: true },
-  ];
+    let featuresList: { name: string; included: boolean }[] = [];
+    if (config?.features) {
+      featuresList = config.features.split("\n").map((f: string) => {
+        const line = f.trim();
+        if (line.startsWith("-")) {
+          return { name: line.substring(1).trim(), included: false };
+        }
+        return { name: line, included: true };
+      }).filter((f: any) => f.name.length > 0);
+    } else {
+      featuresList = defaultFeatures.map((f) => {
+        if (f.startsWith("-")) {
+          return { name: f.substring(1).trim(), included: false };
+        }
+        return { name: f, included: true };
+      });
+    }
+
+    return { title, subtitle, originalPrice, currentPrice, features: featuresList, videoUrl: videoLink };
+  };
+
+  const basicCard = getCardDetails(
+    "card_basic",
+    "Basic Career Success",
+    "For Right Subjects & Insights",
+    "₹15,000",
+    "₹8,500",
+    [
+      "Intro session",
+      "1 Counselling Session",
+      "Detailed Career Report",
+      "Career Path Recommendation",
+      "Access Career bank",
+      "1 Follow up Call",
+      "College & Courses",
+      "- Psychologist session"
+    ],
+    "https://www.youtube.com/embed/WfvZ2NsThws?si=dhmxlQYloLZYa08Q"
+  );
+
+  const standardCard = getCardDetails(
+    "card_standard",
+    "Advanced Career Success",
+    "For Optimal Career Decisions",
+    "₹25,000",
+    "₹18,500",
+    [
+      "Intro session",
+      "2 Counselling Sessions",
+      "Detailed Career Report",
+      "Career Path Recommendation",
+      "Access Career bank",
+      "2 Follow up Calls",
+      "College & Courses",
+      "- Psychologist session"
+    ],
+    "https://www.youtube.com/embed/WfvZ2NsThws?si=dhmxlQYloLZYa08Q"
+  );
+
+  const premiumCard = getCardDetails(
+    "card_premium",
+    "Full Career Coaching",
+    "Complete Personal Excellence",
+    "₹45,000",
+    "₹35,000",
+    [
+      "Intro session",
+      "3+ Counselling Sessions",
+      "Detailed Career Report",
+      "Career Path Recommendation",
+      "Access Career bank",
+      "Unlimited Follow up Calls",
+      "College & Courses / Admissions",
+      "Psychologist session"
+    ],
+    "https://www.youtube.com/embed/WfvZ2NsThws?si=dhmxlQYloLZYa08Q"
+  );
 
   return (
     <section id="pricing-section" className="py-20 bg-zinc-50 border-t border-zinc-100">
@@ -102,8 +182,8 @@ export default function CartCourse() {
             <div className="text-center md:text-right">
               <p className="text-sm text-emerald-300/90 font-medium">Original Consultation Value</p>
               <div className="flex items-baseline justify-center md:justify-end gap-2">
-                <span className="text-zinc-400 line-through text-lg font-medium">$50.00</span>
-                <span className="text-3xl font-black text-emerald-400 font-sans">$0.00</span>
+                <span className="text-zinc-400 line-through text-lg font-medium">₹4,000</span>
+                <span className="text-3xl font-black text-emerald-400 font-sans">₹0</span>
               </div>
             </div>
 
@@ -137,18 +217,21 @@ export default function CartCourse() {
                 <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Basic</span>
                 <UserCheck className="h-5 w-5 text-zinc-400" />
               </div>
-              <h4 className="text-xl font-bold text-zinc-900 font-sans">Basic Career Success</h4>
-              <p className="text-sm text-zinc-500 mt-1">For Right Subjects & Insights</p>
+              <h4 className="text-xl font-bold text-zinc-900 font-sans">{basicCard.title}</h4>
+              <p className="text-sm text-zinc-500 mt-1">{basicCard.subtitle}</p>
               
-              <div className="mt-6 flex items-baseline">
-                <span className="text-4xl font-black text-zinc-950 font-sans">$100</span>
-                <span className="text-sm text-zinc-500 ml-2">/ student</span>
+              <div className="mt-6 flex items-baseline gap-2 flex-wrap">
+                <span className="text-4xl font-black text-zinc-950 font-sans">{basicCard.currentPrice}</span>
+                {basicCard.originalPrice && (
+                  <span className="text-sm text-zinc-400 line-through font-semibold">{basicCard.originalPrice}</span>
+                )}
+                <span className="text-xs text-zinc-500 font-medium font-sans">/ student</span>
               </div>
             </div>
 
             <div className="p-8 flex-grow">
               <ul className="space-y-4">
-                {basicFeatures.map((feat, i) => (
+                {basicCard.features.map((feat, i) => (
                   <li key={i} className="flex items-start gap-3">
                     {feat.included ? (
                       <Check className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
@@ -168,7 +251,7 @@ export default function CartCourse() {
                 <FormModal />
               </div>
               <button
-                onClick={() => openModal("https://www.youtube.com/embed/WfvZ2NsThws?si=dhmxlQYloLZYa08Q")}
+                onClick={() => openModal(basicCard.videoUrl)}
                 className="flex items-center justify-center h-12 w-12 rounded-full border border-zinc-200 bg-white text-zinc-600 hover:text-emerald-600 hover:border-emerald-200 transition-colors cursor-pointer"
                 title="Watch Plan Details"
               >
@@ -194,18 +277,21 @@ export default function CartCourse() {
                 <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Standard</span>
                 <Sparkles className="h-5 w-5 text-emerald-500" />
               </div>
-              <h4 className="text-xl font-bold text-zinc-900 font-sans">Advanced Career Success</h4>
-              <p className="text-sm text-zinc-500 mt-1">For Optimal Career Decisions</p>
+              <h4 className="text-xl font-bold text-zinc-900 font-sans">{standardCard.title}</h4>
+              <p className="text-sm text-zinc-500 mt-1">{standardCard.subtitle}</p>
               
-              <div className="mt-6 flex items-baseline">
-                <span className="text-4xl font-black text-zinc-950 font-sans">$220</span>
-                <span className="text-sm text-zinc-500 ml-2">/ student</span>
+              <div className="mt-6 flex items-baseline gap-2 flex-wrap">
+                <span className="text-4xl font-black text-zinc-950 font-sans">{standardCard.currentPrice}</span>
+                {standardCard.originalPrice && (
+                  <span className="text-sm text-zinc-400 line-through font-semibold">{standardCard.originalPrice}</span>
+                )}
+                <span className="text-xs text-zinc-500 font-medium font-sans">/ student</span>
               </div>
             </div>
 
             <div className="p-8 flex-grow">
               <ul className="space-y-4">
-                {standardFeatures.map((feat, i) => (
+                {standardCard.features.map((feat, i) => (
                   <li key={i} className="flex items-start gap-3">
                     {feat.included ? (
                       <Check className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
@@ -225,7 +311,7 @@ export default function CartCourse() {
                 <FormModal />
               </div>
               <button
-                onClick={() => openModal("https://www.youtube.com/embed/WfvZ2NsThws?si=dhmxlQYloLZYa08Q")}
+                onClick={() => openModal(standardCard.videoUrl)}
                 className="flex items-center justify-center h-12 w-12 rounded-full border border-zinc-200 bg-white text-zinc-600 hover:text-emerald-600 hover:border-emerald-200 transition-colors cursor-pointer"
                 title="Watch Plan Details"
               >
@@ -247,18 +333,21 @@ export default function CartCourse() {
                 <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Premium Elite</span>
                 <ShieldCheck className="h-5 w-5 text-emerald-600" />
               </div>
-              <h4 className="text-xl font-bold text-zinc-900 font-sans">Full Career Coaching</h4>
-              <p className="text-sm text-zinc-500 mt-1">Complete Personal Excellence</p>
+              <h4 className="text-xl font-bold text-zinc-900 font-sans">{premiumCard.title}</h4>
+              <p className="text-sm text-zinc-500 mt-1">{premiumCard.subtitle}</p>
               
-              <div className="mt-6 flex items-baseline">
-                <span className="text-4xl font-black text-zinc-950 font-sans">$400</span>
-                <span className="text-sm text-zinc-500 ml-2">/ student</span>
+              <div className="mt-6 flex items-baseline gap-2 flex-wrap">
+                <span className="text-4xl font-black text-zinc-950 font-sans">{premiumCard.currentPrice}</span>
+                {premiumCard.originalPrice && (
+                  <span className="text-sm text-zinc-400 line-through font-semibold">{premiumCard.originalPrice}</span>
+                )}
+                <span className="text-xs text-zinc-500 font-medium font-sans">/ student</span>
               </div>
             </div>
 
             <div className="p-8 flex-grow">
               <ul className="space-y-4">
-                {premiumFeatures.map((feat, i) => (
+                {premiumCard.features.map((feat, i) => (
                   <li key={i} className="flex items-start gap-3">
                     {feat.included ? (
                       <Check className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
@@ -278,7 +367,7 @@ export default function CartCourse() {
                 <FormModal />
               </div>
               <button
-                onClick={() => openModal("https://www.youtube.com/embed/WfvZ2NsThws?si=dhmxlQYloLZYa08Q")}
+                onClick={() => openModal(premiumCard.videoUrl)}
                 className="flex items-center justify-center h-12 w-12 rounded-full border border-zinc-200 bg-white text-zinc-600 hover:text-emerald-600 hover:border-emerald-200 transition-colors cursor-pointer"
                 title="Watch Plan Details"
               >

@@ -1,0 +1,112 @@
+[
+  {
+    "id": "disc-guide",
+    "title": "DISC Personality Guidebook",
+    "category": "Psychometrics",
+    "description": "Understand your core behavioral triggers: Dominance, Influence, Steadiness, and Compliance traits.",
+    "type": "pdf",
+    "format": "PDF (2.4 MB)",
+    "fileUrl": "placeholder_disc_guide.pdf",
+    "createdAt": "2026-07-08T05:51:05.360Z"
+  },
+  {
+    "id": "mbti-career",
+    "title": "MBTI 16-Personalities Career Grid",
+    "category": "Career Selection",
+    "description": "Direct mapping of 16 cognitive profiles into ideal scientific domains, stream subjects, and industries.",
+    "type": "pdf",
+    "format": "PDF (3.1 MB)",
+    "fileUrl": "placeholder_mbti_career.pdf",
+    "createdAt": "2026-07-08T05:51:05.360Z"
+  },
+  {
+    "id": "16pf-guide",
+    "title": "Personality Factor Questionnaire",
+    "category": "16PF Career matching",
+    "description": "Evaluate primary personality factors to identify potential academic paths and match with aligned career trajectories.",
+    "type": "pdf",
+    "format": "PDF (2.0 MB)",
+    "fileUrl": "placeholder_16pf_guide.pdf",
+    "createdAt": "2026-07-08T05:51:05.360Z"
+  },
+  {
+    "id": "epi-guide",
+    "title": "Eysenck Personality Inventory",
+    "category": "EPI Temperament scales",
+    "description": "Measure extraversion, introversion, and neuroticism traits to understand personal temperament scales and learning style adaptability.",
+    "type": "pdf",
+    "format": "PDF (1.6 MB)",
+    "fileUrl": "placeholder_epi_guide.pdf",
+    "createdAt": "2026-07-08T05:51:05.360Z"
+  },
+  {
+    "id": "enneagram-guide",
+    "title": "Enneagram Core Test",
+    "category": "9 Interconnected Personality Types",
+    "description": "Explore the 9 interconnected personality types to find core motivators, social patterns, and professional environments for growth.",
+    "type": "pdf",
+    "format": "PDF (2.2 MB)",
+    "fileUrl": "placeholder_enneagram_guide.pdf",
+    "createdAt": "2026-07-08T05:51:05.360Z"
+  },
+  {
+    "id": "caliper-guide",
+    "title": "Caliper Profile",
+    "category": "Job performance matching",
+    "description": "Analyze intrinsic motivation, cognitive abilities, and potential job performance indicators to discover suitable vocational paths.",
+    "type": "pdf",
+    "format": "PDF (2.5 MB)",
+    "fileUrl": "placeholder_caliper_guide.pdf",
+    "createdAt": "2026-07-08T05:51:05.360Z"
+  },
+  {
+    "id": "mmpi-guide",
+    "title": "Minnesota Multiphasic Test",
+    "category": "MMPI Clinical Insights",
+    "description": "A comprehensive psychometric tool used for deep personality structure evaluation and clinical-level self-awareness profiling.",
+    "type": "pdf",
+    "format": "PDF (3.0 MB)",
+    "fileUrl": "placeholder_mmpi_guide.pdf",
+    "createdAt": "2026-07-08T05:51:05.360Z"
+  },
+  {
+    "id": "grade-planner",
+    "title": "High School Study Strategy & Planners",
+    "category": "Academic Planning",
+    "description": "Step-by-step timetables and subject scheduling trackers designed specifically for Grade 8-12 students.",
+    "type": "pdf",
+    "format": "PDF (1.8 MB)",
+    "fileUrl": "placeholder_grade_planner.pdf",
+    "createdAt": "2026-07-08T05:51:05.360Z"
+  },
+  {
+    "id": "resume-resume",
+    "title": "Ultimate Post-Graduate Resume Blueprint",
+    "category": "Career Restart",
+    "description": "Professional ATS-friendly CV templates curated by our expert advisors at BITS Pilani & Patiala.",
+    "type": "pdf",
+    "format": "DOCX (850 KB)",
+    "fileUrl": "placeholder_resume.docx",
+    "createdAt": "2026-07-08T05:51:05.360Z"
+  },
+  {
+    "id": "video-1",
+    "title": "How to Select Your Ideal Stream in Grade 10",
+    "category": "Career Selection",
+    "description": "A comprehensive masterclass on matching interest profiles with academic choices, avoiding herd mentality.",
+    "type": "video",
+    "format": "YouTube Video",
+    "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+    "createdAt": "2026-07-08T05:51:05.360Z"
+  },
+  {
+    "id": "video-2",
+    "title": "Introduction to MBTI & DISC Testing",
+    "category": "Psychometrics",
+    "description": "An expert guide explaining what psychometrics are, how to take the evaluation, and why they predict real fulfillment.",
+    "type": "video",
+    "format": "YouTube Video",
+    "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+    "createdAt": "2026-07-08T05:51:05.360Z"
+  }
+]
