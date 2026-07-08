@@ -10,22 +10,22 @@ export default function Program910() {
   const benchmarks = [
     {
       title: "Board Stream Selection",
-      desc: "Grade 10 is the ultimate crossroads where choosing Science, Commerce, or Humanities sets the irreversible course for national board exams.",
+      desc: "Grade 10 is the ultimate crossroads where choosing Science, Commerce, or Humanities sets the course for high school and national board exams.",
       icon: Target,
     },
     {
       title: "Cognitive Skill Mapping",
-      desc: "Our scientific MBTI/DISC evaluations map logical, creative, analytical, and interpersonal indices to match native brain wiring.",
+      desc: "Our scientific evaluations map logical, creative, analytical, and interpersonal indices to match native brain wiring with potential professions.",
       icon: Brain,
     },
     {
       title: "Exam Resilience Coaching",
-      desc: "Stress counseling and study planning trackers to navigate board-prep fatigue while keeping cognitive focus sharp.",
+      desc: "Stress counselling and custom study-planning trackers to navigate board-prep fatigue while keeping cognitive focus sharp.",
       icon: Sparkles,
     },
     {
       title: "Future Market Exposure",
-      desc: "Interactive reviews of modern careers (AI, Product Design, Bio-Tech, Corporate Law) to widen perspectives beyond traditional avenues.",
+      desc: "Interactive reviews of modern careers (AI, Product Design, Bio-Tech, Corporate Law, Data Sciences) to widen perspectives before specialization.",
       icon: Compass,
     },
   ];
@@ -50,13 +50,13 @@ export default function Program910() {
               Intermediate Track
             </span>
             <h1 className="text-4xl sm:text-5xl font-black tracking-tight font-sans text-white leading-tight">
-              Career Counselling & Guidance for 9th & 10th
+              Career Counselling & Guidance for 8-10 Grade Student
             </h1>
-            <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
-              Are you in Grade 9 or 10 trying to decide between Science, Commerce, and Humanities? This choice isn't just about grades—it's about matching your native temperament to future pathways.
+            <p className="text-zinc-400 text-sm sm:text-base leading-relaxed font-medium">
+              Are you in Grade 8, 9, or 10 trying to decide between Science, Commerce, and Humanities? This choice isn't just about board scores—it's about aligning your core academic aptitude and personal interests with future career success.
             </p>
             <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
-              PEHLAKADAM helps you map your personality factors objectively. We consult and draft a comprehensive blueprint that aligns Board selections with your ultimate college aspirations.
+              PEHLAKADAM helps students navigate this transition period. We use standard personality indicators and logical reasoning metrics to clear confusion. Our comprehensive advisory blueprint ensures that your stream choice perfectly lines up with your long-term higher-education goals, exam readiness, and emerging job sectors.
             </p>
             <div className="pt-2">
               <FormModal />
@@ -87,7 +87,7 @@ export default function Program910() {
               Core Framework
             </span>
             <h2 className="text-3xl font-bold font-sans text-zinc-950 sm:text-4xl">
-              GUIDANCE BENCHMARKS FOR GRADES 9 & 10
+              GUIDANCE BENCHMARKS FOR GRADES 8 - 10
             </h2>
             <p className="text-zinc-500 text-sm mt-2">
               We focus on stream selection, behavioral profiling, and board preparedness.

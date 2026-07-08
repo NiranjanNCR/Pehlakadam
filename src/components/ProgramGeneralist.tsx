@@ -52,11 +52,11 @@ export default function ProgramGeneralist() {
             <h1 className="text-4xl sm:text-5xl font-black tracking-tight font-sans text-white leading-tight">
               Generalist to Specialist: Advanced Domain Dominance
             </h1>
-            <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
-              Are you a student or corporate generalist feeling undervalued in a highly specialized market? 'Generalist to Specialist' is a strategic coaching track to turn multi-disciplinary intelligence into high-value niche dominance.
+            <p className="text-zinc-400 text-sm sm:text-base leading-relaxed font-medium">
+              Are you a corporate professional or multi-disciplinary student feeling overlooked in a highly specialized, skill-first employment market? 'Generalist to Specialist' is a surgical, elite coaching track designed to convert your broad intelligence into authoritative vertical dominance.
             </p>
             <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
-              PEHLAKADAM maps your broad skill sets to precise vertical specializations. Led by seasoned corporate advisors from BITS Pilani and senior industry executives, we construct the roadmap to amplify your specialized authority.
+              PEHLAKADAM maps your transferable skill sets directly to niche vertical demands. Managed by enterprise leaders, strategic advisors, and tech founders, we outline high-value certification pathways (e.g., Scrum Master, advanced AI specialization, niche fintech, or supply chain consulting) and reconstruct your personal brand. This ensures you position yourself not as a generic generalist, but as an indispensable industry specialist commanding premier market value.
             </p>
             <div className="pt-2">
               <FormModal />

@@ -250,7 +250,7 @@ export default function ContactForm() {
 
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">
-                      I am a:
+                      I want to enroll in
                     </label>
                     <select
                       name="role"
@@ -260,12 +260,14 @@ export default function ContactForm() {
                       className="w-full rounded-xl bg-zinc-950 border border-zinc-800 px-4 py-3 text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
                     >
                       <option value="" disabled>
-                        Select your current academic profile
+                        Select a program
                       </option>
-                      <option value="6-8th Student">6th - 8th Student</option>
-                      <option value="9-10th Student">9th - 10th Student</option>
-                      <option value="11-12th Student">11th - 12th Student</option>
-                      <option value="Graduate">Graduate / Higher Education</option>
+                      <option value="Primary Kudos">Primary Kudos</option>
+                      <option value="6-8 Grade Student">6-8 Grade Student</option>
+                      <option value="8-10 Grade Student">8-10 Grade Student</option>
+                      <option value="11-12 Grade Student">11-12 Grade Student</option>
+                      <option value="UG/Graduate/PG">UG/Graduate/PG</option>
+                      <option value="Generalist to Specialist">Generalist to Specialist</option>
                     </select>
                   </div>
 

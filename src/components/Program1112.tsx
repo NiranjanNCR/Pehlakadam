@@ -50,13 +50,13 @@ export default function Program1112() {
               Advanced High School Track
             </span>
             <h1 className="text-4xl sm:text-5xl font-black tracking-tight font-sans text-white leading-tight">
-              Career Counselling & Guidance for 11th & 12th
+              Career Counselling & Guidance for 11-12 Grade Student
             </h1>
-            <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
-              Are you in Grade 11 or 12 preparing for college? The decisions you make right now define your professional fulfillment, financial trajectories, and life satisfaction for the next decade.
+            <p className="text-zinc-400 text-sm sm:text-base leading-relaxed font-medium">
+              Are you in Grade 11 or 12 preparing for your next academic jump? The decisions you make right now define your professional direction, university placement, and cognitive growth for years to come.
             </p>
-            <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
-              PEHLAKADAM maps your core personality indices to prospective global degrees. Our senior advisors from BITS Pilani and top universities formulate concrete college shortlists, backup career routes, and entrance tactics.
+            <p className="text-zinc-400 text-sm sm:text-base leading-relaxed font-sans">
+              PEHLAKADAM maps your core personality indices and stream performance to prospective college tracks. Guided by experienced advisors from premier national and global universities (such as BITS Pilani, IITs, and top global business schools), we formulate concrete university shortlists, design backup study options, optimize board exam stamina, and chart clear-cut strategies for entrance exams (JEE, NEET, CLAT, CUET, SAT, and more).
             </p>
             <div className="pt-2">
               <FormModal />
@@ -87,7 +87,7 @@ export default function Program1112() {
               Action Plan
             </span>
             <h2 className="text-3xl font-bold font-sans text-zinc-950 sm:text-4xl">
-              STRATEGIC COACHING FOR GRADES 11 & 12
+              STRATEGIC COACHING FOR GRADES 11 - 12
             </h2>
             <p className="text-zinc-500 text-sm mt-2">
               We align entrance preparation timelines with international admission standards.

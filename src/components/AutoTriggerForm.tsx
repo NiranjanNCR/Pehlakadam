@@ -12,7 +12,7 @@ export default function AutoTriggerForm() {
     lastName: "",
     email: "",
     number: "",
-    role: "Grade 11-12 Student",
+    role: "",
     message: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -86,7 +86,7 @@ export default function AutoTriggerForm() {
           lastName: "",
           email: "",
           number: "",
-          role: "Grade 11-12 Student",
+          role: "",
           message: "",
         });
 
@@ -266,7 +266,7 @@ export default function AutoTriggerForm() {
 
                     <div>
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
-                        Current Profile / Target Standard
+                        I want to enroll in
                       </label>
                       <select
                         name="role"
@@ -275,12 +275,15 @@ export default function AutoTriggerForm() {
                         required
                         className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2 text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
                       >
-                        <option value="Grade 6-8 Student">6th - 8th Standard Student</option>
-                        <option value="Grade 9-10 Student">9th - 10th Standard Student</option>
-                        <option value="Grade 11-12 Student">11th - 12th Standard Student</option>
-                        <option value="Post-Graduate / College">Post-Graduate / College Student</option>
-                        <option value="Working Professional">Generalist Working Professional</option>
-                        <option value="Parent">Concerned Parent</option>
+                        <option value="" disabled>
+                          Select a program
+                        </option>
+                        <option value="Primary Kudos">Primary Kudos</option>
+                        <option value="6-8 Grade Student">6-8 Grade Student</option>
+                        <option value="8-10 Grade Student">8-10 Grade Student</option>
+                        <option value="11-12 Grade Student">11-12 Grade Student</option>
+                        <option value="UG/Graduate/PG">UG/Graduate/PG</option>
+                        <option value="Generalist to Specialist">Generalist to Specialist</option>
                       </select>
                     </div>
 

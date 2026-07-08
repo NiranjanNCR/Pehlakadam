@@ -50,13 +50,13 @@ export default function ProgramGraduate() {
               Corporate & Graduate Track
             </span>
             <h1 className="text-4xl sm:text-5xl font-black tracking-tight font-sans text-white leading-tight">
-              Career Counselling & Guidance for Graduates & Professionals
+              Career Counselling & Guidance for UG/Graduate/PG
             </h1>
-            <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
-              Are you a recent college graduate struggling to secure high-yield placements? Or a corporate professional ready to transition industries, or re-enter the active workforce after a break?
+            <p className="text-zinc-400 text-sm sm:text-base leading-relaxed font-medium">
+              Are you an undergraduate (UG), graduate, or postgraduate (PG) student striving to secure high-yield corporate placements? Or are you a professional exploring higher education paths like an MBA, MS, or Ph.D.?
             </p>
             <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
-              PEHLAKADAM provides customized mentorship designed to identify high-potential skill gaps, compile powerful resumes, and matching you with expert industry veterans for actionable corporate placements.
+              PEHLAKADAM delivers expert mentorship and strategic placement guidance. Our seasoned mentors—representing the elite of BITS Pilani alumni, senior executive HR circles, and global tech leaders—conduct intensive mock reviews, resume profiling, LinkedIn positioning audits, and personalized skill gap analyses. We help you transition smoothly from academia into high-impact corporate tracks or premium postgraduate programs.
             </p>
             <div className="pt-2">
               <FormModal />
@@ -87,7 +87,7 @@ export default function ProgramGraduate() {
               Career Blueprint
             </span>
             <h2 className="text-3xl font-bold font-sans text-zinc-950 sm:text-4xl">
-              GRADUATE ALIGNMENT BENCHMARKS
+              UG/GRADUATE/PG ALIGNMENT BENCHMARKS
             </h2>
             <p className="text-zinc-500 text-sm mt-2">
               From fresh placements to senior executive career restarts, we provide structural handholding.

@@ -16,12 +16,12 @@ interface AdminProgramsConfigProps {
 
 // Map database program keys to user-friendly titles
 const PROGRAM_KEY_TO_NAME: Record<string, string> = {
-  "6-8": "Grades 6th to 8th",
-  "9-10": "Grades 9th & 10th",
-  "11-12": "Grades 11th & 12th",
-  graduate: "Undergraduate / Graduate Track",
-  kudos: "Kudos (Grades 1st to 5th)",
-  generalist: "Generalist / Professionals Track"
+  "6-8": "6-8 Grade Student",
+  "9-10": "8-10 Grade Student",
+  "11-12": "11-12 Grade Student",
+  graduate: "UG/Graduate/PG",
+  kudos: "Primary Kudos",
+  generalist: "Generalist to Specialist"
 };
 
 export default function AdminProgramsConfig({ configs, onRefresh }: AdminProgramsConfigProps) {

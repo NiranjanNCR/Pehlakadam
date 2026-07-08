@@ -222,7 +222,7 @@ export default function FormModal() {
 
                       <div>
                         <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
-                          I am currently a:
+                          I want to enroll in
                         </label>
                         <select
                           name="role"
@@ -232,12 +232,14 @@ export default function FormModal() {
                           className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2.5 text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
                         >
                           <option value="" disabled>
-                            Select your current status
+                            Select a program
                           </option>
-                          <option value="6-8th Student">6-8th Grade Student</option>
-                          <option value="9-10th Student">9-10th Grade Student</option>
-                          <option value="11-12th Student">11-12th Grade Student</option>
-                          <option value="Graduate">Graduate / College Student</option>
+                          <option value="Primary Kudos">Primary Kudos</option>
+                          <option value="6-8 Grade Student">6-8 Grade Student</option>
+                          <option value="8-10 Grade Student">8-10 Grade Student</option>
+                          <option value="11-12 Grade Student">11-12 Grade Student</option>
+                          <option value="UG/Graduate/PG">UG/Graduate/PG</option>
+                          <option value="Generalist to Specialist">Generalist to Specialist</option>
                         </select>
                       </div>
 

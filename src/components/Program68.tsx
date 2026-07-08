@@ -50,13 +50,13 @@ export default function Program68() {
               Foundational Track
             </span>
             <h1 className="text-4xl sm:text-5xl font-black tracking-tight font-sans text-white leading-tight">
-              Career Counselling & Guidance After 6th - 8th
+              Career Counselling & Guidance for 6-8 Grade Student
             </h1>
-            <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
-              Are you a student searching for the perfect career direction? Or a parent seeking to identify your child's native cognitive alignments before heavy secondary streaming starts?
+            <p className="text-zinc-400 text-sm sm:text-base leading-relaxed font-medium">
+              Are you looking to lay an early, rock-solid foundation for your child's educational journey? Our dedicated 6-8 Grade program identifies innate cognitive talents, learning orientations, and multiple intelligences before secondary school stress begins.
             </p>
             <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
-              Our foundational programs identify cognitive strengths early. By mapping traits at an early phase, we prevent later misalignment, building unshakable clarity so your child makes strategic steps from day one.
+              We specialize in early-stage cognitive mapping. By understanding a child's natural learning temperament (visual, auditory, kinesthetic, or logical), we help parents adopt stress-free study strategies, choose suitable extra-curricular profiles, and cultivate analytical thinking habits early on. This prepares them smoothly for the streaming challenges of the upcoming years.
             </p>
             <div className="pt-2">
               <FormModal />

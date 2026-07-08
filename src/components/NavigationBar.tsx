@@ -20,10 +20,10 @@ export default function NavigationBar() {
 
   const programs = [
     { name: "Primary Kudos", path: "/programs/program5" },
-    { name: "6th - 8th Std Student", path: "/programs/program1" },
-    { name: "9th - 10th Std Student", path: "/programs/program2" },
-    { name: "11th - 12th Std Student", path: "/programs/program3" },
-    { name: "Graduate Student", path: "/programs/program4" },
+    { name: "6-8 Grade Student", path: "/programs/program1" },
+    { name: "8-10 Grade Student", path: "/programs/program2" },
+    { name: "11-12 Grade Student", path: "/programs/program3" },
+    { name: "UG/Graduate/PG", path: "/programs/program4" },
     { name: "Generalist to Specialist", path: "/programs/program6" },
   ];
 
