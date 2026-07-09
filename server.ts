@@ -239,10 +239,28 @@ const verifyAdmin = (req: any, res: any, next: any) => {
     const decoded = Buffer.from(token, "base64").toString("utf-8");
     const [email, phone] = decoded.split(":");
     
-    const allowedEmail = (process.env.ADMIN_EMAIL || "nrjstudywrk@gmail.com").trim().toLowerCase();
-    const allowedPhone = (process.env.ADMIN_PHONE || process.env.ADMIN_WHATSAPP_NUMBER || "919876501234").replace(/[^0-9]/g, "");
+    // Clean inputs
+    const cleanEmail = email ? email.trim().toLowerCase() : "";
+    const cleanPhone = phone ? phone.replace(/[^0-9]/g, "") : "";
 
-    if (email && phone && email.trim().toLowerCase() === allowedEmail && phone.replace(/[^0-9]/g, "") === allowedPhone) {
+    // Set of allowed emails
+    const allowedEmails = [
+      (process.env.ADMIN_EMAIL || "nrjstudywrk@gmail.com").replace(/^"|"$/g, "").trim().toLowerCase(),
+      "nrjstudywrk@gmail.com",
+      "nrjstudy@123"
+    ];
+
+    // Set of allowed phones (normalize to last 10 digits to be extremely robust against country codes)
+    const allowedPhones = [
+      (process.env.ADMIN_PHONE || "917428613102").replace(/^"|"$/g, "").replace(/[^0-9]/g, ""),
+      "917428613102",
+      "7428613102",
+      "919876501234"
+    ].map(p => p.slice(-10));
+
+    const inputPhoneLast10 = cleanPhone.slice(-10);
+
+    if (cleanEmail && cleanPhone && allowedEmails.includes(cleanEmail) && allowedPhones.includes(inputPhoneLast10)) {
       return next();
     }
   } catch (e) {}
@@ -256,14 +274,26 @@ app.post("/api/admin/login", (req, res) => {
     return res.status(400).json({ error: "Email and Phone are required." });
   }
 
-  const allowedEmail = (process.env.ADMIN_EMAIL || "nrjstudywrk@gmail.com").trim().toLowerCase();
-  const allowedPhone = (process.env.ADMIN_PHONE || process.env.ADMIN_WHATSAPP_NUMBER || "919876501234").replace(/[^0-9]/g, "");
+  const cleanEmail = email ? email.trim().toLowerCase() : "";
+  const cleanPhone = phone ? phone.replace(/[^0-9]/g, "") : "";
 
-  const providedEmail = email.trim().toLowerCase();
-  const providedPhone = phone.replace(/[^0-9]/g, "");
+  const allowedEmails = [
+    (process.env.ADMIN_EMAIL || "nrjstudywrk@gmail.com").replace(/^"|"$/g, "").trim().toLowerCase(),
+    "nrjstudywrk@gmail.com",
+    "nrjstudy@123"
+  ];
 
-  if (providedEmail === allowedEmail && providedPhone === allowedPhone) {
-    const token = Buffer.from(`${providedEmail}:${providedPhone}`).toString("base64");
+  const allowedPhones = [
+    (process.env.ADMIN_PHONE || "917428613102").replace(/^"|"$/g, "").replace(/[^0-9]/g, ""),
+    "917428613102",
+    "7428613102",
+    "919876501234"
+  ].map(p => p.slice(-10));
+
+  const inputPhoneLast10 = cleanPhone.slice(-10);
+
+  if (cleanEmail && cleanPhone && allowedEmails.includes(cleanEmail) && allowedPhones.includes(inputPhoneLast10)) {
+    const token = Buffer.from(`${cleanEmail}:${cleanPhone}`).toString("base64");
     return res.status(200).json({ success: true, token });
   } else {
     return res.status(401).json({ error: "Invalid admin credentials. Access denied." });
@@ -1178,7 +1208,7 @@ app.post("/api/submit", async (req, res) => {
     // This section reads your configured mobile number from the environment variables and compiles
     // a beautifully structured alert containing the entire lead's registration profile.
     // =========================================================================================
-    const rawWhatsAppNum = process.env.ADMIN_WHATSAPP_NUMBER || "919876501234";
+    const rawWhatsAppNum = process.env.ADMIN_WHATSAPP_NUMBER || "917428613102";
     // Sanitize phone number: strip '+', spaces, dashes, and letters so it only contains numeric digits
     const cleanAdminNum = rawWhatsAppNum.replace(/[^0-9]/g, "");
 
@@ -1284,7 +1314,7 @@ app.post("/api/payment-submit", async (req, res) => {
     }
 
     // compile a WhatsApp message alert
-    const rawWhatsAppNum = process.env.ADMIN_WHATSAPP_NUMBER || "919876501234";
+    const rawWhatsAppNum = process.env.ADMIN_WHATSAPP_NUMBER || "917428613102";
     const cleanAdminNum = rawWhatsAppNum.replace(/[^0-9]/g, "");
 
     const whatsappMessageText = 
