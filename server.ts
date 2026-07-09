@@ -28,6 +28,7 @@ const AUTHORIZED_NUMBERS_FILE = path.join(process.cwd(), "authorized_numbers.jso
 const PROGRAMS_CONFIG_FILE = path.join(process.cwd(), "programs_config.json");
 const DIAGNOSTIC_TESTS_FILE = path.join(process.cwd(), "diagnostic_tests.json");
 const DIAGNOSTIC_SUBMISSIONS_FILE = path.join(process.cwd(), "diagnostic_submissions.json");
+const DIAGNOSTIC_REGISTRATIONS_FILE = path.join(process.cwd(), "diagnostic_registrations.json");
 const SYSTEM_STATS_FILE = path.join(process.cwd(), "system_stats.json");
 const UPLOADS_DIR = path.join(process.cwd(), "uploads");
 
@@ -54,6 +55,10 @@ if (!fs.existsSync(DIAGNOSTIC_TESTS_FILE)) {
 
 if (!fs.existsSync(DIAGNOSTIC_SUBMISSIONS_FILE)) {
   fs.writeFileSync(DIAGNOSTIC_SUBMISSIONS_FILE, JSON.stringify([], null, 2));
+}
+
+if (!fs.existsSync(DIAGNOSTIC_REGISTRATIONS_FILE)) {
+  fs.writeFileSync(DIAGNOSTIC_REGISTRATIONS_FILE, JSON.stringify([], null, 2));
 }
 
 if (!fs.existsSync(SYSTEM_STATS_FILE)) {
@@ -415,6 +420,19 @@ const DiagnosticSubmissionSchema = new mongoose.Schema({
 });
 
 const DiagnosticSubmissionModel = mongoose.model("DiagnosticSubmission", DiagnosticSubmissionSchema);
+
+const DiagnosticRegistrationSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true },
+  phone: { type: String, required: true },
+  role: { type: String, required: true },
+  testKey: { type: String, required: true },
+  testTitle: { type: String, required: true },
+  specialDetail: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const DiagnosticRegistrationModel = mongoose.model("DiagnosticRegistration", DiagnosticRegistrationSchema);
 
 /**
  * 🔒 URI MASKING UTILITY
@@ -1750,6 +1768,98 @@ app.post("/api/diagnostic-tests/submit", async (req, res) => {
   } catch (error) {
     console.error("[Pehlakadam API] Error submitting diagnostic test:", error);
     return res.status(500).json({ error: "Failed to submit and calculate evaluation." });
+  }
+});
+
+// 3.5. REGISTER A DIAGNOSTIC TEST PRE-EVALUATION LEAD
+app.post("/api/diagnostic-tests/register", async (req, res) => {
+  try {
+    const { name, email, phone, role, testKey, testTitle, specialDetail } = req.body;
+    if (!name || !email || !phone || !role || !testKey || !testTitle || !specialDetail) {
+      return res.status(400).json({ error: "Missing required registration details." });
+    }
+
+    // 💾 STEP 1: SAVE TO SPECIFIC DIAGNOSTIC REGISTRATIONS DEPOSITORY
+    let savedRegistration;
+    if (isMongoConnected) {
+      const newReg = new DiagnosticRegistrationModel({
+        name,
+        email,
+        phone,
+        role,
+        testKey,
+        testTitle,
+        specialDetail
+      });
+      const savedDoc = await newReg.save();
+      savedRegistration = {
+        id: savedDoc._id.toString(),
+        name,
+        email,
+        phone,
+        role,
+        testKey,
+        testTitle,
+        specialDetail,
+        createdAt: savedDoc.createdAt
+      };
+    } else {
+      savedRegistration = {
+        id: Date.now().toString(),
+        name,
+        email,
+        phone,
+        role,
+        testKey,
+        testTitle,
+        specialDetail,
+        createdAt: new Date().toISOString()
+      };
+      const list = JSON.parse(fs.readFileSync(DIAGNOSTIC_REGISTRATIONS_FILE, "utf-8"));
+      list.push(savedRegistration);
+      fs.writeFileSync(DIAGNOSTIC_REGISTRATIONS_FILE, JSON.stringify(list, null, 2));
+    }
+
+    // 💾 STEP 2: SAVE TO GENERAL LEADS (SUBMISSIONS) SO IT APPEARS IN THE ADMIN LEADS LIST
+    const nameParts = name.trim().split(/\s+/);
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || "Student";
+    const leadMessage = `[Diagnostic pre-test registration] Test: ${testTitle}. Detail: ${specialDetail}`;
+
+    if (isMongoConnected) {
+      const newSubDoc = new SubmissionModel({
+        firstName,
+        lastName,
+        email,
+        number: phone,
+        role,
+        message: leadMessage
+      });
+      await newSubDoc.save();
+      console.log(`[Pehlakadam MongoDB] Registered diagnostic lead for ${name}`);
+    } else {
+      const newSubmission = {
+        id: Date.now().toString(),
+        firstName,
+        lastName,
+        email,
+        number: phone,
+        role,
+        message: leadMessage,
+        createdAt: new Date().toISOString(),
+      };
+
+      const fileData = fs.readFileSync(SUBMISSIONS_FILE, "utf-8");
+      const submissions = JSON.parse(fileData);
+      submissions.push(newSubmission);
+      fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(submissions, null, 2));
+      console.log(`[Pehlakadam JSON] Registered diagnostic lead for ${name}`);
+    }
+
+    return res.status(200).json({ success: true, registration: savedRegistration });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error during diagnostic pre-test registration:", error);
+    return res.status(500).json({ error: "Failed to save diagnostic registration in database." });
   }
 });
 

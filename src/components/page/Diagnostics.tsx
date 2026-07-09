@@ -65,6 +65,8 @@ export default function Diagnostics() {
   const [signupPhone, setSignupPhone] = useState("");
   const [signupRole, setSignupRole] = useState("Graduate / Placements Track");
   const [signupSpecial, setSignupSpecial] = useState("");
+  const [pendingTest, setPendingTest] = useState<DiagnosticTest | null>(null);
+  const [registering, setRegistering] = useState(false);
 
   // Quiz States
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
@@ -106,47 +108,88 @@ export default function Diagnostics() {
   };
 
   const handleStartTestClick = (test: DiagnosticTest) => {
-    setSelectedTest(test);
-    // If user is already logged in/signed up, immediately open the quiz workspace
-    if (currentUser) {
-      // Clear previous quiz states
-      setCurrentQuestionIdx(0);
-      setAnswers({});
-      setActiveQuizReport(null);
-    } else {
-      // Otherwise, open the sign-up modal first
-      setSignupName("");
-      setSignupEmail("");
-      setSignupPhone("");
-      setSignupSpecial("");
-      setSignupOpen(true);
+    setPendingTest(test);
+    // Pre-populate if possible, but always enforce showing the registration form to collect custom fields & save details to database
+    const cached = localStorage.getItem("pehlakadam_user");
+    let cachedUser: any = null;
+    if (cached) {
+      try {
+        cachedUser = JSON.parse(cached);
+      } catch (e) {}
     }
+    setSignupName(currentUser?.name || cachedUser?.name || "");
+    setSignupEmail(currentUser?.email || cachedUser?.email || "");
+    setSignupPhone(currentUser?.phone || cachedUser?.phone || "");
+    setSignupRole(currentUser?.role || cachedUser?.role || "Graduate / Placements Track");
+    setSignupSpecial(""); // Clear so student must input specific field detail for this exact test
+    setSignupOpen(true);
   };
 
-  const handleSignupSubmit = (e: React.FormEvent) => {
+  const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!signupName.trim() || !signupEmail.trim() || !signupPhone.trim()) {
+    if (
+      !signupName.trim() ||
+      !signupEmail.trim() ||
+      !signupPhone.trim() ||
+      !signupRole.trim() ||
+      !signupSpecial.trim()
+    ) {
       alert("Please complete all required fields to enter the diagnostic suite.");
       return;
     }
 
-    const userData: CandidateUser = {
-      name: signupName,
-      email: signupEmail,
-      phone: signupPhone,
-      role: signupRole,
-      specialDetail: signupSpecial
-    };
+    if (!pendingTest) return;
 
-    // Cache user locally
-    localStorage.setItem("pehlakadam_user", JSON.stringify(userData));
-    setCurrentUser(userData);
-    setSignupOpen(false);
+    setRegistering(true);
+    try {
+      const payload = {
+        name: signupName.trim(),
+        email: signupEmail.trim(),
+        phone: signupPhone.trim(),
+        role: signupRole.trim(),
+        testKey: pendingTest.key,
+        testTitle: pendingTest.title,
+        specialDetail: signupSpecial.trim()
+      };
 
-    // Prepare quiz workspace
-    setCurrentQuestionIdx(0);
-    setAnswers({});
-    setActiveQuizReport(null);
+      const res = await fetch("/api/diagnostic-tests/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        const userData: CandidateUser = {
+          name: signupName.trim(),
+          email: signupEmail.trim(),
+          phone: signupPhone.trim(),
+          role: signupRole.trim(),
+          specialDetail: signupSpecial.trim()
+        };
+
+        // Cache user locally
+        localStorage.setItem("pehlakadam_user", JSON.stringify(userData));
+        setCurrentUser(userData);
+        setSignupOpen(false);
+
+        // Start the test!
+        setSelectedTest(pendingTest);
+        setPendingTest(null);
+
+        // Prepare quiz workspace
+        setCurrentQuestionIdx(0);
+        setAnswers({});
+        setActiveQuizReport(null);
+      } else {
+        const errData = await res.json();
+        alert(errData.error || "Failed to register. Please check your details and try again.");
+      }
+    } catch (error) {
+      console.error("Error registering candidate:", error);
+      alert("Failed to sync registration with database. Please check your network connection.");
+    } finally {
+      setRegistering(false);
+    }
   };
 
   const handleSelectOption = (questionId: string, optionValue: string) => {
@@ -589,14 +632,17 @@ export default function Diagnostics() {
 
       {/* SIGNUP / LOGIN RECONCILED ENTRY MODAL */}
       <AnimatePresence>
-        {signupOpen && selectedTest && (
+        {signupOpen && pendingTest && (
           <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-zinc-950/65 backdrop-blur-sm"
-              onClick={() => setSignupOpen(false)}
+              onClick={() => {
+                setSignupOpen(false);
+                setPendingTest(null);
+              }}
             />
             
             <motion.div
@@ -612,7 +658,7 @@ export default function Diagnostics() {
                     Assessment Unlock Portal
                   </span>
                   <h3 className="text-xl font-black text-zinc-950 tracking-tight leading-tight font-sans">
-                    Begin {selectedTest.title}
+                    Begin {pendingTest.title}
                   </h3>
                   <p className="text-xs text-zinc-400 font-sans leading-relaxed">
                     Please submit your registration credentials. Our advisors analyze this info against your answers to ensure pinpoint precision counseling.
@@ -676,23 +722,32 @@ export default function Diagnostics() {
                   {/* Contextual test-specific details label */}
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest font-mono block">
-                      {selectedTest.customFieldLabel || "Specific Detail / Career Aspiration"}
+                      {pendingTest.customFieldLabel || "Specific Detail / Career Aspiration"}
                     </label>
                     <input
                       type="text"
                       required
                       value={signupSpecial}
                       onChange={(e) => setSignupSpecial(e.target.value)}
-                      placeholder={`Provide detail for ${selectedTest.title}`}
+                      placeholder={`Provide detail for ${pendingTest.title}`}
                       className="w-full bg-zinc-50 border border-emerald-250/40 rounded-xl px-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-zinc-900 font-bold"
                     />
                   </div>
 
                   <button
                     type="submit"
-                    className="w-full bg-zinc-950 hover:bg-zinc-800 text-white font-bold py-3.5 px-4 rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-zinc-950/15"
+                    disabled={registering}
+                    className="w-full bg-zinc-950 hover:bg-zinc-800 text-white font-bold py-3.5 px-4 rounded-xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-zinc-950/15 disabled:opacity-50"
                   >
-                    <Lock className="h-4 w-4 text-emerald-400" /> Unlock Assessment MCQ
+                    {registering ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin text-emerald-400" /> Unlocking...
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="h-4 w-4 text-emerald-400" /> Unlock Assessment MCQ
+                      </>
+                    )}
                   </button>
                 </form>
               </div>
