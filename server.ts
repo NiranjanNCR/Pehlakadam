@@ -2464,6 +2464,110 @@ app.post("/api/check-access", async (req, res) => {
 });
 
 // =========================================================================================
+// 🎟️ PROMO COUPON VALIDATION & CUSTOMER PORTALS
+// =========================================================================================
+app.post("/api/coupons/validate", async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ error: "Coupon code is required." });
+    }
+
+    const normalizedCode = code.trim().toUpperCase();
+    const validCoupons: Record<string, { code: string; discountType: "percentage" | "fixed"; discountValue: number }> = {
+      FESTIVE100: { code: "FESTIVE100", discountType: "percentage", discountValue: 100 },
+      PEHLA50: { code: "PEHLA50", discountType: "percentage", discountValue: 50 },
+      WELCOME20: { code: "WELCOME20", discountType: "percentage", discountValue: 20 },
+      BKPILANI100: { code: "BKPILANI100", discountType: "percentage", discountValue: 100 },
+      FREE100: { code: "FREE100", discountType: "percentage", discountValue: 100 },
+    };
+
+    const coupon = validCoupons[normalizedCode];
+    if (coupon) {
+      return res.status(200).json({
+        success: true,
+        coupon
+      });
+    } else {
+      return res.status(400).json({ error: "Invalid, expired, or inactive coupon code." });
+    }
+  } catch (error) {
+    console.error("[Pehlakadam API] Error validating coupon:", error);
+    return res.status(500).json({ error: "Internal server error validating coupon." });
+  }
+});
+
+// =========================================================================================
+// 🔒 STUDENT PORTAL PROFILE LOGIN / RETRIEVAL
+// =========================================================================================
+app.post("/api/student/login", async (req, res) => {
+  try {
+    const { email, number } = req.body;
+    if (!email || !number) {
+      return res.status(400).json({ error: "Email and Contact Number are required." });
+    }
+
+    const cleanedInputPhone = number.replace(/[^0-9]/g, "");
+    const normalizedEmail = email.trim().toLowerCase();
+
+    let foundStudent: any = null;
+
+    if (isMongoConnected) {
+      const submissions = await SubmissionModel.find();
+      foundStudent = submissions.find(sub => {
+        const subEmail = sub.email?.trim().toLowerCase();
+        const subPhone = sub.number?.replace(/[^0-9]/g, "");
+        return subEmail === normalizedEmail && (subPhone === cleanedInputPhone || subPhone?.endsWith(cleanedInputPhone) || cleanedInputPhone.endsWith(subPhone || ""));
+      });
+    } else {
+      if (fs.existsSync(SUBMISSIONS_FILE)) {
+        const fileData = fs.readFileSync(SUBMISSIONS_FILE, "utf-8");
+        const submissions = JSON.parse(fileData);
+        foundStudent = submissions.find((sub: any) => {
+          const subEmail = sub.email?.trim().toLowerCase();
+          const subPhone = sub.number?.replace(/[^0-9]/g, "");
+          return subEmail === normalizedEmail && (subPhone === cleanedInputPhone || subPhone?.endsWith(cleanedInputPhone) || cleanedInputPhone.endsWith(subPhone || ""));
+        });
+      }
+    }
+
+    // Default student fallback for demo / testing ease
+    if (!foundStudent && normalizedEmail === "arjun@gmail.com") {
+      foundStudent = {
+        firstName: "Arjun",
+        lastName: "Sharma",
+        email: "arjun@gmail.com",
+        number: number,
+        role: "11-12 Grade Student",
+        message: "Looking for career options in computer science and technology."
+      };
+    }
+
+    if (foundStudent) {
+      return res.status(200).json({
+        success: true,
+        message: "Profile verified! Seasonal 100% discount unlocked.",
+        student: {
+          firstName: foundStudent.firstName,
+          lastName: foundStudent.lastName,
+          email: foundStudent.email,
+          number: foundStudent.number,
+          role: foundStudent.role,
+          message: foundStudent.message || ""
+        }
+      });
+    } else {
+      return res.status(404).json({
+        error: "Profile not found with those credentials. Please register first to unlock!"
+      });
+    }
+  } catch (error) {
+    console.error("[Pehlakadam API] Error during student login:", error);
+    return res.status(500).json({ error: "Failed to authenticate student profile." });
+  }
+});
+
+// =========================================================================================
 // 📈 SYSTEM STATS MANAGEMENT (STUDENTS COUNT, EXPERTS COUNT, SUCCESS RATE)
 // =========================================================================================
 app.get("/api/system-stats", async (req, res) => {

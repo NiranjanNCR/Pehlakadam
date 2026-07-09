@@ -1,6 +1,6 @@
 import { useState, useEffect, ChangeEvent, FormEvent } from "react";
-// Added MessageSquare to lucide-react icons list for WhatsApp CTA buttons
-import { X, Sparkles, CheckCircle, Calendar, GraduationCap, ArrowRight, Timer, MessageSquare } from "lucide-react";
+// Added MessageSquare and promo/login icons to lucide-react icons list
+import { X, Sparkles, CheckCircle, Calendar, GraduationCap, ArrowRight, Timer, MessageSquare, Tag, Percent, AlertCircle, RefreshCw, LogIn, Trophy } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { ContactFormData } from "../types";
 import { contactFormSchema } from "../lib/validation";
@@ -22,6 +22,21 @@ export default function AutoTriggerForm() {
   const [submitError, setSubmitError] = useState("");
   // 💬 NEW WHATSAPP STATE: Holds the pre-compiled WhatsApp message URL returned from the server API
   const [whatsappUrl, setWhatsappUrl] = useState("");
+
+  // 🎟️ NEW GAMIFICATION & COUPON SYSTEM STATES
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountType: "percentage" | "fixed"; discountValue: number } | null>(null);
+  const [couponValidating, setCouponValidating] = useState(false);
+  const [couponSuccessMsg, setCouponSuccessMsg] = useState("");
+  const [couponErrorMsg, setCouponErrorMsg] = useState("");
+
+  // 🔒 STUDENT LOGIN STATE
+  const [showLogin, setShowLogin] = useState(false);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPhone, setLoginPhone] = useState("");
+  const [loggingIn, setLoggingIn] = useState(false);
+  const [loginSuccess, setLoginSuccess] = useState(false);
+  const [loginError, setLoginError] = useState("");
 
   useEffect(() => {
     // Check if user has already submitted or dismissed
@@ -46,6 +61,94 @@ export default function AutoTriggerForm() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // 🎟️ APPLY PROMO COUPON ENDPOINT
+  const handleApplyCoupon = async () => {
+    if (!couponInput.trim()) return;
+    setCouponValidating(true);
+    setCouponErrorMsg("");
+    setCouponSuccessMsg("");
+
+    try {
+      const response = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: couponInput }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAppliedCoupon({
+          code: data.coupon.code,
+          discountType: data.coupon.discountType,
+          discountValue: data.coupon.discountValue,
+        });
+        setCouponSuccessMsg(`Coupon "${data.coupon.code}" applied successfully!`);
+      } else {
+        const errorData = await response.json();
+        setCouponErrorMsg(errorData.error || "Invalid coupon code.");
+      }
+    } catch (error) {
+      console.error("Error validating coupon:", error);
+      setCouponErrorMsg("Failed to validate coupon code.");
+    } finally {
+      setCouponValidating(false);
+    }
+  };
+
+  // 🔒 STUDENT LOGIN ENDPOINT
+  const handleStudentLogin = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!loginEmail.trim() || !loginPhone.trim()) {
+      setLoginError("Please enter both email and contact number.");
+      return;
+    }
+    setLoggingIn(true);
+    setLoginError("");
+    setLoginSuccess(false);
+
+    try {
+      const response = await fetch("/api/student/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: loginEmail, number: loginPhone }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setLoginSuccess(true);
+        // Autofill fields
+        setFormData({
+          firstName: data.student.firstName || "",
+          lastName: data.student.lastName || "",
+          email: data.student.email || "",
+          number: data.student.number || "",
+          role: data.student.role || "",
+          message: data.student.message || "",
+        });
+        
+        // Auto-apply the free access pass / 100% discount coupon
+        setAppliedCoupon({
+          code: "WELCOME100",
+          discountType: "percentage",
+          discountValue: 100
+        });
+
+        // Switch view back to registration view to submit or view prefilled
+        setTimeout(() => {
+          setShowLogin(false);
+        }, 1200);
+      } else {
+        const errorData = await response.json();
+        setLoginError(errorData.error || "Profile not found or not whitelisted.");
+      }
+    } catch (error) {
+      console.error("Error logging in:", error);
+      setLoginError("Failed to connect with authentication server.");
+    } finally {
+      setLoggingIn(false);
+    }
+  };
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -98,7 +201,8 @@ export default function AutoTriggerForm() {
         body: JSON.stringify({
           ...result.data,
           // Explicitly tag that this came from the 30-second conversion pop-up
-          message: `[30-Sec Conversion Pop-up Alert] Goal: ${result.data.message}`
+          message: `[30-Sec Conversion Pop-up Alert] Goal: ${result.data.message}`,
+          couponApplied: appliedCoupon ? appliedCoupon.code : undefined,
         }),
       });
 
@@ -119,6 +223,12 @@ export default function AutoTriggerForm() {
           role: "",
           message: "",
         });
+        
+        // Reset coupon / login state after successful reservation
+        setAppliedCoupon(null);
+        setCouponInput("");
+        setCouponSuccessMsg("");
+        setCouponErrorMsg("");
 
         // Extend the pop-up success window visibility duration to 20 seconds so the student has sufficient time to tap the WhatsApp button
         setTimeout(() => {
@@ -215,172 +325,391 @@ export default function AutoTriggerForm() {
                 </div>
               ) : (
                 <div id="conversion-fields" className="space-y-4">
-                  <div className="flex items-center gap-2 text-emerald-400">
-                    <Sparkles className="h-5 w-5 animate-pulse" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest font-mono bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
-                      Limited Time Offer
-                    </span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-emerald-400">
+                      <Sparkles className="h-4 w-4 animate-pulse" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest font-mono bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+                        Limited Time Offer
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-zinc-500 font-mono text-[10px]">
+                      <Timer className="h-3.5 w-3.5" />
+                      <span>OFFER CLOSING SOON</span>
+                    </div>
                   </div>
                   
                   <div>
-                    <h2 className="text-2xl font-black font-sans tracking-tight text-white">
-                      Unlock Your Diagnostic Assessment
+                    <h2 className="text-2xl font-black font-sans tracking-tight text-white flex items-center gap-2">
+                      <Trophy className="h-6 w-6 text-yellow-500" /> Unlock Seasonal Offer
                     </h2>
-                    <p className="text-zinc-400 text-xs mt-1.5 leading-relaxed">
-                      You qualify for a free 1-on-1 counseling session & preliminary psychometric strength review (Worth ₹4,999) if you register right now.
+                    <p className="text-zinc-400 text-xs mt-1 leading-relaxed">
+                      You qualify for a dynamic counseling session & preliminary psychometric strength review (worth ₹4,999).
                     </p>
                   </div>
 
-                  <form onSubmit={handleSubmit} className="space-y-4 pt-2" noValidate>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
-                          First Name
-                        </label>
-                        <input
-                          type="text"
-                          name="firstName"
-                          value={formData.firstName}
-                          onChange={handleChange}
-                          placeholder="Arjun"
-                          className={`w-full rounded-xl bg-zinc-800 border px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
-                            errors.firstName
-                              ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
-                              : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
-                          }`}
-                        />
-                        {errors.firstName && (
-                          <p className="mt-1 text-[10px] text-red-400 font-medium text-left">{errors.firstName}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
-                          Last Name
-                        </label>
-                        <input
-                          type="text"
-                          name="lastName"
-                          value={formData.lastName}
-                          onChange={handleChange}
-                          placeholder="Sharma"
-                          className={`w-full rounded-xl bg-zinc-800 border px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
-                            errors.lastName
-                              ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
-                              : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
-                          }`}
-                        />
-                        {errors.lastName && (
-                          <p className="mt-1 text-[10px] text-red-400 font-medium text-left">{errors.lastName}</p>
-                        )}
+                  {/* Dynamic Pricing Interactive Ticket Card */}
+                  <div className="bg-zinc-950/60 border border-zinc-800 rounded-2xl p-4 flex items-center justify-between relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-transparent pointer-events-none" />
+                    <div>
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider font-mono">
+                        Psychometric Diagnostic Package
+                      </p>
+                      <div className="flex items-baseline gap-2.5 mt-1">
+                        <span className="text-zinc-500 line-through text-sm font-semibold">₹4,999</span>
+                        <motion.span
+                          key={appliedCoupon ? "discounted" : "original"}
+                          initial={{ scale: 0.9, opacity: 0.7 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          className="text-white text-2xl font-black tracking-tight"
+                        >
+                          {appliedCoupon ? (
+                            appliedCoupon.discountValue === 100 && appliedCoupon.discountType === "percentage" ? (
+                              <span className="text-emerald-400 font-extrabold flex items-center gap-1">
+                                FREE <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400">100% OFF</span>
+                              </span>
+                            ) : (
+                              <span className="text-emerald-400 font-extrabold">
+                                ₹
+                                {appliedCoupon.discountType === "percentage"
+                                  ? Math.max(0, 4999 - Math.round((4999 * appliedCoupon.discountValue) / 100))
+                                  : Math.max(0, 4999 - appliedCoupon.discountValue)}
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-zinc-200">₹4,999</span>
+                          )}
+                        </motion.span>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="text-right">
+                      {appliedCoupon ? (
+                        <div className="flex flex-col items-end">
+                          <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-extrabold px-2.5 py-1 rounded-xl flex items-center gap-1.5 shadow-sm">
+                            <Tag className="h-3.5 w-3.5" />
+                            {appliedCoupon.code}
+                          </span>
+                          <span className="text-[9px] text-zinc-400 font-medium mt-1">
+                            {appliedCoupon.discountType === "percentage" ? `${appliedCoupon.discountValue}%` : `₹${appliedCoupon.discountValue}`} reduction applied
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="text-[10px] font-mono text-zinc-500 font-medium flex items-center gap-1 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-xl">
+                          <Percent className="h-3.5 w-3.5 text-zinc-400 animate-spin" />
+                          Apply coupon below
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Elegant Interactive Mode Selector */}
+                  <div className="grid grid-cols-2 bg-zinc-950 p-1 rounded-xl border border-zinc-800 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setShowLogin(false)}
+                      className={`py-2 rounded-lg font-bold transition-all cursor-pointer ${
+                        !showLogin
+                          ? "bg-zinc-800 text-white shadow"
+                          : "text-zinc-400 hover:text-white"
+                      }`}
+                    >
+                      New Student (Claim Offer)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowLogin(true)}
+                      className={`py-2 rounded-lg font-bold transition-all cursor-pointer ${
+                        showLogin
+                          ? "bg-zinc-800 text-white shadow"
+                          : "text-zinc-400 hover:text-white"
+                      }`}
+                    >
+                      Returning Student (Login)
+                    </button>
+                  </div>
+
+                  {/* RENDER FORM BASED ON SELECTED TAB */}
+                  {showLogin ? (
+                    /* RETURNING STUDENT AUTHENTICATION FORM */
+                    <form onSubmit={handleStudentLogin} className="space-y-4 pt-2">
+                      <div className="bg-zinc-950/40 border border-zinc-800/80 p-4 rounded-2xl">
+                        <p className="text-[11px] text-zinc-400 leading-relaxed">
+                          Already registered a profile with Pehlakadam? Sign in to verify your account status and instantly unlock your <span className="text-emerald-400 font-semibold">Seasonal Free Access Pass</span>.
+                        </p>
+                      </div>
+
                       <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
-                          Email Address
+                          Registered Email Address
                         </label>
                         <input
                           type="email"
-                          name="email"
-                          value={formData.email}
-                          onChange={handleChange}
-                          placeholder="arjun@gmail.com"
-                          className={`w-full rounded-xl bg-zinc-800 border px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
-                            errors.email
-                              ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
-                              : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
-                          }`}
+                          value={loginEmail}
+                          onChange={(e) => setLoginEmail(e.target.value)}
+                          placeholder="student@example.com"
+                          className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                          required
                         />
-                        {errors.email && (
-                          <p className="mt-1 text-[10px] text-red-400 font-medium text-left">{errors.email}</p>
-                        )}
                       </div>
+
                       <div>
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
-                          Contact Number
+                          Registered Phone Number
                         </label>
                         <input
                           type="tel"
-                          name="number"
-                          value={formData.number}
-                          onChange={handleChange}
+                          value={loginPhone}
+                          onChange={(e) => setLoginPhone(e.target.value)}
                           placeholder="+91 98765 43210"
-                          className={`w-full rounded-xl bg-zinc-800 border px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
-                            errors.number
-                              ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
-                              : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
-                          }`}
+                          className="w-full rounded-xl bg-zinc-800 border border-zinc-700 px-4 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                          required
                         />
-                        {errors.number && (
-                          <p className="mt-1 text-[10px] text-red-400 font-medium text-left">{errors.number}</p>
+                      </div>
+
+                      {loginError && (
+                        <div className="p-3 bg-red-950/40 border border-red-900/50 rounded-xl text-red-400 text-xs font-semibold flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                          <span>{loginError}</span>
+                        </div>
+                      )}
+
+                      {loginSuccess && (
+                        <div className="p-3 bg-emerald-950/40 border border-emerald-900/50 rounded-xl text-emerald-400 text-xs font-semibold flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                          <span>Login Success! Access Pass unlocked. Prefilling form...</span>
+                        </div>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={loggingIn}
+                        className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {loggingIn ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            Verifying Profile Credentials...
+                          </>
+                        ) : (
+                          <>
+                            <LogIn className="h-4 w-4" />
+                            Verify and Unlock Free Access
+                          </>
+                        )}
+                      </button>
+                    </form>
+                  ) : (
+                    /* MAIN REGISTRATION FORM */
+                    <form onSubmit={handleSubmit} className="space-y-4 pt-2" noValidate>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                            First Name
+                          </label>
+                          <input
+                            type="text"
+                            name="firstName"
+                            value={formData.firstName}
+                            onChange={handleChange}
+                            placeholder="Arjun"
+                            className={`w-full rounded-xl bg-zinc-800 border px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                              errors.firstName
+                                ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                                : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                            }`}
+                          />
+                          {errors.firstName && (
+                            <p className="mt-1 text-[10px] text-red-400 font-medium text-left">{errors.firstName}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                            Last Name
+                          </label>
+                          <input
+                            type="text"
+                            name="lastName"
+                            value={formData.lastName}
+                            onChange={handleChange}
+                            placeholder="Sharma"
+                            className={`w-full rounded-xl bg-zinc-800 border px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                              errors.lastName
+                                ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                                : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                            }`}
+                          />
+                          {errors.lastName && (
+                            <p className="mt-1 text-[10px] text-red-400 font-medium text-left">{errors.lastName}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                            Email Address
+                          </label>
+                          <input
+                            type="email"
+                            name="email"
+                            value={formData.email}
+                            onChange={handleChange}
+                            placeholder="arjun@gmail.com"
+                            className={`w-full rounded-xl bg-zinc-800 border px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                              errors.email
+                                ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                                : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                            }`}
+                          />
+                          {errors.email && (
+                            <p className="mt-1 text-[10px] text-red-400 font-medium text-left">{errors.email}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                            Contact Number
+                          </label>
+                          <input
+                            type="tel"
+                            name="number"
+                            value={formData.number}
+                            onChange={handleChange}
+                            placeholder="+91 98765 43210"
+                            className={`w-full rounded-xl bg-zinc-800 border px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                              errors.number
+                                ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                                : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                            }`}
+                          />
+                          {errors.number && (
+                            <p className="mt-1 text-[10px] text-red-400 font-medium text-left">{errors.number}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                            I want to enroll in
+                          </label>
+                          <select
+                            name="role"
+                            value={formData.role}
+                            onChange={handleChange}
+                            className={`w-full rounded-xl bg-zinc-800 border px-4 py-2.5 text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 ${
+                              errors.role
+                                ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                                : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                            }`}
+                          >
+                            <option value="" disabled>
+                              Select a program
+                            </option>
+                            <option value="Primary Kudos">Primary Kudos</option>
+                            <option value="6-8 Grade Student">6-8 Grade Student</option>
+                            <option value="8-10 Grade Student">8-10 Grade Student</option>
+                            <option value="11-12 Grade Student">11-12 Grade Student</option>
+                            <option value="UG/Graduate/PG">UG/Graduate/PG</option>
+                            <option value="Generalist to Specialist">Generalist to Specialist</option>
+                          </select>
+                          {errors.role && (
+                            <p className="mt-1 text-[10px] text-red-400 font-medium text-left">{errors.role}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                            Main Career Aspiration / Doubt
+                          </label>
+                          <input
+                            type="text"
+                            name="message"
+                            value={formData.message}
+                            onChange={handleChange}
+                            placeholder="e.g. AI engineering vs tech"
+                            className={`w-full rounded-xl bg-zinc-800 border px-4 py-2.5 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
+                              errors.message
+                                ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                                : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                            }`}
+                          />
+                          {errors.message && (
+                            <p className="mt-1 text-[10px] text-red-400 font-medium text-left">{errors.message}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Interactive Promo Coupon Application Panel */}
+                      <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 space-y-2">
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                          Apply Promo Coupon (Check Admin Panel for Valid Codes)
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={couponInput}
+                            onChange={(e) => setCouponInput(e.target.value.toUpperCase().replace(/\s+/g, ""))}
+                            placeholder="e.g. FESTIVE100, PEHLA50"
+                            className="flex-1 rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white font-mono placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleApplyCoupon}
+                            disabled={couponValidating}
+                            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold text-[11px] px-4 py-2 rounded-xl transition-all cursor-pointer shadow flex items-center gap-1.5"
+                          >
+                            {couponValidating ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Tag className="h-3 w-3" />}
+                            Apply
+                          </button>
+                        </div>
+
+                        {couponErrorMsg && (
+                          <div className="text-red-400 text-[10px] font-semibold flex items-center gap-1 mt-1">
+                            <AlertCircle className="h-3.5 w-3.5" />
+                            <span>{couponErrorMsg}</span>
+                          </div>
+                        )}
+
+                        {couponSuccessMsg && (
+                          <div className="text-emerald-400 text-[10px] font-extrabold flex items-center gap-1 mt-1">
+                            <CheckCircle className="h-3.5 w-3.5" />
+                            <span>{couponSuccessMsg}</span>
+                          </div>
                         )}
                       </div>
-                    </div>
 
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
-                        I want to enroll in
-                      </label>
-                      <select
-                        name="role"
-                        value={formData.role}
-                        onChange={handleChange}
-                        className={`w-full rounded-xl bg-zinc-800 border px-4 py-2 text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 ${
-                          errors.role
-                            ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
-                            : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
-                        }`}
+                      {submitError && (
+                        <div className="p-3 bg-red-950/40 border border-red-900/50 rounded-xl text-red-400 text-xs font-semibold flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4" />
+                          <span>{submitError}</span>
+                        </div>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/20 cursor-pointer disabled:opacity-50"
                       >
-                        <option value="" disabled>
-                          Select a program
-                        </option>
-                        <option value="Primary Kudos">Primary Kudos</option>
-                        <option value="6-8 Grade Student">6-8 Grade Student</option>
-                        <option value="8-10 Grade Student">8-10 Grade Student</option>
-                        <option value="11-12 Grade Student">11-12 Grade Student</option>
-                        <option value="UG/Graduate/PG">UG/Graduate/PG</option>
-                        <option value="Generalist to Specialist">Generalist to Specialist</option>
-                      </select>
-                      {errors.role && (
-                        <p className="mt-1 text-[10px] text-red-400 font-medium text-left">{errors.role}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
-                        Main Career Aspiration / Doubt
-                      </label>
-                      <input
-                        type="text"
-                        name="message"
-                        value={formData.message}
-                        onChange={handleChange}
-                        placeholder="e.g. Want to specialize in Artificial Intelligence, select engineering vs tech management"
-                        className={`w-full rounded-xl bg-zinc-800 border px-4 py-2.5 text-xs text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
-                          errors.message
-                            ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
-                            : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
-                        }`}
-                      />
-                      {errors.message && (
-                        <p className="mt-1 text-[10px] text-red-400 font-medium text-left">{errors.message}</p>
-                      )}
-                    </div>
-
-                    {submitError && (
-                      <p className="text-red-400 text-xs font-semibold">{submitError}</p>
-                    )}
-
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/10 cursor-pointer disabled:opacity-50"
-                    >
-                      {isSubmitting ? "Processing Reservation..." : "Claim Free Consultation"}
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                  </form>
+                        {isSubmitting ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            Securing Consultation Slot...
+                          </>
+                        ) : appliedCoupon && appliedCoupon.discountValue === 100 && appliedCoupon.discountType === "percentage" ? (
+                          <>
+                            Claim Free 1-on-1 Consultation
+                            <ArrowRight className="h-4 w-4" />
+                          </>
+                        ) : (
+                          <>
+                            Claim consultation offer
+                            <ArrowRight className="h-4 w-4" />
+                          </>
+                        )}
+                      </button>
+                    </form>
+                  )}
                 </div>
               )}
             </motion.div>

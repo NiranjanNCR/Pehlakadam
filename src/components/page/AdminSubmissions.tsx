@@ -29,7 +29,8 @@ import {
   CreditCard,
   Download,
   Settings,
-  BrainCircuit
+  BrainCircuit,
+  Tag
 } from "lucide-react";
 import { Submission, ResourceMaterial, SessionUpdate } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
@@ -44,7 +45,7 @@ import { motion, AnimatePresence } from "motion/react";
 // - "broadcast": Dispatching simulated alerts (SMS/Email) to registered leads.
 // - "programs-config": Managing brochures and briefing video links for program landing pages.
 // =========================================================================================
-type AdminTab = "leads" | "payments" | "resources" | "broadcast" | "paid-access" | "programs-config" | "diagnostics" | "system-stats";
+type AdminTab = "leads" | "payments" | "resources" | "broadcast" | "paid-access" | "programs-config" | "diagnostics" | "system-stats" | "coupons";
 
 export default function AdminSubmissions() {
   const [activeTab, setActiveTab] = useState<AdminTab>("leads");
@@ -56,6 +57,16 @@ export default function AdminSubmissions() {
   const [broadcasts, setBroadcasts] = useState<SessionUpdate[]>([]);
   const [authorizedNumbers, setAuthorizedNumbers] = useState<{ id: string, number: string, createdAt: string }[]>([]);
   const [programsConfigs, setProgramsConfigs] = useState<any[]>([]);
+  const [coupons, setCoupons] = useState<any[]>([]);
+  
+  // 🎟️ COUPON CREATION STATES
+  const [newCouponCode, setNewCouponCode] = useState("");
+  const [newCouponDiscountType, setNewCouponDiscountType] = useState<"percentage" | "fixed">("percentage");
+  const [newCouponDiscountValue, setNewCouponDiscountValue] = useState<number>(100);
+  const [newCouponIsActive, setNewCouponIsActive] = useState(true);
+  const [savingCoupon, setSavingCoupon] = useState(false);
+  const [couponError, setCouponError] = useState("");
+  const [couponSuccess, setCouponSuccess] = useState(false);
   
   // 📈 SYSTEM STATS STATE FOR ADMIN EDITING
   const [adminStats, setAdminStats] = useState({
@@ -273,6 +284,13 @@ export default function AdminSubmissions() {
       if (resStats.ok) {
         const statsData = await resStats.json();
         setAdminStats(statsData);
+      }
+
+      // 8. Fetch Coupons
+      const resCoupons = await fetch("/api/admin/coupons", { headers: authHeaders });
+      if (resCoupons.ok) {
+        const couponsData = await resCoupons.json();
+        setCoupons(couponsData);
       }
 
     } catch (err) {
@@ -561,6 +579,93 @@ export default function AdminSubmissions() {
     }
   };
 
+  /**
+   * 🎟️ SAVE/CREATE PROMO COUPON CODE
+   */
+  const handleSaveCoupon = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!newCouponCode.trim()) {
+      setCouponError("Coupon code is required");
+      return;
+    }
+    setSavingCoupon(true);
+    setCouponError("");
+    setCouponSuccess(false);
+
+    try {
+      const token = localStorage.getItem("pehlakadam_admin_token");
+      const res = await fetch("/api/admin/coupons", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          code: newCouponCode,
+          discountType: newCouponDiscountType,
+          discountValue: Number(newCouponDiscountValue),
+          isActive: newCouponIsActive
+        })
+      });
+
+      if (res.ok) {
+        setCouponSuccess(true);
+        setNewCouponCode("");
+        setNewCouponDiscountType("percentage");
+        setNewCouponDiscountValue(100);
+        setNewCouponIsActive(true);
+        
+        // Refresh coupons list
+        const resCoupons = await fetch("/api/admin/coupons", { headers: { "Authorization": `Bearer ${token}` } });
+        if (resCoupons.ok) {
+          const couponsData = await resCoupons.json();
+          setCoupons(couponsData);
+        }
+        setTimeout(() => setCouponSuccess(false), 3000);
+      } else {
+        const errData = await res.json();
+        setCouponError(errData.error || "Failed to save coupon.");
+      }
+    } catch (err) {
+      console.error("Error saving coupon:", err);
+      setCouponError("Failed to save coupon due to connection error.");
+    } finally {
+      setSavingCoupon(false);
+    }
+  };
+
+  /**
+   * 🎟️ DELETE PROMO COUPON CODE
+   */
+  const handleDeleteCoupon = async (code: string) => {
+    if (!confirm(`Are you sure you want to delete coupon "${code}"?`)) return;
+
+    try {
+      const token = localStorage.getItem("pehlakadam_admin_token");
+      const res = await fetch(`/api/admin/coupons/${code}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+
+      if (res.ok) {
+        // Refresh coupons list
+        const resCoupons = await fetch("/api/admin/coupons", { headers: { "Authorization": `Bearer ${token}` } });
+        if (resCoupons.ok) {
+          const couponsData = await resCoupons.json();
+          setCoupons(couponsData);
+        }
+      } else {
+        const errData = await res.json();
+        alert(errData.error || "Failed to delete coupon.");
+      }
+    } catch (err) {
+      console.error("Error deleting coupon:", err);
+      alert("Failed to delete coupon.");
+    }
+  };
+
   // 🔍 ADVISOR LEAD SEARCH FILTER
   // Performs clean case-insensitive real-time filtering on lead registrations.
   const filteredLeads = submissions.filter(
@@ -806,6 +911,16 @@ export default function AdminSubmissions() {
               }`}
             >
               <Settings className="h-4 w-4" /> Home Page Stats
+            </button>
+            <button
+              onClick={() => setActiveTab("coupons")}
+              className={`py-4 px-6 text-xs uppercase tracking-wider font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === "coupons"
+                  ? "border-emerald-600 text-emerald-700 bg-emerald-50/20"
+                  : "border-transparent text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50"
+              }`}
+            >
+              <Tag className="h-4 w-4" /> Promo Coupons ({coupons.length})
             </button>
           </div>
         </div>
@@ -1660,6 +1775,243 @@ export default function AdminSubmissions() {
                         )}
                       </div>
                     </form>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* TAB 8: PROMO COUPONS MANAGER */}
+              {activeTab === "coupons" && (
+                <motion.div
+                  key="coupons-tab"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="grid grid-cols-1 lg:grid-cols-3 gap-8 w-full"
+                >
+                  {/* Left Column: Create / Edit Coupon Form */}
+                  <div className="bg-white rounded-3xl border border-zinc-200 p-8 shadow-sm lg:col-span-1">
+                    <div className="flex items-center gap-3 border-b border-zinc-100 pb-5 mb-6">
+                      <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-2xl">
+                        <Tag className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-bold text-zinc-900">Create Promo Coupon</h2>
+                        <p className="text-zinc-500 text-xs mt-0.5">
+                          Publish seasonal discounts to gamify consultation triggers.
+                        </p>
+                      </div>
+                    </div>
+
+                    <form onSubmit={handleSaveCoupon} className="space-y-5">
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                          Coupon Code
+                        </label>
+                        <input
+                          type="text"
+                          value={newCouponCode}
+                          onChange={(e) => setNewCouponCode(e.target.value.toUpperCase().replace(/\s+/g, ""))}
+                          className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all placeholder-zinc-400"
+                          placeholder="e.g. FESTIVE100, BITS50"
+                          required
+                        />
+                        <p className="text-[10px] text-zinc-400 mt-1.5 font-mono">
+                          Unique identifier. Automatically capitalized with spaces removed.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                          Discount Type
+                        </label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewCouponDiscountType("percentage");
+                              if (newCouponDiscountValue > 100) setNewCouponDiscountValue(100);
+                            }}
+                            className={`py-2.5 px-4 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                              newCouponDiscountType === "percentage"
+                                ? "bg-emerald-600 border-emerald-600 text-white shadow-sm"
+                                : "bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+                            }`}
+                          >
+                            Percentage (%)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNewCouponDiscountType("fixed")}
+                            className={`py-2.5 px-4 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                              newCouponDiscountType === "fixed"
+                                ? "bg-emerald-600 border-emerald-600 text-white shadow-sm"
+                                : "bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+                            }`}
+                          >
+                            Fixed Amount (₹)
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                          Discount Value
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="1"
+                            max={newCouponDiscountType === "percentage" ? 100 : 10000}
+                            value={newCouponDiscountValue}
+                            onChange={(e) => setNewCouponDiscountValue(Number(e.target.value))}
+                            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-4 pr-10 py-3 text-sm font-semibold text-zinc-950 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all placeholder-zinc-400"
+                            placeholder={newCouponDiscountType === "percentage" ? "e.g. 50 for 50% off" : "e.g. 4999 for full ₹4999 off"}
+                            required
+                          />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-zinc-400 pointer-events-none">
+                            {newCouponDiscountType === "percentage" ? "%" : "₹"}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-zinc-400 mt-1.5">
+                          {newCouponDiscountType === "percentage"
+                            ? "Provide a discount percentage between 1 and 100."
+                            : "Provide a fixed rupee reduction amount."}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2.5 bg-zinc-50 p-4 rounded-xl border border-zinc-200">
+                        <input
+                          id="coupon-active-checkbox"
+                          type="checkbox"
+                          checked={newCouponIsActive}
+                          onChange={(e) => setNewCouponIsActive(e.target.checked)}
+                          className="h-4 w-4 rounded text-emerald-600 border-zinc-300 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <label htmlFor="coupon-active-checkbox" className="text-xs font-bold text-zinc-700 cursor-pointer select-none">
+                          Mark Coupon Active Instantly
+                        </label>
+                      </div>
+
+                      {couponError && (
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs font-medium flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                          <span>{couponError}</span>
+                        </div>
+                      )}
+
+                      {couponSuccess && (
+                        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-xs font-semibold flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                          <span>Coupon saved and synchronized successfully!</span>
+                        </div>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={savingCoupon}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-3.5 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      >
+                        {savingCoupon ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            Syncing database...
+                          </>
+                        ) : (
+                          <>
+                            <PlusCircle className="h-4 w-4" />
+                            Publish Coupon Code
+                          </>
+                        )}
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Right Column: Active Coupons Registry List */}
+                  <div className="bg-white rounded-3xl border border-zinc-200 p-8 shadow-sm lg:col-span-2 space-y-6">
+                    <div className="border-b border-zinc-100 pb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div>
+                        <h2 className="text-lg font-bold text-zinc-900">Coupons Registry</h2>
+                        <p className="text-zinc-500 text-xs mt-0.5">
+                          List of dynamic promo codes configured in the career advisor database.
+                        </p>
+                      </div>
+                      <span className="self-start sm:self-center bg-zinc-100 border border-zinc-200 text-zinc-600 font-mono text-[10px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-full">
+                        {coupons.length} CODES REGISTERED
+                      </span>
+                    </div>
+
+                    {coupons.length === 0 ? (
+                      <div className="text-center py-16 border border-dashed border-zinc-200 rounded-2xl">
+                        <Tag className="h-8 w-8 text-zinc-300 mx-auto mb-3" />
+                        <h3 className="text-sm font-bold text-zinc-700">No promo coupons yet</h3>
+                        <p className="text-zinc-400 text-xs mt-1 max-w-sm mx-auto">
+                          Create a coupon code in the left panel (e.g., "FREECOACH" at 100% discount) to incentivize students.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {coupons.map((c: any) => (
+                          <div
+                            key={c.code}
+                            className={`p-5 rounded-2xl border transition-all relative group flex flex-col justify-between ${
+                              c.isActive
+                                ? "bg-emerald-50/10 border-zinc-200 hover:border-emerald-300"
+                                : "bg-zinc-50 border-zinc-200 opacity-65"
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center justify-between mb-3">
+                                <span className="font-mono text-base font-extrabold tracking-wider text-zinc-900 bg-white border border-zinc-200 px-3 py-1 rounded-xl shadow-sm">
+                                  {c.code}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteCoupon(c.code)}
+                                  className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
+                                  title="Delete Coupon"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+
+                              <div className="space-y-1">
+                                <p className="text-xs text-zinc-500 font-medium">
+                                  Discount Type:{" "}
+                                  <span className="text-zinc-800 font-bold capitalize">
+                                    {c.discountType === "percentage" ? "Percentage" : "Fixed Amount"}
+                                  </span>
+                                </p>
+                                <p className="text-xs text-zinc-500 font-medium">
+                                  Reduction Value:{" "}
+                                  <span className="text-emerald-700 font-extrabold text-sm">
+                                    {c.discountType === "percentage" ? `${c.discountValue}%` : `₹${c.discountValue}`}
+                                  </span>
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="border-t border-zinc-100/80 pt-3 mt-4 flex items-center justify-between">
+                              <span className="text-[10px] text-zinc-400 font-medium">
+                                Added: {new Date(c.createdAt || Date.now()).toLocaleDateString("en-IN", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric"
+                                })}
+                              </span>
+                              <span
+                                className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                  c.isActive
+                                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                    : "bg-zinc-100 border-zinc-300 text-zinc-500"
+                                }`}
+                              >
+                                {c.isActive ? "ACTIVE" : "INACTIVE"}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               )}
