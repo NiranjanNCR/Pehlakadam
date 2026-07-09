@@ -61,7 +61,9 @@ export default function AdminSubmissions() {
   const [adminStats, setAdminStats] = useState({
     studentsCount: "10K+",
     expertsCount: "15+",
-    successRate: "99%"
+    successRate: "99%",
+    upiId: "nrjstudywrk@okicici",
+    merchantName: "Niranjan Singh (Pehlakadam)"
   });
   const [updatingStats, setUpdatingStats] = useState(false);
   const [updateStatsSuccess, setUpdateStatsSuccess] = useState(false);
@@ -1696,6 +1698,48 @@ export default function AdminSubmissions() {
                           <p className="text-[10px] text-zinc-400 mt-1.5">
                             Displayed under the right trophy icon (e.g., 99%, 99.4%, 100%).
                           </p>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-zinc-100 pt-6 mt-6">
+                        <h3 className="text-sm font-bold text-zinc-900 mb-4 flex items-center gap-2">
+                          <CreditCard className="h-4 w-4 text-emerald-600" />
+                          Secure UPI Payment Details
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                              UPI Address / UPI ID
+                            </label>
+                            <input
+                              type="text"
+                              value={adminStats.upiId || ""}
+                              onChange={(e) => setAdminStats({ ...adminStats, upiId: e.target.value })}
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all font-mono"
+                              placeholder="e.g. yourname@okicici"
+                              required
+                            />
+                            <p className="text-[10px] text-zinc-400 mt-1.5">
+                              The secure address students send funds to (e.g. paytm, gpay address).
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                              Merchant Name / Registered Payee Name
+                            </label>
+                            <input
+                              type="text"
+                              value={adminStats.merchantName || ""}
+                              onChange={(e) => setAdminStats({ ...adminStats, merchantName: e.target.value })}
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                              placeholder="e.g. Niranjan Singh"
+                              required
+                            />
+                            <p className="text-[10px] text-zinc-400 mt-1.5">
+                              The official name registered with the UPI bank account.
+                            </p>
+                          </div>
                         </div>
                       </div>
 

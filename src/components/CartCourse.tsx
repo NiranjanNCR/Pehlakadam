@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Check, X, Play, ShieldCheck, Sparkles, UserCheck } from "lucide-react";
 import YouTubeModal from "./YouTubeModal";
 import FormModal from "./FormModal";
+import PaymentModal from "./PaymentModal";
 import { motion } from "motion/react";
 
 export default function CartCourse() {
@@ -248,7 +249,12 @@ export default function CartCourse() {
 
             <div className="p-8 bg-zinc-50 border-t border-zinc-100 flex items-center justify-between gap-4">
               <div className="flex-grow">
-                <FormModal />
+                <PaymentModal 
+                  planName={basicCard.title} 
+                  planPrice={basicCard.currentPrice} 
+                  defaultProgram="6-8 Grade Student" 
+                  buttonText="Pay & Enroll"
+                />
               </div>
               <button
                 onClick={() => openModal(basicCard.videoUrl)}
@@ -308,7 +314,12 @@ export default function CartCourse() {
 
             <div className="p-8 bg-zinc-50 border-t border-zinc-100 flex items-center justify-between gap-4">
               <div className="flex-grow">
-                <FormModal />
+                <PaymentModal 
+                  planName={standardCard.title} 
+                  planPrice={standardCard.currentPrice} 
+                  defaultProgram="11-12 Grade Student" 
+                  buttonText="Pay & Enroll"
+                />
               </div>
               <button
                 onClick={() => openModal(standardCard.videoUrl)}
@@ -364,7 +375,12 @@ export default function CartCourse() {
 
             <div className="p-8 bg-zinc-50 border-t border-zinc-100 flex items-center justify-between gap-4">
               <div className="flex-grow">
-                <FormModal />
+                <PaymentModal 
+                  planName={premiumCard.title} 
+                  planPrice={premiumCard.currentPrice} 
+                  defaultProgram="Generalist to Specialist" 
+                  buttonText="Pay & Enroll"
+                />
               </div>
               <button
                 onClick={() => openModal(premiumCard.videoUrl)}

@@ -407,6 +407,8 @@ const SystemStatsSchema = new mongoose.Schema({
   studentsCount: { type: String, default: "10K+" },
   expertsCount: { type: String, default: "15+" },
   successRate: { type: String, default: "99%" },
+  upiId: { type: String, default: "nrjstudywrk@okicici" },
+  merchantName: { type: String, default: "Niranjan Singh (Pehlakadam)" },
   updatedAt: { type: Date, default: Date.now }
 });
 
@@ -2608,35 +2610,61 @@ app.get("/api/system-stats", async (req, res) => {
         stats = await SystemStatsModel.create({
           studentsCount: "10K+",
           expertsCount: "15+",
-          successRate: "99%"
+          successRate: "99%",
+          upiId: "nrjstudywrk@okicici",
+          merchantName: "Niranjan Singh (Pehlakadam)"
         });
       }
       return res.status(200).json({
         studentsCount: stats.studentsCount,
         expertsCount: stats.expertsCount,
-        successRate: stats.successRate
+        successRate: stats.successRate,
+        upiId: stats.upiId || "nrjstudywrk@okicici",
+        merchantName: stats.merchantName || "Niranjan Singh (Pehlakadam)"
       });
     } else {
-      const fileData = fs.readFileSync(SYSTEM_STATS_FILE, "utf-8");
-      const stats = JSON.parse(fileData);
-      return res.status(200).json(stats);
+      let stats: any = {};
+      try {
+        const fileData = fs.readFileSync(SYSTEM_STATS_FILE, "utf-8");
+        stats = JSON.parse(fileData);
+      } catch (e) {
+        stats = {
+          studentsCount: "10K+",
+          expertsCount: "15+",
+          successRate: "99%",
+          upiId: "nrjstudywrk@okicici",
+          merchantName: "Niranjan Singh (Pehlakadam)"
+        };
+      }
+      return res.status(200).json({
+        studentsCount: stats.studentsCount || "10K+",
+        expertsCount: stats.expertsCount || "15+",
+        successRate: stats.successRate || "99%",
+        upiId: stats.upiId || "nrjstudywrk@okicici",
+        merchantName: stats.merchantName || "Niranjan Singh (Pehlakadam)"
+      });
     }
   } catch (error) {
     console.error("[Pehlakadam API] Error reading system stats:", error);
     return res.status(200).json({
       studentsCount: "10K+",
       expertsCount: "15+",
-      successRate: "99%"
+      successRate: "99%",
+      upiId: "nrjstudywrk@okicici",
+      merchantName: "Niranjan Singh (Pehlakadam)"
     });
   }
 });
 
 app.post("/api/system-stats", verifyAdmin, async (req, res) => {
   try {
-    const { studentsCount, expertsCount, successRate } = req.body;
+    const { studentsCount, expertsCount, successRate, upiId, merchantName } = req.body;
     if (!studentsCount || !expertsCount || !successRate) {
       return res.status(400).json({ error: "All stats fields are required." });
     }
+
+    const finalUpiId = upiId || "nrjstudywrk@okicici";
+    const finalMerchantName = merchantName || "Niranjan Singh (Pehlakadam)";
 
     if (isMongoConnected) {
       let stats = await SystemStatsModel.findOne();
@@ -2646,6 +2674,8 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
       stats.studentsCount = studentsCount;
       stats.expertsCount = expertsCount;
       stats.successRate = successRate;
+      stats.upiId = finalUpiId;
+      stats.merchantName = finalMerchantName;
       stats.updatedAt = new Date();
       await stats.save();
     }
@@ -2654,12 +2684,14 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
     fs.writeFileSync(SYSTEM_STATS_FILE, JSON.stringify({
       studentsCount,
       expertsCount,
-      successRate
+      successRate,
+      upiId: finalUpiId,
+      merchantName: finalMerchantName
     }, null, 2));
 
     return res.status(200).json({
-      message: "System stats updated successfully.",
-      stats: { studentsCount, expertsCount, successRate }
+      message: "System stats and payment config updated successfully.",
+      stats: { studentsCount, expertsCount, successRate, upiId: finalUpiId, merchantName: finalMerchantName }
     });
   } catch (error) {
     console.error("[Pehlakadam API] Error updating system stats:", error);

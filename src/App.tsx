@@ -8,7 +8,6 @@ import Programs from "./components/page/Programs";
 import AdminSubmissions from "./components/page/AdminSubmissions";
 import Diagnostics from "./components/page/Diagnostics";
 import AnnouncementBanner from "./components/AnnouncementBanner";
-import AutoTriggerForm from "./components/AutoTriggerForm";
 
 export default function App() {
   return (
@@ -26,7 +25,6 @@ export default function App() {
           <Route path="/admin" element={<AdminSubmissions />} />
           <Route path="/resources/admin" element={<AdminSubmissions />} />
         </Routes>
-        <AutoTriggerForm />
       </div>
     </BrowserRouter>
   );
