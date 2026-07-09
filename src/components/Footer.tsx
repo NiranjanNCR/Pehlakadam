@@ -1,8 +1,83 @@
 import { Link } from "react-router-dom";
-import { Instagram, Youtube, MessageSquare, Compass, ArrowUpRight } from "lucide-react";
+import { useState, useEffect, FormEvent } from "react";
+import { Instagram, Youtube, MessageSquare, ArrowUpRight, Flame, CheckCircle2, Users } from "lucide-react";
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
+
+  const [stats, setStats] = useState({
+    instagramUrl: "#",
+    youtubeUrl: "#",
+    whatsappSupportUrl: "#",
+    whatsappGroupUrl: "",
+    forumJoinUrl: ""
+  });
+
+  const [inputVal, setInputVal] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [subStatus, setSubStatus] = useState<"idle" | "success" | "error">("idle");
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    fetch("/api/system-stats")
+      .then((res) => {
+        if (res.ok) return res.json();
+        throw new Error("Failed to load footer configurations");
+      })
+      .then((data) => {
+        if (data) {
+          setStats({
+            instagramUrl: data.instagramUrl || "#",
+            youtubeUrl: data.youtubeUrl || "#",
+            whatsappSupportUrl: data.whatsappSupportUrl || "#",
+            whatsappGroupUrl: data.whatsappGroupUrl || "",
+            forumJoinUrl: data.forumJoinUrl || ""
+          });
+        }
+      })
+      .catch((err) => console.error("Error loading footer config:", err));
+  }, []);
+
+  const handleSubscribe = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!inputVal.trim()) return;
+
+    setLoading(true);
+    setSubStatus("idle");
+    setMessage("");
+
+    try {
+      const isEmail = inputVal.includes("@");
+      const payload = isEmail 
+        ? { email: inputVal, phone: "" } 
+        : { email: `${inputVal.replace(/[^0-9]/g, "") || "user"}@pehlakadam-sms.com`, phone: inputVal };
+
+      const res = await fetch("/api/career-tips-join", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setSubStatus("success");
+        setMessage(data.message || "Successfully joined Weekly Career Tips!");
+        setInputVal("");
+      } else {
+        const data = await res.json();
+        setSubStatus("error");
+        setMessage(data.error || "Failed to join subscription.");
+      }
+    } catch (err) {
+      console.error("Subscription error:", err);
+      setSubStatus("error");
+      setMessage("Failed to subscribe due to connection issue.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const programs = [
     { name: "DISC Assessment", desc: "Dominance, Influence, Steadiness" },
@@ -60,21 +135,27 @@ export default function Footer() {
             
             <div className="flex items-center gap-3">
               <a
-                href="#"
+                href={stats.instagramUrl}
+                target="_blank"
+                rel="noreferrer"
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-emerald-400 hover:border-emerald-500/30 transition-all hover:scale-105"
                 title="Follow on Instagram"
               >
                 <Instagram className="h-4.5 w-4.5" />
               </a>
               <a
-                href="#"
+                href={stats.youtubeUrl}
+                target="_blank"
+                rel="noreferrer"
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-emerald-400 hover:border-emerald-500/30 transition-all hover:scale-105"
                 title="Subscribe on Youtube"
               >
                 <Youtube className="h-4.5 w-4.5" />
               </a>
               <a
-                href="#"
+                href={stats.whatsappSupportUrl}
+                target="_blank"
+                rel="noreferrer"
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-emerald-400 hover:border-emerald-500/30 transition-all hover:scale-105"
                 title="Chat on Whatsapp"
               >
@@ -141,20 +222,74 @@ export default function Footer() {
             </ul>
 
             <div className="mt-4 p-4 rounded-2xl bg-zinc-900 border border-zinc-800 text-xs">
-              <p className="font-semibold text-white mb-1">Weekly Career Tips</p>
-              <p className="text-zinc-500 leading-normal mb-3">
+              <p className="font-semibold text-white mb-1 flex items-center gap-1">
+                <Flame className="h-3.5 w-3.5 text-emerald-500 animate-pulse" />
+                Weekly Career Tips
+              </p>
+              <p className="text-zinc-500 leading-normal mb-3 text-[11px]">
                 Get psychometric test updates and expert study plans directly.
               </p>
-              <div className="flex gap-1.5">
-                <input
-                  type="email"
-                  placeholder="name@email.com"
-                  className="bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 w-full"
-                />
-                <button className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-3 py-1.5 font-bold transition-colors cursor-pointer">
-                  Join
-                </button>
-              </div>
+
+              {subStatus === "success" ? (
+                <div className="space-y-3 bg-zinc-950/60 p-3 rounded-xl border border-emerald-500/20 text-[11px]">
+                  <p className="text-emerald-400 font-bold flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Subscribed!
+                  </p>
+                  <p className="text-zinc-400 leading-relaxed">
+                    {message}
+                  </p>
+                  <div className="flex flex-col gap-2 pt-1">
+                    {stats.whatsappGroupUrl && (
+                      <a
+                        href={stats.whatsappGroupUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 text-xs transition-colors"
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" /> Join WhatsApp Group
+                      </a>
+                    )}
+                    {stats.forumJoinUrl && (
+                      <a
+                        href={stats.forumJoinUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="bg-zinc-850 hover:bg-zinc-800 text-zinc-300 font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 text-xs transition-colors border border-zinc-700/50"
+                      >
+                        <Users className="h-3.5 w-3.5" /> Join Career Forum
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleSubscribe} className="space-y-2">
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      value={inputVal}
+                      onChange={(e) => setInputVal(e.target.value)}
+                      placeholder="Email or Mobile Phone"
+                      className="bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 w-full"
+                      required
+                    />
+                    <button 
+                      type="submit"
+                      disabled={loading}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-3 py-1.5 font-bold transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+                    >
+                      {loading ? "..." : "Join"}
+                    </button>
+                  </div>
+                  {subStatus === "error" && (
+                    <p className="text-red-400 font-medium text-[10px] mt-1">
+                      {message}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-zinc-600">
+                    *Enter email or mobile number to join.
+                  </p>
+                </form>
+              )}
             </div>
           </div>
 

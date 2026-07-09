@@ -44,7 +44,7 @@ import { motion, AnimatePresence } from "motion/react";
 // - "broadcast": Dispatching simulated alerts (SMS/Email) to registered leads.
 // - "programs-config": Managing brochures and briefing video links for program landing pages.
 // =========================================================================================
-type AdminTab = "leads" | "payments" | "resources" | "broadcast" | "paid-access" | "programs-config" | "diagnostics" | "system-stats";
+type AdminTab = "leads" | "payments" | "resources" | "broadcast" | "paid-access" | "programs-config" | "diagnostics" | "system-stats" | "subscribers";
 
 export default function AdminSubmissions() {
   const [activeTab, setActiveTab] = useState<AdminTab>("leads");
@@ -56,6 +56,7 @@ export default function AdminSubmissions() {
   const [broadcasts, setBroadcasts] = useState<SessionUpdate[]>([]);
   const [authorizedNumbers, setAuthorizedNumbers] = useState<{ id: string, number: string, createdAt: string }[]>([]);
   const [programsConfigs, setProgramsConfigs] = useState<any[]>([]);
+  const [subscribers, setSubscribers] = useState<{ id: string; email: string; phone?: string; createdAt: string }[]>([]);
   
   // 📈 SYSTEM STATS STATE FOR ADMIN EDITING
   const [adminStats, setAdminStats] = useState({
@@ -63,7 +64,12 @@ export default function AdminSubmissions() {
     expertsCount: "15+",
     successRate: "99%",
     upiId: "nrjstudywrk@okicici",
-    merchantName: "Niranjan Singh (Pehlakadam)"
+    merchantName: "Niranjan Singh (Pehlakadam)",
+    instagramUrl: "#",
+    youtubeUrl: "#",
+    whatsappSupportUrl: "#",
+    whatsappGroupUrl: "",
+    forumJoinUrl: ""
   });
   const [updatingStats, setUpdatingStats] = useState(false);
   const [updateStatsSuccess, setUpdateStatsSuccess] = useState(false);
@@ -348,6 +354,22 @@ export default function AdminSubmissions() {
       console.error("Error loading system stats:", err);
     }
 
+    // 8. Fetch Weekly Tips Subscribers
+    try {
+      const resSubs = await fetch("/api/career-tips-subscribers", { headers: authHeaders });
+      if (checkUnauthorized(resSubs)) return;
+      if (resSubs.ok) {
+        const subsData = await resSubs.json();
+        if (Array.isArray(subsData)) {
+          setSubscribers(subsData);
+        }
+      } else {
+        console.warn("Subscribers API returned non-ok status:", resSubs.status);
+      }
+    } catch (err) {
+      console.error("Error loading subscribers:", err);
+    }
+
     setLoading(false);
     setRefreshing(false);
   };
@@ -378,6 +400,27 @@ export default function AdminSubmissions() {
       alert("Failed to update system stats.");
     } finally {
       setUpdatingStats(false);
+    }
+  };
+
+  const handleDeleteSubscriber = async (id: string) => {
+    if (!confirm("Are you sure you want to remove this subscriber from the Weekly Career Tips list?")) return;
+    try {
+      const token = localStorage.getItem("pehlakadam_admin_token");
+      const res = await fetch(`/api/career-tips-subscribers/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        setSubscribers(prev => prev.filter(s => s.id !== id));
+      } else {
+        alert("Failed to remove subscriber.");
+      }
+    } catch (err) {
+      console.error("Error deleting subscriber:", err);
+      alert("Failed to remove subscriber.");
     }
   };
 
@@ -874,6 +917,16 @@ export default function AdminSubmissions() {
               }`}
             >
               <Settings className="h-4 w-4" /> Home Page Stats
+            </button>
+            <button
+              onClick={() => setActiveTab("subscribers")}
+              className={`py-4 px-6 text-xs uppercase tracking-wider font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === "subscribers"
+                  ? "border-emerald-600 text-emerald-700 bg-emerald-50/20"
+                  : "border-transparent text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50"
+              }`}
+            >
+              <Mail className="h-4 w-4" /> Tips Subscribers ({subscribers.length})
             </button>
           </div>
         </div>
@@ -1743,6 +1796,102 @@ export default function AdminSubmissions() {
                         </div>
                       </div>
 
+                      <div className="border-t border-zinc-100 pt-6 mt-6">
+                        <h3 className="text-sm font-bold text-zinc-900 mb-4 flex items-center gap-2">
+                          <Settings className="h-4 w-4 text-emerald-600" />
+                          Social Handles & Footer Links
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                              Instagram Link
+                            </label>
+                            <input
+                              type="text"
+                              value={adminStats.instagramUrl || ""}
+                              onChange={(e) => setAdminStats({ ...adminStats, instagramUrl: e.target.value })}
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                              placeholder="e.g. https://instagram.com/yourprofile"
+                            />
+                            <p className="text-[10px] text-zinc-400 mt-1.5">
+                              URL linked to the Instagram icon in the footer.
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                              YouTube Channel Link
+                            </label>
+                            <input
+                              type="text"
+                              value={adminStats.youtubeUrl || ""}
+                              onChange={(e) => setAdminStats({ ...adminStats, youtubeUrl: e.target.value })}
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                              placeholder="e.g. https://youtube.com/c/yourchannel"
+                            />
+                            <p className="text-[10px] text-zinc-400 mt-1.5">
+                              URL linked to the YouTube icon in the footer.
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                              WhatsApp Support Link
+                            </label>
+                            <input
+                              type="text"
+                              value={adminStats.whatsappSupportUrl || ""}
+                              onChange={(e) => setAdminStats({ ...adminStats, whatsappSupportUrl: e.target.value })}
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                              placeholder="e.g. https://wa.me/91XXXXXXXXXX"
+                            />
+                            <p className="text-[10px] text-zinc-400 mt-1.5">
+                              Direct WhatsApp link or mobile chat helper link.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-zinc-100 pt-6 mt-6">
+                        <h3 className="text-sm font-bold text-zinc-900 mb-4 flex items-center gap-2">
+                          <RefreshCw className="h-4 w-4 text-emerald-600" />
+                          Weekly Career Tips Redirect Configuration
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                              Official WhatsApp Group Link
+                            </label>
+                            <input
+                              type="text"
+                              value={adminStats.whatsappGroupUrl || ""}
+                              onChange={(e) => setAdminStats({ ...adminStats, whatsappGroupUrl: e.target.value })}
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                              placeholder="e.g. https://chat.whatsapp.com/invite_code"
+                            />
+                            <p className="text-[10px] text-zinc-400 mt-1.5">
+                              Presented as a redirect option once a visitor enters their details and joins.
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                              Alternative Weekly Forum Link
+                            </label>
+                            <input
+                              type="text"
+                              value={adminStats.forumJoinUrl || ""}
+                              onChange={(e) => setAdminStats({ ...adminStats, forumJoinUrl: e.target.value })}
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                              placeholder="e.g. https://yourforum.com/join"
+                            />
+                            <p className="text-[10px] text-zinc-400 mt-1.5">
+                              Secondary community group link (e.g. Telegram, Discord, custom forum, etc.).
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="flex items-center gap-4 pt-4 border-t border-zinc-100">
                         <button
                           type="submit"
@@ -1770,6 +1919,83 @@ export default function AdminSubmissions() {
                         )}
                       </div>
                     </form>
+                  </div>
+                </motion.div>
+              )}
+
+              {activeTab === "subscribers" && (
+                <motion.div
+                  key="subscribers-workspace"
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -15 }}
+                  className="space-y-8"
+                >
+                  <div className="bg-white rounded-3xl border border-zinc-200 p-8 shadow-sm">
+                    <div className="flex items-center gap-4 mb-8">
+                      <div className="bg-emerald-50 text-emerald-600 rounded-2xl p-3">
+                        <Mail className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-bold text-zinc-900">Weekly Career Tips Subscribers</h2>
+                        <p className="text-zinc-500 text-xs mt-0.5">
+                          View and manage users who subscribed to weekly career guidance updates.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      {subscribers.length === 0 ? (
+                        <div className="text-center py-16 text-zinc-400 text-sm">
+                          No subscribers have joined yet. They will appear here when they submit via the Footer tips form.
+                        </div>
+                      ) : (
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="border-b border-zinc-100 text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                              <th className="pb-4 font-semibold">Subscriber Contact Details</th>
+                              <th className="pb-4 font-semibold">Registered Date</th>
+                              <th className="pb-4 font-semibold text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-50 text-sm text-zinc-700">
+                            {subscribers.map((sub, index) => (
+                              <tr key={sub.id || index} className="hover:bg-zinc-50/50 transition-colors">
+                                <td className="py-4">
+                                  <div className="font-semibold text-zinc-900">
+                                    {sub.email && !sub.email.endsWith("@pehlakadam-sms.com") ? (
+                                      <span className="flex items-center gap-1.5">
+                                        <Mail className="h-3.5 w-3.5 text-zinc-400" /> {sub.email}
+                                      </span>
+                                    ) : (
+                                      <span className="text-zinc-400 font-mono text-xs">(Mobile Subscription)</span>
+                                    )}
+                                  </div>
+                                  {sub.phone && (
+                                    <div className="text-zinc-500 font-mono text-xs mt-1 flex items-center gap-1.5">
+                                      <Phone className="h-3.5 w-3.5 text-zinc-400" /> {sub.phone}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-4 text-xs font-mono text-zinc-500">
+                                  {new Date(sub.createdAt).toLocaleString()}
+                                </td>
+                                <td className="py-4 text-right">
+                                  <button
+                                    onClick={() => handleDeleteSubscriber(sub.id)}
+                                    className="p-2 text-zinc-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all cursor-pointer inline-flex items-center gap-1 animate-none select-none outline-none border-none bg-transparent"
+                                    title="Delete Subscriber"
+                                  >
+                                    <Trash2 className="h-4 w-4 text-zinc-400 hover:text-red-500" />
+                                    <span className="text-xs font-semibold">Remove</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               )}

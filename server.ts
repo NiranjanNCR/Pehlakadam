@@ -30,6 +30,7 @@ const DIAGNOSTIC_TESTS_FILE = path.join(process.cwd(), "diagnostic_tests.json");
 const DIAGNOSTIC_SUBMISSIONS_FILE = path.join(process.cwd(), "diagnostic_submissions.json");
 const DIAGNOSTIC_REGISTRATIONS_FILE = path.join(process.cwd(), "diagnostic_registrations.json");
 const SYSTEM_STATS_FILE = path.join(process.cwd(), "system_stats.json");
+const CAREER_TIPS_SUBSCRIBERS_FILE = path.join(process.cwd(), "career_tips_subscribers.json");
 const UPLOADS_DIR = path.join(process.cwd(), "uploads");
 
 // Middleware
@@ -409,10 +410,24 @@ const SystemStatsSchema = new mongoose.Schema({
   successRate: { type: String, default: "99%" },
   upiId: { type: String, default: "nrjstudywrk@okicici" },
   merchantName: { type: String, default: "Niranjan Singh (Pehlakadam)" },
+  instagramUrl: { type: String, default: "#" },
+  youtubeUrl: { type: String, default: "#" },
+  whatsappSupportUrl: { type: String, default: "#" },
+  whatsappGroupUrl: { type: String, default: "" },
+  forumJoinUrl: { type: String, default: "" },
   updatedAt: { type: Date, default: Date.now }
 });
 
 const SystemStatsModel = mongoose.model("SystemStats", SystemStatsSchema);
+
+// 📂 SCHEMA 10: CAREER TIPS SUBSCRIBER SCHEMA
+const CareerTipSubscriberSchema = new mongoose.Schema({
+  email: { type: String, required: true },
+  phone: { type: String, default: "" },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const CareerTipSubscriberModel = mongoose.model("CareerTipSubscriber", CareerTipSubscriberSchema);
 
 // 📂 SCHEMA 7: SCIENTIFIC DIAGNOSTICS TESTS SCHEMA
 const DiagnosticTestSchema = new mongoose.Schema({
@@ -2600,7 +2615,7 @@ app.post("/api/student/login", async (req, res) => {
 });
 
 // =========================================================================================
-// 📈 SYSTEM STATS MANAGEMENT (STUDENTS COUNT, EXPERTS COUNT, SUCCESS RATE)
+// 📈 SYSTEM STATS MANAGEMENT (STUDENTS COUNT, EXPERTS COUNT, SUCCESS RATE, SOCIALS, PAYMENT)
 // =========================================================================================
 app.get("/api/system-stats", async (req, res) => {
   try {
@@ -2612,7 +2627,12 @@ app.get("/api/system-stats", async (req, res) => {
           expertsCount: "15+",
           successRate: "99%",
           upiId: "nrjstudywrk@okicici",
-          merchantName: "Niranjan Singh (Pehlakadam)"
+          merchantName: "Niranjan Singh (Pehlakadam)",
+          instagramUrl: "#",
+          youtubeUrl: "#",
+          whatsappSupportUrl: "#",
+          whatsappGroupUrl: "",
+          forumJoinUrl: ""
         });
       }
       return res.status(200).json({
@@ -2620,7 +2640,12 @@ app.get("/api/system-stats", async (req, res) => {
         expertsCount: stats.expertsCount,
         successRate: stats.successRate,
         upiId: stats.upiId || "nrjstudywrk@okicici",
-        merchantName: stats.merchantName || "Niranjan Singh (Pehlakadam)"
+        merchantName: stats.merchantName || "Niranjan Singh (Pehlakadam)",
+        instagramUrl: stats.instagramUrl || "#",
+        youtubeUrl: stats.youtubeUrl || "#",
+        whatsappSupportUrl: stats.whatsappSupportUrl || "#",
+        whatsappGroupUrl: stats.whatsappGroupUrl || "",
+        forumJoinUrl: stats.forumJoinUrl || ""
       });
     } else {
       let stats: any = {};
@@ -2633,7 +2658,12 @@ app.get("/api/system-stats", async (req, res) => {
           expertsCount: "15+",
           successRate: "99%",
           upiId: "nrjstudywrk@okicici",
-          merchantName: "Niranjan Singh (Pehlakadam)"
+          merchantName: "Niranjan Singh (Pehlakadam)",
+          instagramUrl: "#",
+          youtubeUrl: "#",
+          whatsappSupportUrl: "#",
+          whatsappGroupUrl: "",
+          forumJoinUrl: ""
         };
       }
       return res.status(200).json({
@@ -2641,7 +2671,12 @@ app.get("/api/system-stats", async (req, res) => {
         expertsCount: stats.expertsCount || "15+",
         successRate: stats.successRate || "99%",
         upiId: stats.upiId || "nrjstudywrk@okicici",
-        merchantName: stats.merchantName || "Niranjan Singh (Pehlakadam)"
+        merchantName: stats.merchantName || "Niranjan Singh (Pehlakadam)",
+        instagramUrl: stats.instagramUrl || "#",
+        youtubeUrl: stats.youtubeUrl || "#",
+        whatsappSupportUrl: stats.whatsappSupportUrl || "#",
+        whatsappGroupUrl: stats.whatsappGroupUrl || "",
+        forumJoinUrl: stats.forumJoinUrl || ""
       });
     }
   } catch (error) {
@@ -2651,20 +2686,42 @@ app.get("/api/system-stats", async (req, res) => {
       expertsCount: "15+",
       successRate: "99%",
       upiId: "nrjstudywrk@okicici",
-      merchantName: "Niranjan Singh (Pehlakadam)"
+      merchantName: "Niranjan Singh (Pehlakadam)",
+      instagramUrl: "#",
+      youtubeUrl: "#",
+      whatsappSupportUrl: "#",
+      whatsappGroupUrl: "",
+      forumJoinUrl: ""
     });
   }
 });
 
 app.post("/api/system-stats", verifyAdmin, async (req, res) => {
   try {
-    const { studentsCount, expertsCount, successRate, upiId, merchantName } = req.body;
+    const {
+      studentsCount,
+      expertsCount,
+      successRate,
+      upiId,
+      merchantName,
+      instagramUrl,
+      youtubeUrl,
+      whatsappSupportUrl,
+      whatsappGroupUrl,
+      forumJoinUrl
+    } = req.body;
+
     if (!studentsCount || !expertsCount || !successRate) {
       return res.status(400).json({ error: "All stats fields are required." });
     }
 
     const finalUpiId = upiId || "nrjstudywrk@okicici";
     const finalMerchantName = merchantName || "Niranjan Singh (Pehlakadam)";
+    const finalInstagram = instagramUrl || "#";
+    const finalYoutube = youtubeUrl || "#";
+    const finalWhatsappSupport = whatsappSupportUrl || "#";
+    const finalWhatsappGroup = whatsappGroupUrl || "";
+    const finalForumJoin = forumJoinUrl || "";
 
     if (isMongoConnected) {
       let stats = await SystemStatsModel.findOne();
@@ -2676,6 +2733,11 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
       stats.successRate = successRate;
       stats.upiId = finalUpiId;
       stats.merchantName = finalMerchantName;
+      stats.instagramUrl = finalInstagram;
+      stats.youtubeUrl = finalYoutube;
+      stats.whatsappSupportUrl = finalWhatsappSupport;
+      stats.whatsappGroupUrl = finalWhatsappGroup;
+      stats.forumJoinUrl = finalForumJoin;
       stats.updatedAt = new Date();
       await stats.save();
     }
@@ -2686,16 +2748,153 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
       expertsCount,
       successRate,
       upiId: finalUpiId,
-      merchantName: finalMerchantName
+      merchantName: finalMerchantName,
+      instagramUrl: finalInstagram,
+      youtubeUrl: finalYoutube,
+      whatsappSupportUrl: finalWhatsappSupport,
+      whatsappGroupUrl: finalWhatsappGroup,
+      forumJoinUrl: finalForumJoin
     }, null, 2));
 
     return res.status(200).json({
-      message: "System stats and payment config updated successfully.",
-      stats: { studentsCount, expertsCount, successRate, upiId: finalUpiId, merchantName: finalMerchantName }
+      message: "System stats and payment/social config updated successfully.",
+      stats: {
+        studentsCount,
+        expertsCount,
+        successRate,
+        upiId: finalUpiId,
+        merchantName: finalMerchantName,
+        instagramUrl: finalInstagram,
+        youtubeUrl: finalYoutube,
+        whatsappSupportUrl: finalWhatsappSupport,
+        whatsappGroupUrl: finalWhatsappGroup,
+        forumJoinUrl: finalForumJoin
+      }
     });
   } catch (error) {
     console.error("[Pehlakadam API] Error updating system stats:", error);
     return res.status(500).json({ error: "Failed to update system stats." });
+  }
+});
+
+// =========================================================================================
+// ✉️ WEEKLY CAREER TIPS SUBSCRIBERS
+// =========================================================================================
+app.post("/api/career-tips-join", async (req, res) => {
+  try {
+    const { email, phone } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "Email is required to join weekly tips." });
+    }
+
+    const newSub = {
+      id: Date.now().toString(),
+      email,
+      phone: phone || "",
+      createdAt: new Date()
+    };
+
+    if (isMongoConnected) {
+      const subscriber = new CareerTipSubscriberModel({
+        email,
+        phone: phone || "",
+        createdAt: new Date()
+      });
+      await subscriber.save();
+    }
+
+    // Keep JSON file in sync
+    let subscribers: any[] = [];
+    try {
+      if (fs.existsSync(CAREER_TIPS_SUBSCRIBERS_FILE)) {
+        subscribers = JSON.parse(fs.readFileSync(CAREER_TIPS_SUBSCRIBERS_FILE, "utf-8"));
+      }
+    } catch (e) {
+      console.warn("Subscribers file read warning:", e);
+    }
+    subscribers.push(newSub);
+    fs.writeFileSync(CAREER_TIPS_SUBSCRIBERS_FILE, JSON.stringify(subscribers, null, 2));
+
+    // Retrieve system stats to get redirects / groups
+    let whatsappGroupUrl = "";
+    let forumJoinUrl = "";
+    if (isMongoConnected) {
+      const stats = await SystemStatsModel.findOne();
+      if (stats) {
+        whatsappGroupUrl = stats.whatsappGroupUrl || "";
+        forumJoinUrl = stats.forumJoinUrl || "";
+      }
+    } else {
+      try {
+        if (fs.existsSync(SYSTEM_STATS_FILE)) {
+          const stats = JSON.parse(fs.readFileSync(SYSTEM_STATS_FILE, "utf-8"));
+          whatsappGroupUrl = stats.whatsappGroupUrl || "";
+          forumJoinUrl = stats.forumJoinUrl || "";
+        }
+      } catch (e) {}
+    }
+
+    return res.status(200).json({
+      message: "Successfully subscribed to Weekly Career Tips!",
+      whatsappGroupUrl,
+      forumJoinUrl
+    });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error joining career tips:", error);
+    return res.status(500).json({ error: "Failed to subscribe. Please try again." });
+  }
+});
+
+app.get("/api/career-tips-subscribers", verifyAdmin, async (req, res) => {
+  try {
+    if (isMongoConnected) {
+      const subs = await CareerTipSubscriberModel.find().sort({ createdAt: -1 });
+      const formatted = subs.map(s => ({
+        id: s._id.toString(),
+        email: s.email,
+        phone: s.phone,
+        createdAt: s.createdAt
+      }));
+      return res.status(200).json(formatted);
+    } else {
+      let subscribers: any[] = [];
+      try {
+        if (fs.existsSync(CAREER_TIPS_SUBSCRIBERS_FILE)) {
+          subscribers = JSON.parse(fs.readFileSync(CAREER_TIPS_SUBSCRIBERS_FILE, "utf-8"));
+        }
+      } catch (e) {}
+      // Sort desc
+      subscribers.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      return res.status(200).json(subscribers);
+    }
+  } catch (error) {
+    console.error("[Pehlakadam API] Error fetching subscribers:", error);
+    return res.status(500).json({ error: "Failed to fetch subscribers." });
+  }
+});
+
+app.delete("/api/career-tips-subscribers/:id", verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (isMongoConnected) {
+      await CareerTipSubscriberModel.findByIdAndDelete(id);
+    }
+
+    // Keep JSON file in sync
+    let subscribers: any[] = [];
+    try {
+      if (fs.existsSync(CAREER_TIPS_SUBSCRIBERS_FILE)) {
+        subscribers = JSON.parse(fs.readFileSync(CAREER_TIPS_SUBSCRIBERS_FILE, "utf-8"));
+      }
+    } catch (e) {}
+
+    subscribers = subscribers.filter(s => s.id !== id);
+    fs.writeFileSync(CAREER_TIPS_SUBSCRIBERS_FILE, JSON.stringify(subscribers, null, 2));
+
+    return res.status(200).json({ message: "Subscriber removed successfully." });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error deleting subscriber:", error);
+    return res.status(500).json({ error: "Failed to delete subscriber." });
   }
 });
 
