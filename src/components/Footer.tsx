@@ -21,19 +21,37 @@ export default function Footer() {
           
           {/* Section 1: About Us */}
           <div className="md:col-span-5 flex flex-col gap-6">
-            <Link to="/" className="flex items-center gap-2.5 group w-fit">
+            <Link to="/" className="flex items-center gap-0 group w-fit">
               <div className="flex h-10 w-10 items-center justify-center rounded-full border border-emerald-600/30 p-0.5 group-hover:scale-105 transition-transform duration-250">
                 <div className="flex h-full w-full items-center justify-center rounded-full bg-emerald-600 text-white shadow-sm shadow-emerald-500/10">
                   <span className="text-sm font-black tracking-wider animate-pulse font-sans">PK</span>
                 </div>
               </div>
-              <div>
+              <div className="flex flex-col items-center">
                 <span className="text-lg font-black tracking-tight text-white font-sans block leading-none">
                   PEHLAKADAM
                 </span>
-                <span className="text-[9px] font-medium text-zinc-500 tracking-wide block mt-0.5 italic">
-                  Choose best Get best
-                </span>
+                <div className="flex items-center justify-center gap-1 text-[7.5px] font-bold tracking-wide italic select-none mt-1 w-full text-zinc-500">
+                  <svg className="w-6.5 h-2 opacity-85 text-emerald-500" viewBox="0 0 48 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M 5 1 L 0 4 L 5 7 M 0 4 H 48" stroke="url(#logoLeftGradFooter)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <defs>
+                      <linearGradient id="logoLeftGradFooter" x1="48" y1="4" x2="0" y2="4" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stopColor="currentColor" stopOpacity="1"/>
+                        <stop offset="100%" stopColor="currentColor" stopOpacity="0"/>
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <span className="shrink-0 font-medium">Choose best Get best</span>
+                  <svg className="w-6.5 h-2 opacity-85 text-emerald-500" viewBox="0 0 48 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M 43 1 L 48 4 L 43 7 M 0 4 H 48" stroke="url(#logoRightGradFooter)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <defs>
+                      <linearGradient id="logoRightGradFooter" x1="0" y1="4" x2="48" y2="4" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stopColor="currentColor" stopOpacity="1"/>
+                        <stop offset="100%" stopColor="currentColor" stopOpacity="0"/>
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                </div>
               </div>
             </Link>
             <p className="text-zinc-400 text-sm leading-relaxed max-w-md">

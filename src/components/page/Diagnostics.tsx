@@ -67,6 +67,24 @@ export default function Diagnostics() {
   const [signupSpecial, setSignupSpecial] = useState("");
   const [pendingTest, setPendingTest] = useState<DiagnosticTest | null>(null);
   const [registering, setRegistering] = useState(false);
+  const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
+
+  // Real-time validation flags
+  const isNameValid = signupName.trim().length >= 3;
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupEmail.trim());
+  const isPhoneValid = /^\+?[0-9]{10,15}$/.test(signupPhone.trim().replace(/[\s-()]/g, ""));
+  const isSpecialValid = signupSpecial.trim().length >= 3;
+
+  const markFieldTouched = (field: string) => {
+    setTouchedFields((prev) => ({ ...prev, [field]: true }));
+  };
+
+  // Reset touched fields on opening registration
+  useEffect(() => {
+    if (signupOpen) {
+      setTouchedFields({});
+    }
+  }, [signupOpen]);
 
   // Quiz States
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
@@ -127,14 +145,17 @@ export default function Diagnostics() {
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (
-      !signupName.trim() ||
-      !signupEmail.trim() ||
-      !signupPhone.trim() ||
-      !signupRole.trim() ||
-      !signupSpecial.trim()
-    ) {
-      alert("Please complete all required fields to enter the diagnostic suite.");
+    
+    // Mark all fields as touched to trigger full real-time validation error styling
+    setTouchedFields({
+      name: true,
+      email: true,
+      phone: true,
+      special: true
+    });
+
+    if (!isNameValid || !isEmailValid || !isPhoneValid || !isSpecialValid) {
+      alert("Please fix the validation errors in the registration form before starting the test.");
       return;
     }
 
@@ -666,49 +687,110 @@ export default function Diagnostics() {
                 </div>
 
                 <form onSubmit={handleSignupSubmit} className="space-y-4">
+                  {/* Full Name Field */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Your Full Name</label>
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Your Full Name</label>
+                      {touchedFields.name && (
+                        isNameValid ? (
+                          <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">✓ Valid</span>
+                        ) : (
+                          <span className="text-[10px] text-rose-500 font-bold">At least 3 chars</span>
+                        )
+                      )}
+                    </div>
                     <input
                       type="text"
                       required
                       value={signupName}
-                      onChange={(e) => setSignupName(e.target.value)}
+                      onBlur={() => markFieldTouched("name")}
+                      onChange={(e) => {
+                        setSignupName(e.target.value);
+                        markFieldTouched("name");
+                      }}
                       placeholder="e.g. Priyanshu Kumar"
-                      className="w-full bg-zinc-50 border border-zinc-250/60 rounded-xl px-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-zinc-900 font-semibold"
+                      className={`w-full rounded-xl px-4 py-2.5 text-xs outline-none transition-all text-zinc-900 font-semibold border ${
+                        touchedFields.name
+                          ? isNameValid
+                            ? "border-emerald-500/50 bg-emerald-50/10 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                            : "border-rose-400 bg-rose-50/10 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                          : "bg-zinc-50 border-zinc-200/80 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      }`}
                     />
                   </div>
 
+                  {/* Email & Phone Row */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Email Address</label>
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Email Address</label>
+                        {touchedFields.email && (
+                          isEmailValid ? (
+                            <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">✓ Valid</span>
+                          ) : (
+                            <span className="text-[10px] text-rose-500 font-bold">Invalid Email</span>
+                          )
+                        )}
+                      </div>
                       <input
                         type="email"
                         required
                         value={signupEmail}
-                        onChange={(e) => setSignupEmail(e.target.value)}
+                        onBlur={() => markFieldTouched("email")}
+                        onChange={(e) => {
+                          setSignupEmail(e.target.value);
+                          markFieldTouched("email");
+                        }}
                         placeholder="e.g. nrjstudywrk@gmail.com"
-                        className="w-full bg-zinc-50 border border-zinc-250/60 rounded-xl px-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-zinc-900 font-semibold"
+                        className={`w-full rounded-xl px-4 py-2.5 text-xs outline-none transition-all text-zinc-900 font-semibold border ${
+                          touchedFields.email
+                            ? isEmailValid
+                              ? "border-emerald-500/50 bg-emerald-50/10 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                              : "border-rose-400 bg-rose-50/10 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                            : "bg-zinc-50 border-zinc-200/80 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        }`}
                       />
                     </div>
+
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Mobile Number</label>
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Mobile Number</label>
+                        {touchedFields.phone && (
+                          isPhoneValid ? (
+                            <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">✓ Valid</span>
+                          ) : (
+                            <span className="text-[10px] text-rose-500 font-bold">10-15 digits</span>
+                          )
+                        )}
+                      </div>
                       <input
                         type="tel"
                         required
                         value={signupPhone}
-                        onChange={(e) => setSignupPhone(e.target.value)}
+                        onBlur={() => markFieldTouched("phone")}
+                        onChange={(e) => {
+                          setSignupPhone(e.target.value);
+                          markFieldTouched("phone");
+                        }}
                         placeholder="e.g. 919876543210"
-                        className="w-full bg-zinc-50 border border-zinc-250/60 rounded-xl px-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-zinc-900 font-semibold"
+                        className={`w-full rounded-xl px-4 py-2.5 text-xs outline-none transition-all text-zinc-900 font-semibold border ${
+                          touchedFields.phone
+                            ? isPhoneValid
+                              ? "border-emerald-500/50 bg-emerald-50/10 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                              : "border-rose-400 bg-rose-50/10 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                            : "bg-zinc-50 border-zinc-200/80 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        }`}
                       />
                     </div>
                   </div>
 
+                  {/* Academic Track Field */}
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Academic Track / Profile</label>
                     <select
                       value={signupRole}
                       onChange={(e) => setSignupRole(e.target.value)}
-                      className="w-full bg-zinc-50 border border-zinc-250/60 rounded-xl px-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-zinc-900 font-bold"
+                      className="w-full bg-zinc-50 border border-zinc-200/80 rounded-xl px-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-zinc-900 font-bold cursor-pointer"
                     >
                       <option>Primary School Kudos Stream</option>
                       <option>6th-8th Grade Student</option>
@@ -719,18 +801,37 @@ export default function Diagnostics() {
                     </select>
                   </div>
 
-                  {/* Contextual test-specific details label */}
+                  {/* Contextual test-specific details field */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest font-mono block">
-                      {pendingTest.customFieldLabel || "Specific Detail / Career Aspiration"}
-                    </label>
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest font-mono block">
+                        {pendingTest.customFieldLabel || "Specific Detail / Career Aspiration"}
+                      </label>
+                      {touchedFields.special && (
+                        isSpecialValid ? (
+                          <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">✓ Valid</span>
+                        ) : (
+                          <span className="text-[10px] text-rose-500 font-bold">At least 3 chars</span>
+                        )
+                      )}
+                    </div>
                     <input
                       type="text"
                       required
                       value={signupSpecial}
-                      onChange={(e) => setSignupSpecial(e.target.value)}
+                      onBlur={() => markFieldTouched("special")}
+                      onChange={(e) => {
+                        setSignupSpecial(e.target.value);
+                        markFieldTouched("special");
+                      }}
                       placeholder={`Provide detail for ${pendingTest.title}`}
-                      className="w-full bg-zinc-50 border border-emerald-250/40 rounded-xl px-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-zinc-900 font-bold"
+                      className={`w-full rounded-xl px-4 py-2.5 text-xs outline-none transition-all text-zinc-900 font-bold border ${
+                        touchedFields.special
+                          ? isSpecialValid
+                            ? "border-emerald-500/50 bg-emerald-50/10 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                            : "border-rose-400 bg-rose-50/10 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                          : "bg-zinc-50 border-zinc-200/80 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      }`}
                     />
                   </div>
 

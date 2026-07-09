@@ -35,20 +35,38 @@ export default function NavigationBar() {
         <Link 
           id="nav-logo-link"
           to="/" 
-          className="flex items-center gap-2.5 group hover:opacity-90 transition-opacity"
+          className="flex items-center gap-0 group hover:opacity-90 transition-opacity"
         >
           <div className="flex h-11 w-11 items-center justify-center rounded-full border border-emerald-600/30 p-0.5 group-hover:scale-105 transition-transform duration-250">
             <div className="flex h-full w-full items-center justify-center rounded-full bg-emerald-600 text-white shadow-md shadow-emerald-500/20">
               <span className="text-base font-black tracking-wider animate-pulse font-sans">PK</span>
             </div>
           </div>
-          <div>
-            <span className="text-xl font-extrabold tracking-tight text-zinc-950 font-sans block leading-tight">
+          <div className="flex flex-col items-center">
+            <span className="text-xl font-extrabold tracking-tight text-zinc-950 font-sans block leading-none">
               PEHLAKADAM
             </span>
-            <span className="text-[10px] font-medium text-zinc-500 tracking-wide block -mt-0.5 italic">
-              Choose best Get best
-            </span>
+            <div className="flex items-center justify-center gap-1 text-zinc-500 text-[8.5px] font-bold tracking-wide italic select-none mt-1 w-full">
+              <svg className="w-7 h-2 opacity-85 text-emerald-600" viewBox="0 0 48 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M 5 1 L 0 4 L 5 7 M 0 4 H 48" stroke="url(#logoLeftGradHeader)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <defs>
+                  <linearGradient id="logoLeftGradHeader" x1="48" y1="4" x2="0" y2="4" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="currentColor" stopOpacity="1"/>
+                    <stop offset="100%" stopColor="currentColor" stopOpacity="0"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+              <span className="shrink-0 text-zinc-500 font-medium">Choose best Get best</span>
+              <svg className="w-7 h-2 opacity-85 text-emerald-600" viewBox="0 0 48 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M 43 1 L 48 4 L 43 7 M 0 4 H 48" stroke="url(#logoRightGradHeader)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <defs>
+                  <linearGradient id="logoRightGradHeader" x1="0" y1="4" x2="48" y2="4" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="currentColor" stopOpacity="1"/>
+                    <stop offset="100%" stopColor="currentColor" stopOpacity="0"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
           </div>
         </Link>
 
