@@ -59,6 +59,10 @@ The architecture guarantees high availability and resilient persistence:
   whatsappSupportUrl: { type: String, default: "#" },
   whatsappGroupUrl: { type: String, default: "" },
   forumJoinUrl: { type: String, default: "" },
+  seoTitle: { type: String, default: "Pehlakadam - Best Career Counselling & Personality Development" },
+  seoDescription: { type: String, default: "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips." },
+  seoKeywords: { type: String, default: "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam" },
+  seoAuthor: { type: String, default: "Pehlakadam" },
   updatedAt: { type: Date, default: Date.now }
 }
 ```
@@ -88,11 +92,23 @@ The Admin panel is structured as an elegant, multi-tab console containing:
     *   Set dynamic **UPI Address** and **Merchant Name** configurations.
     *   Update social links (**Instagram**, **YouTube**, and **WhatsApp Support**).
     *   Configure dynamic **Weekly WhatsApp Group Invite Links** and **Forum Join Links**.
+    *   **World-Class SEO Metadata Configuration**: Control Global Page Titles, Meta Descriptions, Focus Keywords, and Meta Author attributes to drive maximum search visibility.
 8.  **Tips Subscribers**: Live database tracker showing all users registered for career newsletters with contact details, sign-up date, and a safe **Remove Subscriber** action.
 
 ---
 
-## 5. Responsiveness & Styling Reference
+## 5. Global Search Engine Optimization (SEO) Architecture
+
+Pehlakadam implements a professional, dynamic SEO injection system to achieve peak organic search results:
+*   **Static Meta Tags**: `/index.html` has pre-rendered optimized semantic meta tags (Title, Description, Keywords, og:title, og:description, og:type) ensuring instant indexability by search engines and spiders.
+*   **Dynamic Head Hydration**: On client startup, a secure background thread queries `GET /api/system-stats` and dynamically synchronizes browser attributes:
+    *   `document.title` is populated with the custom admin-configured title.
+    *   Descriptions, comma-separated search keywords, and author tag values are updated dynamically on the `document.head` meta tree.
+    *   Open Graph tags (`og:title`, `og:description`) are updated dynamically to facilitate high click-through sharing previews across social platforms (LinkedIn, Facebook, WhatsApp, etc.).
+
+---
+
+## 6. Responsiveness & Styling Reference
 
 *   **Fluid Layouts**: Integrated elegant Tailwind configurations using `w-full max-w-7xl mx-auto px-6` to prevent ultra-wide viewport stretching.
 *   **Touch Targets**: Touch targets for input buttons and links are strictly set to `min-h-[44px]` or robust paddings to provide perfect click/tap actions on mobile interfaces.

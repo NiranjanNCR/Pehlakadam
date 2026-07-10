@@ -415,6 +415,10 @@ const SystemStatsSchema = new mongoose.Schema({
   whatsappSupportUrl: { type: String, default: "#" },
   whatsappGroupUrl: { type: String, default: "" },
   forumJoinUrl: { type: String, default: "" },
+  seoTitle: { type: String, default: "Pehlakadam - Best Career Counselling & Personality Development" },
+  seoDescription: { type: String, default: "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips." },
+  seoKeywords: { type: String, default: "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam" },
+  seoAuthor: { type: String, default: "Pehlakadam" },
   updatedAt: { type: Date, default: Date.now }
 });
 
@@ -2632,7 +2636,11 @@ app.get("/api/system-stats", async (req, res) => {
           youtubeUrl: "#",
           whatsappSupportUrl: "#",
           whatsappGroupUrl: "",
-          forumJoinUrl: ""
+          forumJoinUrl: "",
+          seoTitle: "Pehlakadam - Best Career Counselling & Personality Development",
+          seoDescription: "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.",
+          seoKeywords: "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam",
+          seoAuthor: "Pehlakadam"
         });
       }
       return res.status(200).json({
@@ -2645,7 +2653,11 @@ app.get("/api/system-stats", async (req, res) => {
         youtubeUrl: stats.youtubeUrl || "#",
         whatsappSupportUrl: stats.whatsappSupportUrl || "#",
         whatsappGroupUrl: stats.whatsappGroupUrl || "",
-        forumJoinUrl: stats.forumJoinUrl || ""
+        forumJoinUrl: stats.forumJoinUrl || "",
+        seoTitle: stats.seoTitle || "Pehlakadam - Best Career Counselling & Personality Development",
+        seoDescription: stats.seoDescription || "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.",
+        seoKeywords: stats.seoKeywords || "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam",
+        seoAuthor: stats.seoAuthor || "Pehlakadam"
       });
     } else {
       let stats: any = {};
@@ -2663,7 +2675,11 @@ app.get("/api/system-stats", async (req, res) => {
           youtubeUrl: "#",
           whatsappSupportUrl: "#",
           whatsappGroupUrl: "",
-          forumJoinUrl: ""
+          forumJoinUrl: "",
+          seoTitle: "Pehlakadam - Best Career Counselling & Personality Development",
+          seoDescription: "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.",
+          seoKeywords: "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam",
+          seoAuthor: "Pehlakadam"
         };
       }
       return res.status(200).json({
@@ -2676,7 +2692,11 @@ app.get("/api/system-stats", async (req, res) => {
         youtubeUrl: stats.youtubeUrl || "#",
         whatsappSupportUrl: stats.whatsappSupportUrl || "#",
         whatsappGroupUrl: stats.whatsappGroupUrl || "",
-        forumJoinUrl: stats.forumJoinUrl || ""
+        forumJoinUrl: stats.forumJoinUrl || "",
+        seoTitle: stats.seoTitle || "Pehlakadam - Best Career Counselling & Personality Development",
+        seoDescription: stats.seoDescription || "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.",
+        seoKeywords: stats.seoKeywords || "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam",
+        seoAuthor: stats.seoAuthor || "Pehlakadam"
       });
     }
   } catch (error) {
@@ -2691,7 +2711,11 @@ app.get("/api/system-stats", async (req, res) => {
       youtubeUrl: "#",
       whatsappSupportUrl: "#",
       whatsappGroupUrl: "",
-      forumJoinUrl: ""
+      forumJoinUrl: "",
+      seoTitle: "Pehlakadam - Best Career Counselling & Personality Development",
+      seoDescription: "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.",
+      seoKeywords: "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam",
+      seoAuthor: "Pehlakadam"
     });
   }
 });
@@ -2708,7 +2732,11 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
       youtubeUrl,
       whatsappSupportUrl,
       whatsappGroupUrl,
-      forumJoinUrl
+      forumJoinUrl,
+      seoTitle,
+      seoDescription,
+      seoKeywords,
+      seoAuthor
     } = req.body;
 
     if (!studentsCount || !expertsCount || !successRate) {
@@ -2722,6 +2750,10 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
     const finalWhatsappSupport = whatsappSupportUrl || "#";
     const finalWhatsappGroup = whatsappGroupUrl || "";
     const finalForumJoin = forumJoinUrl || "";
+    const finalSeoTitle = seoTitle || "Pehlakadam - Best Career Counselling & Personality Development";
+    const finalSeoDescription = seoDescription || "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.";
+    const finalSeoKeywords = seoKeywords || "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam";
+    const finalSeoAuthor = seoAuthor || "Pehlakadam";
 
     if (isMongoConnected) {
       let stats = await SystemStatsModel.findOne();
@@ -2738,6 +2770,10 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
       stats.whatsappSupportUrl = finalWhatsappSupport;
       stats.whatsappGroupUrl = finalWhatsappGroup;
       stats.forumJoinUrl = finalForumJoin;
+      stats.seoTitle = finalSeoTitle;
+      stats.seoDescription = finalSeoDescription;
+      stats.seoKeywords = finalSeoKeywords;
+      stats.seoAuthor = finalSeoAuthor;
       stats.updatedAt = new Date();
       await stats.save();
     }
@@ -2753,11 +2789,15 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
       youtubeUrl: finalYoutube,
       whatsappSupportUrl: finalWhatsappSupport,
       whatsappGroupUrl: finalWhatsappGroup,
-      forumJoinUrl: finalForumJoin
+      forumJoinUrl: finalForumJoin,
+      seoTitle: finalSeoTitle,
+      seoDescription: finalSeoDescription,
+      seoKeywords: finalSeoKeywords,
+      seoAuthor: finalSeoAuthor
     }, null, 2));
 
     return res.status(200).json({
-      message: "System stats and payment/social config updated successfully.",
+      message: "System stats and payment/social/SEO config updated successfully.",
       stats: {
         studentsCount,
         expertsCount,
@@ -2768,7 +2808,11 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
         youtubeUrl: finalYoutube,
         whatsappSupportUrl: finalWhatsappSupport,
         whatsappGroupUrl: finalWhatsappGroup,
-        forumJoinUrl: finalForumJoin
+        forumJoinUrl: finalForumJoin,
+        seoTitle: finalSeoTitle,
+        seoDescription: finalSeoDescription,
+        seoKeywords: finalSeoKeywords,
+        seoAuthor: finalSeoAuthor
       }
     });
   } catch (error) {

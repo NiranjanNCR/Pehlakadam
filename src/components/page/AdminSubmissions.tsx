@@ -29,7 +29,8 @@ import {
   CreditCard,
   Download,
   Settings,
-  BrainCircuit
+  BrainCircuit,
+  Globe
 } from "lucide-react";
 import { Submission, ResourceMaterial, SessionUpdate } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
@@ -69,7 +70,11 @@ export default function AdminSubmissions() {
     youtubeUrl: "#",
     whatsappSupportUrl: "#",
     whatsappGroupUrl: "",
-    forumJoinUrl: ""
+    forumJoinUrl: "",
+    seoTitle: "Pehlakadam - Best Career Counselling & Personality Development",
+    seoDescription: "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.",
+    seoKeywords: "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam",
+    seoAuthor: "Pehlakadam"
   });
   const [updatingStats, setUpdatingStats] = useState(false);
   const [updateStatsSuccess, setUpdateStatsSuccess] = useState(false);
@@ -1887,6 +1892,80 @@ export default function AdminSubmissions() {
                             />
                             <p className="text-[10px] text-zinc-400 mt-1.5">
                               Secondary community group link (e.g. Telegram, Discord, custom forum, etc.).
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-zinc-100 pt-6 mt-6">
+                        <h3 className="text-sm font-bold text-zinc-900 mb-4 flex items-center gap-2">
+                          <Globe className="h-4 w-4 text-emerald-600" />
+                          World-Class SEO Metadata Configuration (Global Search Engine Optimization)
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                              Global SEO Meta Title
+                            </label>
+                            <input
+                              type="text"
+                              value={adminStats.seoTitle || ""}
+                              onChange={(e) => setAdminStats({ ...adminStats, seoTitle: e.target.value })}
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                              placeholder="e.g. Pehlakadam - Best Career Counselling & Personality Development"
+                            />
+                            <p className="text-[10px] text-zinc-400 mt-1.5">
+                              Main search engine title displayed on Google results and browser tabs. Ideal length: 50-60 chars.
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                              SEO Meta Author / Publisher
+                            </label>
+                            <input
+                              type="text"
+                              value={adminStats.seoAuthor || ""}
+                              onChange={(e) => setAdminStats({ ...adminStats, seoAuthor: e.target.value })}
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                              placeholder="e.g. Pehlakadam"
+                            />
+                            <p className="text-[10px] text-zinc-400 mt-1.5">
+                              Defines the publisher or owner metadata tag for spiders and author attribution schemas.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-6">
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                              SEO Meta Description
+                            </label>
+                            <textarea
+                              rows={3}
+                              value={adminStats.seoDescription || ""}
+                              onChange={(e) => setAdminStats({ ...adminStats, seoDescription: e.target.value })}
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all resize-none"
+                              placeholder="Provide a compelling 150-160 character summary of the portal to maximize organic click-through rates..."
+                            />
+                            <p className="text-[10px] text-zinc-400 mt-1.5">
+                              Detailed description read by search engine web crawlers and displayed as the snippet under your title.
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                              SEO Focus Keywords (Comma Separated)
+                            </label>
+                            <input
+                              type="text"
+                              value={adminStats.seoKeywords || ""}
+                              onChange={(e) => setAdminStats({ ...adminStats, seoKeywords: e.target.value })}
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                              placeholder="career counselling, personality development, psychometric test, MBTI"
+                            />
+                            <p className="text-[10px] text-zinc-400 mt-1.5">
+                              Comma-separated tags representing core page topics to assist indexing crawlers.
                             </p>
                           </div>
                         </div>
