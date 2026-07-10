@@ -50,3 +50,14 @@ export interface SessionUpdate {
   recipients: { name: string; email: string; number: string }[];
   createdAt: string;
 }
+
+export interface Testimonial {
+  id: string;
+  studentName: string;
+  stream: string;
+  achievement: string;
+  story: string;
+  fileName?: string;
+  fileData?: string;
+  createdAt?: string;
+}

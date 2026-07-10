@@ -31,6 +31,7 @@ const DIAGNOSTIC_SUBMISSIONS_FILE = path.join(process.cwd(), "diagnostic_submiss
 const DIAGNOSTIC_REGISTRATIONS_FILE = path.join(process.cwd(), "diagnostic_registrations.json");
 const SYSTEM_STATS_FILE = path.join(process.cwd(), "system_stats.json");
 const CAREER_TIPS_SUBSCRIBERS_FILE = path.join(process.cwd(), "career_tips_subscribers.json");
+const TESTIMONIALS_FILE = path.join(process.cwd(), "testimonials.json");
 const UPLOADS_DIR = path.join(process.cwd(), "uploads");
 
 // Middleware
@@ -68,6 +69,37 @@ if (!fs.existsSync(SYSTEM_STATS_FILE)) {
     expertsCount: "15+",
     successRate: "99%"
   }, null, 2));
+}
+
+const defaultTestimonials = [
+  {
+    id: "testi-1",
+    studentName: "Aryan Sharma",
+    stream: "Grade 10 to Science (PCM)",
+    achievement: "BITS Pilani (Computer Science)",
+    story: "Pehlakadam helped me map my analytical personality to PCM. Their psychometric MBTI grid was 100% accurate, directing me away from pure herd pressure.",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "testi-2",
+    studentName: "Komalpreet Kaur",
+    stream: "Grade 12 to Commerce / Economics",
+    achievement: "SRCC, Delhi University",
+    story: "I was extremely confused between Law and Economics. The DISC evaluation mapped my Steadiness and Compliance traits perfectly to finance and research.",
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "testi-3",
+    studentName: "Ananya Iyer",
+    stream: "Undergrad to Postgrad (Psychology)",
+    achievement: "NIMHANS Admission",
+    story: "The post-grad resume blueprint and 1:1 mentorship from BITS Pilani advisors gave me extreme clarity. Truly the best decision of my career!",
+    createdAt: new Date().toISOString()
+  }
+];
+
+if (!fs.existsSync(TESTIMONIALS_FILE)) {
+  fs.writeFileSync(TESTIMONIALS_FILE, JSON.stringify(defaultTestimonials, null, 2));
 }
 
 if (!fs.existsSync(PROGRAMS_CONFIG_FILE)) {
@@ -433,6 +465,19 @@ const CareerTipSubscriberSchema = new mongoose.Schema({
 
 const CareerTipSubscriberModel = mongoose.model("CareerTipSubscriber", CareerTipSubscriberSchema);
 
+// 📂 SCHEMA 11: SUCCESS TESTIMONIALS SCHEMA
+const TestimonialSchema = new mongoose.Schema({
+  studentName: { type: String, required: true },
+  stream: { type: String, required: true },
+  achievement: { type: String, required: true },
+  story: { type: String, required: true },
+  fileName: { type: String, default: "" },
+  fileData: { type: String, default: "" }, // Base64 representation of student avatar
+  createdAt: { type: Date, default: Date.now }
+});
+
+const TestimonialModel = mongoose.model("Testimonial", TestimonialSchema);
+
 // 📂 SCHEMA 7: SCIENTIFIC DIAGNOSTICS TESTS SCHEMA
 const DiagnosticTestSchema = new mongoose.Schema({
   key: { type: String, required: true, unique: true },
@@ -641,6 +686,7 @@ if (hasValidScheme) {
       seedDefaultProgramConfigsIfEmpty(); // Seeds default program configs if database is empty
       seedDefaultDiagnosticsIfEmpty(); // Seeds default diagnostic tests if empty
       seedDefaultSystemStatsIfEmpty(); // Seeds default system stats if empty
+      seedDefaultTestimonialsIfEmpty(); // Seeds default testimonials if empty
     })
     .catch((err) => {
       console.error("🔴 [Pehlakadam Server] MongoDB connection failed:", err);
@@ -1165,6 +1211,41 @@ async function seedDefaultSystemStatsIfEmpty() {
     }
   } catch (err) {
     console.error("🔴 [Pehlakadam Server] Error seeding system stats:", err);
+  }
+}
+
+async function seedDefaultTestimonialsIfEmpty() {
+  try {
+    if (isMongoConnected) {
+      const count = await TestimonialModel.countDocuments();
+      if (count === 0) {
+        console.log("🌱 [Pehlakadam Server] Seeding newly connected MongoDB with default testimonials...");
+        const items = [
+          {
+            studentName: "Aryan Sharma",
+            stream: "Grade 10 to Science (PCM)",
+            achievement: "BITS Pilani (Computer Science)",
+            story: "Pehlakadam helped me map my analytical personality to PCM. Their psychometric MBTI grid was 100% accurate, directing me away from pure herd pressure."
+          },
+          {
+            studentName: "Komalpreet Kaur",
+            stream: "Grade 12 to Commerce / Economics",
+            achievement: "SRCC, Delhi University",
+            story: "I was extremely confused between Law and Economics. The DISC evaluation mapped my Steadiness and Compliance traits perfectly to finance and research."
+          },
+          {
+            studentName: "Ananya Iyer",
+            stream: "Undergrad to Postgrad (Psychology)",
+            achievement: "NIMHANS Admission",
+            story: "The post-grad resume blueprint and 1:1 mentorship from BITS Pilani advisors gave me extreme clarity. Truly the best decision of my career!"
+          }
+        ];
+        await TestimonialModel.insertMany(items);
+        console.log("🌱 [Pehlakadam Server] MongoDB testimonials seeding completed successfully!");
+      }
+    }
+  } catch (err) {
+    console.error("🔴 [Pehlakadam Server] Error seeding testimonials into MongoDB:", err);
   }
 }
 
@@ -2939,6 +3020,114 @@ app.delete("/api/career-tips-subscribers/:id", verifyAdmin, async (req, res) => 
   } catch (error) {
     console.error("[Pehlakadam API] Error deleting subscriber:", error);
     return res.status(500).json({ error: "Failed to delete subscriber." });
+  }
+});
+
+// =========================================================================================
+// 🌐 TESTIMONIALS ENDPOINTS (DURABLE HYBRID STORAGE)
+// =========================================================================================
+app.get("/api/testimonials", async (req, res) => {
+  try {
+    if (isMongoConnected) {
+      const items = await TestimonialModel.find().sort({ createdAt: -1 });
+      const formatted = items.map(item => ({
+        id: item._id.toString(),
+        studentName: item.studentName,
+        stream: item.stream,
+        achievement: item.achievement,
+        story: item.story,
+        fileName: item.fileName,
+        fileData: item.fileData,
+        createdAt: item.createdAt
+      }));
+      return res.status(200).json(formatted);
+    } else {
+      let items: any[] = [];
+      try {
+        if (fs.existsSync(TESTIMONIALS_FILE)) {
+          items = JSON.parse(fs.readFileSync(TESTIMONIALS_FILE, "utf-8"));
+        }
+      } catch (e) {}
+      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      return res.status(200).json(items);
+    }
+  } catch (error) {
+    console.error("[Pehlakadam API] Error fetching testimonials:", error);
+    return res.status(500).json({ error: "Failed to fetch testimonials." });
+  }
+});
+
+app.post("/api/testimonials", verifyAdmin, async (req, res) => {
+  try {
+    const { studentName, stream, achievement, story, fileName, fileData } = req.body;
+    if (!studentName || !stream || !achievement || !story) {
+      return res.status(400).json({ error: "All fields are required (studentName, stream, achievement, story)." });
+    }
+
+    const newId = new mongoose.Types.ObjectId().toString();
+    const newItem = {
+      id: newId,
+      studentName,
+      stream,
+      achievement,
+      story,
+      fileName: fileName || "",
+      fileData: fileData || "",
+      createdAt: new Date().toISOString()
+    };
+
+    if (isMongoConnected) {
+      const dbItem = new TestimonialModel({
+        studentName,
+        stream,
+        achievement,
+        story,
+        fileName: fileName || "",
+        fileData: fileData || ""
+      });
+      await dbItem.save();
+      newItem.id = dbItem._id.toString();
+    }
+
+    // Keep JSON file in sync
+    let items: any[] = [];
+    try {
+      if (fs.existsSync(TESTIMONIALS_FILE)) {
+        items = JSON.parse(fs.readFileSync(TESTIMONIALS_FILE, "utf-8"));
+      }
+    } catch (e) {}
+    items.push(newItem);
+    fs.writeFileSync(TESTIMONIALS_FILE, JSON.stringify(items, null, 2));
+
+    return res.status(200).json(newItem);
+  } catch (error) {
+    console.error("[Pehlakadam API] Error creating testimonial:", error);
+    return res.status(500).json({ error: "Failed to create testimonial." });
+  }
+});
+
+app.delete("/api/testimonials/:id", verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (isMongoConnected) {
+      await TestimonialModel.findByIdAndDelete(id);
+    }
+
+    // Keep JSON file in sync
+    let items: any[] = [];
+    try {
+      if (fs.existsSync(TESTIMONIALS_FILE)) {
+        items = JSON.parse(fs.readFileSync(TESTIMONIALS_FILE, "utf-8"));
+      }
+    } catch (e) {}
+
+    items = items.filter(item => item.id !== id);
+    fs.writeFileSync(TESTIMONIALS_FILE, JSON.stringify(items, null, 2));
+
+    return res.status(200).json({ message: "Testimonial deleted successfully." });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error deleting testimonial:", error);
+    return res.status(500).json({ error: "Failed to delete testimonial." });
   }
 });
 

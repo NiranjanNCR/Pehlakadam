@@ -30,9 +30,10 @@ import {
   Download,
   Settings,
   BrainCircuit,
-  Globe
+  Globe,
+  Sparkles
 } from "lucide-react";
-import { Submission, ResourceMaterial, SessionUpdate } from "../../types";
+import { Submission, ResourceMaterial, SessionUpdate, Testimonial } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
 
 // =========================================================================================
@@ -45,7 +46,7 @@ import { motion, AnimatePresence } from "motion/react";
 // - "broadcast": Dispatching simulated alerts (SMS/Email) to registered leads.
 // - "programs-config": Managing brochures and briefing video links for program landing pages.
 // =========================================================================================
-type AdminTab = "leads" | "payments" | "resources" | "broadcast" | "paid-access" | "programs-config" | "diagnostics" | "system-stats" | "subscribers";
+type AdminTab = "leads" | "payments" | "resources" | "broadcast" | "paid-access" | "programs-config" | "diagnostics" | "system-stats" | "subscribers" | "testimonials";
 
 export default function AdminSubmissions() {
   const [activeTab, setActiveTab] = useState<AdminTab>("leads");
@@ -58,6 +59,16 @@ export default function AdminSubmissions() {
   const [authorizedNumbers, setAuthorizedNumbers] = useState<{ id: string, number: string, createdAt: string }[]>([]);
   const [programsConfigs, setProgramsConfigs] = useState<any[]>([]);
   const [subscribers, setSubscribers] = useState<{ id: string; email: string; phone?: string; createdAt: string }[]>([]);
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
+  
+  // 📝 NEW TESTIMONIAL FORM STATES
+  const [testiStudentName, setTestiStudentName] = useState("");
+  const [testiStream, setTestiStream] = useState("");
+  const [testiAchievement, setTestiAchievement] = useState("");
+  const [testiStory, setTestiStory] = useState("");
+  const [testiFile, setTestiFile] = useState<File | null>(null);
+  const [testiFileData, setTestiFileData] = useState("");
+  const [testiCreating, setTestiCreating] = useState(false);
   
   // 📈 SYSTEM STATS STATE FOR ADMIN EDITING
   const [adminStats, setAdminStats] = useState({
@@ -375,6 +386,21 @@ export default function AdminSubmissions() {
       console.error("Error loading subscribers:", err);
     }
 
+    // 9. Fetch Success Testimonials
+    try {
+      const resTesti = await fetch("/api/testimonials");
+      if (resTesti.ok) {
+        const testiData = await resTesti.json();
+        if (Array.isArray(testiData)) {
+          setTestimonials(testiData);
+        }
+      } else {
+        console.warn("Testimonials API returned non-ok status:", resTesti.status);
+      }
+    } catch (err) {
+      console.error("Error loading testimonials:", err);
+    }
+
     setLoading(false);
     setRefreshing(false);
   };
@@ -426,6 +452,94 @@ export default function AdminSubmissions() {
     } catch (err) {
       console.error("Error deleting subscriber:", err);
       alert("Failed to remove subscriber.");
+    }
+  };
+
+  const handleTestiFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image file is too large! Max limit is 5MB.");
+      return;
+    }
+
+    setTestiFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setTestiFileData(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAddTestimonial = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!testiStudentName || !testiStream || !testiAchievement || !testiStory) {
+      alert("Please fill in all testimonial fields.");
+      return;
+    }
+
+    setTestiCreating(true);
+    try {
+      const payload = {
+        studentName: testiStudentName,
+        stream: testiStream,
+        achievement: testiAchievement,
+        story: testiStory,
+        fileName: testiFile ? testiFile.name : undefined,
+        fileData: testiFileData || undefined
+      };
+
+      const res = await fetch("/api/testimonials", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("pehlakadam_admin_token")}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        alert("Success testimony uploaded successfully!");
+        setTestiStudentName("");
+        setTestiStream("");
+        setTestiAchievement("");
+        setTestiStory("");
+        setTestiFile(null);
+        setTestiFileData("");
+        await fetchAllData();
+      } else {
+        const err = await res.json();
+        alert(err.error || "Failed to upload success testimony.");
+      }
+    } catch (err) {
+      console.error("Error adding testimonial:", err);
+      alert("Failed to upload success testimony.");
+    } finally {
+      setTestiCreating(false);
+    }
+  };
+
+  const handleDeleteTestimonial = async (id: string) => {
+    if (!confirm("Are you sure you want to permanently delete this success testimony?")) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/testimonials/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("pehlakadam_admin_token")}`
+        }
+      });
+      if (res.ok) {
+        setTestimonials(prev => prev.filter(t => t.id !== id));
+      } else {
+        alert("Failed to delete testimony.");
+      }
+    } catch (err) {
+      console.error("Error deleting testimonial:", err);
+      alert("Failed to delete testimony.");
     }
   };
 
@@ -932,6 +1046,16 @@ export default function AdminSubmissions() {
               }`}
             >
               <Mail className="h-4 w-4" /> Tips Subscribers ({subscribers.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("testimonials")}
+              className={`py-4 px-6 text-xs uppercase tracking-wider font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === "testimonials"
+                  ? "border-emerald-600 text-emerald-700 bg-emerald-50/20"
+                  : "border-transparent text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50"
+              }`}
+            >
+              <Sparkles className="h-4 w-4" /> Success Testimonials ({testimonials.length})
             </button>
           </div>
         </div>
@@ -2073,6 +2197,223 @@ export default function AdminSubmissions() {
                             ))}
                           </tbody>
                         </table>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {activeTab === "testimonials" && (
+                <motion.div
+                  key="testimonials-workspace"
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -15 }}
+                  className="space-y-8"
+                >
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    {/* Add Testimonial Form (5 cols) */}
+                    <div className="lg:col-span-5 bg-white rounded-3xl border border-zinc-200 p-8 shadow-sm h-fit">
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className="bg-emerald-50 text-emerald-600 rounded-2xl p-3">
+                          <PlusCircle className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h2 className="text-lg font-bold text-zinc-900">Upload Success Testimony</h2>
+                          <p className="text-zinc-500 text-xs mt-0.5">
+                            Publish a new student victory story on the home page.
+                          </p>
+                        </div>
+                      </div>
+
+                      <form onSubmit={handleAddTestimonial} className="space-y-5">
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                            Student Full Name *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={testiStudentName}
+                            onChange={(e) => setTestiStudentName(e.target.value)}
+                            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                            placeholder="e.g. Aryan Sharma"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                            Stream / Grade Track *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={testiStream}
+                            onChange={(e) => setTestiStream(e.target.value)}
+                            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                            placeholder="e.g. Grade 10 to Science (PCM)"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                            Milestone Achievement *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={testiAchievement}
+                            onChange={(e) => setTestiAchievement(e.target.value)}
+                            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                            placeholder="e.g. BITS Pilani (Computer Science)"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                            Testimony Quote / Story *
+                          </label>
+                          <textarea
+                            required
+                            rows={4}
+                            value={testiStory}
+                            onChange={(e) => setTestiStory(e.target.value)}
+                            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all resize-none"
+                            placeholder="Share their journey and how Pehlakadam's counseling or diagnostics helped..."
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                            Student Photo / Avatar (Optional)
+                          </label>
+                          <div className="flex items-center gap-4">
+                            <label className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-zinc-200 hover:border-emerald-500 rounded-xl p-4 cursor-pointer bg-zinc-50 hover:bg-emerald-50/10 transition-all">
+                              <Upload className="h-5 w-5 text-zinc-400 mb-1" />
+                              <span className="text-xs font-bold text-zinc-600">
+                                {testiFile ? testiFile.name : "Select Image File"}
+                              </span>
+                              <span className="text-[9px] text-zinc-400 mt-0.5">JPEG, PNG up to 5MB</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleTestiFileChange}
+                                className="hidden"
+                              />
+                            </label>
+
+                            {testiFileData && (
+                              <div className="shrink-0">
+                                <img
+                                  src={testiFileData}
+                                  alt="Preview"
+                                  className="w-16 h-16 rounded-xl object-cover border border-zinc-200 shadow-sm"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={testiCreating}
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/50 text-white font-bold rounded-xl py-3.5 text-sm transition-all shadow-md shadow-emerald-600/10 hover:shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer border-none"
+                        >
+                          {testiCreating ? (
+                            <>
+                              <RefreshCw className="h-4 w-4 animate-spin" />
+                              Uploading Testimony...
+                            </>
+                          ) : (
+                            <>
+                              <PlusCircle className="h-4 w-4" />
+                              Publish Success Testimony
+                            </>
+                          )}
+                        </button>
+                      </form>
+                    </div>
+
+                    {/* Testimonials List (7 cols) */}
+                    <div className="lg:col-span-7 bg-white rounded-3xl border border-zinc-200 p-8 shadow-sm">
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className="bg-emerald-50 text-emerald-600 rounded-2xl p-3">
+                          <Sparkles className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h2 className="text-lg font-bold text-zinc-900">Current Success Stories</h2>
+                          <p className="text-zinc-500 text-xs mt-0.5">
+                            Manage published success testimonies appearing on the home page carousel.
+                          </p>
+                        </div>
+                      </div>
+
+                      {testimonials.length === 0 ? (
+                        <div className="text-center py-20 text-zinc-400 text-sm border-2 border-dashed border-zinc-100 rounded-2xl">
+                          No testimonies have been uploaded yet. Publish one on the left to get started!
+                        </div>
+                      ) : (
+                        <div className="space-y-4 max-h-[680px] overflow-y-auto pr-2">
+                          {testimonials.map((testi, index) => {
+                            // Default beautiful initial avatar
+                            const initial = testi.studentName ? testi.studentName.charAt(0).toUpperCase() : "S";
+                            const colors = [
+                              "bg-emerald-500",
+                              "bg-teal-500",
+                              "bg-sky-500",
+                              "bg-indigo-500"
+                            ];
+                            const colIdx = (testi.studentName?.length || 0) % colors.length;
+
+                            return (
+                              <div
+                                key={testi.id || index}
+                                className="border border-zinc-100 rounded-2xl p-5 hover:border-emerald-100 transition-all flex items-start gap-4 hover:bg-zinc-50/30"
+                              >
+                                {testi.fileData ? (
+                                  <img
+                                    src={testi.fileData}
+                                    alt={testi.studentName}
+                                    className="w-12 h-12 rounded-xl object-cover border border-zinc-100 shadow-sm shrink-0"
+                                  />
+                                ) : (
+                                  <div className={`w-12 h-12 rounded-xl ${colors[colIdx]} text-white font-bold text-lg flex items-center justify-center shrink-0 shadow-sm`}>
+                                    {initial}
+                                  </div>
+                                )}
+
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                      <h3 className="text-sm font-bold text-zinc-900 truncate">
+                                        {testi.studentName}
+                                      </h3>
+                                      <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest mt-0.5">
+                                        {testi.stream}
+                                      </p>
+                                    </div>
+
+                                    <button
+                                      onClick={() => handleDeleteTestimonial(testi.id)}
+                                      className="p-1.5 text-zinc-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all shrink-0 cursor-pointer border-none bg-transparent"
+                                      title="Delete testimony"
+                                    >
+                                      <Trash2 className="h-4 w-4 text-zinc-400 hover:text-red-500" />
+                                    </button>
+                                  </div>
+
+                                  <div className="mt-2 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100/50 px-2 py-1 rounded-lg w-fit">
+                                    {testi.achievement}
+                                  </div>
+
+                                  <p className="mt-3 text-xs text-zinc-600 leading-relaxed italic line-clamp-3">
+                                    "{testi.story}"
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
                   </div>
