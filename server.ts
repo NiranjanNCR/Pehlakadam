@@ -485,9 +485,16 @@ const DiagnosticTestSchema = new mongoose.Schema({
   subtitle: { type: String },
   description: { type: String },
   customFieldLabel: { type: String, default: "Specific Details" },
+  scoringMethod: { type: String, default: "personality" },
+  resultProfiles: [{
+    value: { type: String },
+    title: { type: String },
+    summary: { type: String }
+  }],
   questions: [{
     id: { type: String, required: true },
     text: { type: String, required: true },
+    correctValue: { type: String },
     options: [{
       id: { type: String, required: true },
       text: { type: String, required: true },
@@ -1649,7 +1656,7 @@ app.get("/api/diagnostic-tests", async (req, res) => {
 // 2. UPDATE DIAGNOSTIC TEST QUESTIONS (ADMIN SECURED)
 app.post("/api/diagnostic-tests/update-questions", verifyAdmin, async (req, res) => {
   try {
-    const { key, title, subtitle, description, customFieldLabel, questions } = req.body;
+    const { key, title, subtitle, description, customFieldLabel, scoringMethod, resultProfiles, questions } = req.body;
     if (!key || !title || !questions) {
       return res.status(400).json({ error: "key, title, and questions are required fields." });
     }
@@ -1657,7 +1664,7 @@ app.post("/api/diagnostic-tests/update-questions", verifyAdmin, async (req, res)
     if (isMongoConnected) {
       const updated = await DiagnosticTestModel.findOneAndUpdate(
         { key },
-        { title, subtitle, description, customFieldLabel, questions, updatedAt: new Date() },
+        { title, subtitle, description, customFieldLabel, scoringMethod, resultProfiles, questions, updatedAt: new Date() },
         { new: true, upsert: true }
       );
       return res.status(200).json({ success: true, test: updated });
@@ -1671,6 +1678,8 @@ app.post("/api/diagnostic-tests/update-questions", verifyAdmin, async (req, res)
         subtitle,
         description,
         customFieldLabel,
+        scoringMethod: scoringMethod || "personality",
+        resultProfiles: resultProfiles || [],
         questions,
         updatedAt: new Date().toISOString()
       };
@@ -1694,6 +1703,20 @@ app.post("/api/diagnostic-tests/submit", async (req, res) => {
     const { user, testKey, answers } = req.body;
     if (!user || !testKey || !answers) {
       return res.status(400).json({ error: "Missing required parameters (user, testKey, answers)." });
+    }
+
+    // Load test definition to check custom fields & scoring method
+    let testDef: any = null;
+    try {
+      if (isMongoConnected) {
+        testDef = await DiagnosticTestModel.findOne({ key: testKey });
+      } else {
+        const content = fs.readFileSync(DIAGNOSTIC_TESTS_FILE, "utf-8");
+        const tests = JSON.parse(content);
+        testDef = tests.find((t: any) => t.key === testKey);
+      }
+    } catch (e) {
+      console.error("[Pehlakadam API] Error loading test definition during submit:", e);
     }
 
     // scoring calculations
@@ -1726,7 +1749,12 @@ app.post("/api/diagnostic-tests/submit", async (req, res) => {
       };
 
       score = {
-        breakdown: pct,
+        breakdown: {
+          "Dominance (D)": pct.D,
+          "Influence (I)": pct.I,
+          "Steadiness (S)": pct.S,
+          "Conscientiousness (C)": pct.C
+        },
         dominant,
         summary: descriptions[dominant],
         title: `${dominant}-Style Behavioral Profile`
@@ -1746,6 +1774,22 @@ app.post("/api/diagnostic-tests/submit", async (req, res) => {
       
       const mbti = (E >= I_val ? "E" : "I") + (S >= N ? "S" : "N") + (T >= F ? "T" : "F") + (J >= P ? "J" : "P");
       
+      const totalEI = E + I_val || 1;
+      const totalSN = S + N || 1;
+      const totalTF = T + F || 1;
+      const totalJP = J + P || 1;
+
+      const pct = {
+        E: Math.round((E / totalEI) * 100),
+        I: Math.round((I_val / totalEI) * 100),
+        S: Math.round((S / totalSN) * 100),
+        N: Math.round((N / totalSN) * 100),
+        T: Math.round((T / totalTF) * 100),
+        F: Math.round((F / totalTF) * 100),
+        J: Math.round((J / totalJP) * 100),
+        P: Math.round((P / totalJP) * 100),
+      };
+
       const careers: any = {
         INTJ: "Strategic Planner, System Architect, Scientist. You excel in logical blueprints and system design.",
         ENTJ: "Executive Director, Management Consultant, Venture Capitalist. You are a natural-born decisive leader.",
@@ -1766,19 +1810,43 @@ app.post("/api/diagnostic-tests/submit", async (req, res) => {
       };
 
       score = {
-        breakdown: { E, I: I_val, S, N, T, F, J, P },
+        breakdown: {
+          "Extraversion (E)": pct.E,
+          "Introversion (I)": pct.I,
+          "Sensing (S)": pct.S,
+          "Intuition (N)": pct.N,
+          "Thinking (T)": pct.T,
+          "Feeling (F)": pct.F,
+          "Judging (J)": pct.J,
+          "Perceiving (P)": pct.P,
+        },
         mbti,
         summary: careers[mbti] || "Versatile Profile: Highly adaptable psychometric thinker.",
         title: `MBTI Personality Profile: ${mbti}`
       };
     } else if (testKey === "16pf") {
+      const reasoningScore = Math.min(100, Math.max(15, 30 + (vals.includes("Analytical") ? 60 : 0) + (vals.includes("Practical") ? 20 : 40)));
+      const independenceScore = Math.min(100, Math.max(15, 35 + (vals.includes("Dominance") ? 55 : 0) + (vals.includes("Open-To-Change") ? 40 : 10)));
+      const stabilityScore = Math.min(100, Math.max(15, 45 + (vals.includes("Stable") ? 50 : 0) - (vals.includes("Sensitive") ? 25 : 0)));
+      const ruleConsciousnessScore = Math.min(100, Math.max(15, 30 + (vals.includes("Rule-Conscious") ? 50 : 0) + (vals.includes("Structured") ? 45 : 15)));
+      const warmthScore = Math.min(100, Math.max(15, 40 + (vals.includes("Warmth") ? 50 : 0) + (vals.includes("Collaborative") ? 45 : 10)));
+
       const traits: string[] = [];
-      vals.forEach(v => {
-        if (v && !traits.includes(v)) traits.push(v);
-      });
+      if (reasoningScore > 65) traits.push("High Analytical Reasoning");
+      if (independenceScore > 65) traits.push("High Independence & Drive");
+      if (stabilityScore > 65) traits.push("Emotional Resilience");
+      if (ruleConsciousnessScore > 65) traits.push("Rule-Consciousness");
+      if (warmthScore > 65) traits.push("Social Warmth");
+
       score = {
-        breakdown: traits,
-        summary: `Strongest Career Factors: ${traits.join(", ")}. Matches ideally with analytical research, structured process engineering, and proactive communications.`,
+        breakdown: {
+          "Analytical Reasoning": reasoningScore,
+          "Independence & Drive": independenceScore,
+          "Emotional Stability": stabilityScore,
+          "Rule-Consciousness": ruleConsciousnessScore,
+          "Social Warmth & Teamwork": warmthScore
+        },
+        summary: `Strongest Career Factors: ${traits.join(", ") || "Balanced General Profile"}. Matches ideally with analytical research, structured process engineering, and proactive communications.`,
         title: "16PF Factor Mapping Profile"
       };
     } else if (testKey === "epi") {
@@ -1790,6 +1858,16 @@ app.post("/api/diagnostic-tests/submit", async (req, res) => {
         if (v === "S") S++;
       });
       
+      const totalEI = E + I_val || 1;
+      const totalNS = N + S || 1;
+
+      const pct = {
+        E: Math.round((E / totalEI) * 100),
+        I: Math.round((I_val / totalEI) * 100),
+        N: Math.round((N / totalNS) * 100),
+        S: Math.round((S / totalNS) * 100),
+      };
+
       let temperament = "Balanced";
       let summary = "Steady, adaptable personality traits.";
       if (E >= I_val && N >= S) {
@@ -1807,55 +1885,184 @@ app.post("/api/diagnostic-tests/submit", async (req, res) => {
       }
 
       score = {
-        breakdown: { Extraversion: E, Introversion: I_val, Neuroticism: N, Stability: S },
+        breakdown: {
+          "Extraversion (E)": pct.E,
+          "Introversion (I)": pct.I,
+          "Neuroticism / Reactivity (N)": pct.N,
+          "Emotional Stability (S)": pct.S
+        },
         temperament,
         summary,
         title: `Eysenck Temperament: ${temperament}`
       };
     } else if (testKey === "enneagram") {
-      const counts: any = {};
+      const counts: any = {
+        "Type 1 - Reformer": 0,
+        "Type 2 - Helper": 0,
+        "Type 3 - Achiever": 0,
+        "Type 4 - Individualist": 0,
+        "Type 5 - Investigator": 0,
+        "Type 6 - Loyalist": 0,
+        "Type 7 - Enthusiast": 0,
+        "Type 8 - Challenger": 0,
+        "Type 9 - Peacemaker": 0
+      };
       vals.forEach(v => {
-        counts[v] = (counts[v] || 0) + 1;
+        if (counts[v] !== undefined) counts[v]++;
       });
+      
       let dominantType = "Type 9 - Peacemaker";
-      let maxCount = 0;
+      let maxCount = -1;
       Object.keys(counts).forEach(k => {
         if (counts[k] > maxCount) {
           maxCount = counts[k];
           dominantType = k;
         }
       });
+
+      const totalVal = vals.length || 1;
+      const pctBreakdown: any = {};
+      Object.keys(counts).forEach(k => {
+        pctBreakdown[k] = Math.round((counts[k] / totalVal) * 100);
+      });
+
       score = {
-        breakdown: counts,
+        breakdown: pctBreakdown,
         dominantType,
         summary: `Your core driving motivator is represented by ${dominantType}. This defines your path of personal integration, helping you align with authentic career callings.`,
         title: `Enneagram Profile: ${dominantType}`
       };
     } else if (testKey === "caliper") {
+      const leadership = Math.min(100, Math.max(15, 30 + (vals.includes("High Leadership") ? 45 : 0) + (vals.includes("High Social Boldness") ? 25 : 0)));
+      const empathy = Math.min(100, Math.max(15, 30 + (vals.includes("High Empathy") ? 45 : 0) + (vals.includes("High Sociability") ? 25 : 0)));
+      const drive = Math.min(100, Math.max(15, 30 + (vals.includes("High Ego-Drive") ? 45 : 0) + (vals.includes("High Assertiveness") ? 25 : 0)));
+      const structure = Math.min(100, Math.max(15, 25 + (vals.includes("High Structure") ? 35 : 0) + (vals.includes("High Organization") ? 25 : 0) + (vals.includes("High Thoroughness") ? 15 : 0)));
+      const cognitive = Math.min(100, Math.max(15, 40 + (vals.includes("High Cognitive") ? 45 : 0) + (vals.includes("High Flexibility") ? 15 : 0)));
+
       const traits: string[] = [];
-      vals.forEach(v => {
-        if (v && !traits.includes(v)) traits.push(v);
-      });
+      if (leadership > 65) traits.push("Leadership potential");
+      if (empathy > 65) traits.push("Strong Empathy");
+      if (drive > 65) traits.push("High Persuasion Drive");
+      if (structure > 65) traits.push("Thorough Organization");
+      if (cognitive > 65) traits.push("Abstract Problem-Solving");
+
       score = {
-        breakdown: traits,
-        summary: `Identified Performance Drivers: ${traits.join(", ")}. Perfect match for fields requiring empathy, structural organization, assertiveness, and cognitive leadership.`,
+        breakdown: {
+          "Leadership & Boldness": leadership,
+          "Relational Empathy": empathy,
+          "Ego-Drive & Persuasion": drive,
+          "Structure & Organization": structure,
+          "Cognitive Adaptability": cognitive
+        },
+        summary: `Identified Performance Drivers: ${traits.join(", ") || "Balanced Professional Profile"}. Perfect match for fields requiring empathy, structural organization, assertiveness, and cognitive leadership.`,
         title: "Caliper Job-Performance Driver Profile"
       };
     } else if (testKey === "mmpi") {
+      const somatic = Math.min(100, Math.max(15, 40 + (vals.includes("Somatic Stability") ? 50 : 0) - (vals.includes("Somatic Tendency") ? 25 : 0)));
+      const confidence = Math.min(100, Math.max(15, 35 + (vals.includes("Social Confidence") ? 50 : 0) - (vals.includes("Paranoia Tendency") ? 25 : 0)));
+      const energy = Math.min(100, Math.max(15, 40 + (vals.includes("Balanced Energy") ? 50 : 0) - (vals.includes("Depression Tendency") ? 25 : 0)));
+      const emotional = Math.min(100, Math.max(15, 35 + (vals.includes("High Self-Trust") ? 50 : 0) - (vals.includes("Anxiety Tendency") ? 25 : 0)));
+
       const traits: string[] = [];
-      vals.forEach(v => {
-        if (v && !traits.includes(v)) traits.push(v);
-      });
+      if (somatic > 65) traits.push("Somatic Stress Resilience");
+      if (confidence > 65) traits.push("High Social Confidence");
+      if (energy > 65) traits.push("Excellent Motivation Balance");
+      if (emotional > 65) traits.push("Emotional Equilibrium");
+
       score = {
-        breakdown: traits,
-        summary: `Clinical psychometric indicators: ${traits.join(", ")}. Displays steady emotional resilience, structured coping strategies, and optimal cognitive adaptability under high work/study stress.`,
+        breakdown: {
+          "Somatic Stress Resilience": somatic,
+          "Social Confidence & Trust": confidence,
+          "Mental Energy & Drive": energy,
+          "Emotional Stability & Control": emotional
+        },
+        summary: `Clinical psychometric indicators: ${traits.join(", ") || "Steady Emotional Adaptability"}. Displays steady emotional resilience, structured coping strategies, and optimal cognitive adaptability under high work/study stress.`,
         title: "MMPI Psychometric Insight"
       };
     } else {
-      score = {
-        summary: "Assessment successfully processed. Highly balanced professional potential.",
-        title: "Psychometric Evaluation Profile"
-      };
+      // Custom test or expanded standard (like aptitude) using testDef configuration
+      const scoringMethod = testDef?.scoringMethod || "personality";
+      
+      if (scoringMethod === "aptitude") {
+        let correctCount = 0;
+        const questionsList = testDef?.questions || [];
+        const totalCount = questionsList.length || 1;
+        
+        questionsList.forEach((q: any) => {
+          const userAns = answers[q.id];
+          if (userAns !== undefined && q.correctValue !== undefined && userAns.toString().trim().toUpperCase() === q.correctValue.toString().trim().toUpperCase()) {
+            correctCount++;
+          }
+        });
+        
+        const percentage = Math.round((correctCount / totalCount) * 100);
+        
+        let summary = "";
+        let bracketTitle = "Foundational";
+        if (percentage >= 90) {
+          bracketTitle = "Exceptional Mastery";
+          summary = `You scored ${correctCount}/${totalCount} (${percentage}%). Exceptional analytical and cognitive ability. You demonstrate excellent command of quantitative, logical reasoning, and verbal concepts. Highly recommended for advanced engineering, research, analytics, or complex quantitative fields.`;
+        } else if (percentage >= 70) {
+          bracketTitle = "Strong Proficiency";
+          summary = `You scored ${correctCount}/${totalCount} (${percentage}%). Strong analytical capacity. You have a solid grasp of logical and quantitative concepts with very minor areas to reinforce. Well-suited for management, computer science, or business analytics streams.`;
+        } else if (percentage >= 50) {
+          bracketTitle = "Developing Competency";
+          summary = `You scored ${correctCount}/${totalCount} (${percentage}%). Satisfactory performance. You are developing your analytical and cognitive skills but would benefit from targeted study to reinforce concept gaps. We recommend reviewing incorrect questions and scheduling an advisor session.`;
+        } else {
+          bracketTitle = "Foundational Stage";
+          summary = `You scored ${correctCount}/${totalCount} (${percentage}%). Foundational competency. Focus on strengthening fundamental logic, verbal analogies, and basic quantitative problems. We highly recommend booking a counseling session to structure a targeted learning roadmap.`;
+        }
+        
+        score = {
+          breakdown: {
+            "Correct Answers": percentage,
+            "Incorrect / Skipped": 100 - percentage
+          },
+          percentage,
+          correctCount,
+          totalCount,
+          summary,
+          title: `Cognitive Score: ${percentage}% (${bracketTitle})`
+        };
+      } else {
+        // Personality method for custom tests or fallback
+        const counts: any = {};
+        vals.forEach(v => {
+          if (v) {
+            counts[v] = (counts[v] || 0) + 1;
+          }
+        });
+        
+        const total: number = Object.values(counts).reduce((a: any, b: any) => a + b, 0) as number || 1;
+        const pct: any = {};
+        Object.keys(counts).forEach(k => {
+          pct[k] = Math.round((counts[k] / total) * 100);
+        });
+        
+        // Find dominant style
+        let dominant = "";
+        let maxPct = -1;
+        Object.keys(pct).forEach(k => {
+          if (pct[k] > maxPct) {
+            maxPct = pct[k];
+            dominant = k;
+          }
+        });
+        
+        // Check if there is a custom resultProfile matching dominant
+        const profiles = testDef?.resultProfiles || [];
+        const matchedProfile = profiles.find((p: any) => p.value === dominant);
+        
+        const title = matchedProfile?.title || `${dominant} Style`;
+        const summary = matchedProfile?.summary || `Your assessment shows a dominant preference for the ${dominant} style. This dimension represents your primary behavior, thinking, and communication pattern in professional settings.`;
+        
+        score = {
+          breakdown: pct,
+          dominant,
+          summary,
+          title: matchedProfile ? matchedProfile.title : `${dominant}-Style Behavioral Profile`
+        };
+      }
     }
 
     // Save submission
@@ -1867,9 +2074,10 @@ app.post("/api/diagnostic-tests/submit", async (req, res) => {
       epi: "Eysenck Personality Inventory",
       enneagram: "Enneagram Core Test",
       caliper: "Caliper Profile",
-      mmpi: "Minnesota Multiphasic Test"
+      mmpi: "Minnesota Multiphasic Test",
+      aptitude: "General Cognitive & Aptitude Test"
     };
-    const testTitle = testTitles[testKey] || "Scientific Diagnostics Evaluation";
+    const testTitle = testTitles[testKey] || testDef?.title || "Scientific Diagnostics Evaluation";
 
     if (isMongoConnected) {
       const doc = new DiagnosticSubmissionModel({
@@ -2018,6 +2226,47 @@ app.get("/api/diagnostic-tests/submissions", verifyAdmin, async (req, res) => {
   } catch (error) {
     console.error("[Pehlakadam API] Error reading diagnostic submissions:", error);
     return res.status(500).json({ error: "Failed to fetch diagnostic submissions" });
+  }
+});
+
+// 4.5. GET CANDIDATE'S OWN SUBMISSIONS
+app.get("/api/diagnostic-tests/my-submissions", async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email) {
+      return res.status(400).json({ error: "Email query parameter is required." });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+
+    if (isMongoConnected) {
+      const docs = await DiagnosticSubmissionModel.find({ "user.email": { $regex: new RegExp(`^${cleanEmail}$`, "i") } }).sort({ createdAt: -1 });
+      const submissions = docs.map((doc) => ({
+        id: doc._id.toString(),
+        user: doc.user,
+        testKey: doc.testKey,
+        testTitle: doc.testTitle,
+        answers: doc.answers,
+        score: doc.score,
+        createdAt: doc.createdAt.toISOString()
+      }));
+      return res.status(200).json(submissions);
+    } else {
+      const content = fs.readFileSync(DIAGNOSTIC_SUBMISSIONS_FILE, "utf-8");
+      const list = JSON.parse(content);
+      const filtered = list.filter((item: any) => 
+        item.user && item.user.email && item.user.email.trim().toLowerCase() === cleanEmail
+      );
+      // Sort by date/id descending
+      filtered.sort((a: any, b: any) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      });
+      return res.status(200).json(filtered);
+    }
+  } catch (error) {
+    console.error("[Pehlakadam API] Error reading user submissions:", error);
+    return res.status(500).json({ error: "Failed to fetch your past diagnostic test reports." });
   }
 });
 

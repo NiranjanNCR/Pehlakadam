@@ -53,6 +53,24 @@ export default function PaymentModal({
   const [submitError, setSubmitError] = useState("");
   const [whatsappUrl, setWhatsappUrl] = useState("");
   const [copied, setCopied] = useState(false);
+  const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
+
+  const [shakeFields, setShakeFields] = useState<Record<string, boolean>>({});
+
+  const triggerShake = (field: string) => {
+    setShakeFields((prev) => ({ ...prev, [field]: true }));
+    setTimeout(() => {
+      setShakeFields((prev) => ({ ...prev, [field]: false }));
+    }, 500);
+  };
+
+  const shakeVariants = {
+    shake: {
+      x: [0, -6, 6, -6, 6, -4, 4, 0],
+      transition: { duration: 0.4 }
+    },
+    default: { x: 0 }
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -86,6 +104,9 @@ export default function PaymentModal({
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
   };
 
   const handleCopyUpi = () => {
@@ -150,13 +171,22 @@ export default function PaymentModal({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.number || !formData.role || !formData.transactionId) {
-      setSubmitError("Please fill out all required text fields.");
-      return;
-    }
+    setSubmitError("");
+    setErrors({});
 
-    if (!fileData) {
-      setSubmitError("Please upload your payment verification screenshot.");
+    const newErrors: Partial<Record<string, string>> = {};
+    if (!formData.firstName) { newErrors.firstName = "First name is required."; triggerShake("firstName"); }
+    if (!formData.lastName) { newErrors.lastName = "Last name is required."; triggerShake("lastName"); }
+    if (!formData.email) { newErrors.email = "Email is required."; triggerShake("email"); }
+    else if (!formData.email.includes("@")) { newErrors.email = "Please enter a valid email."; triggerShake("email"); }
+    if (!formData.number) { newErrors.number = "Contact number is required."; triggerShake("number"); }
+    if (!formData.role) { newErrors.role = "Please select a program."; triggerShake("role"); }
+    if (!formData.transactionId) { newErrors.transactionId = "Transaction ID / UTR is required."; triggerShake("transactionId"); }
+    if (!fileData) { newErrors.screenshot = "Please upload a payment verification screenshot."; triggerShake("screenshot"); }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      setSubmitError("Please correct the highlighted fields above.");
       return;
     }
 
@@ -311,8 +341,8 @@ export default function PaymentModal({
                       {/* Left Column: Form Details & Screenshot Upload */}
                       <form onSubmit={handleSubmit} className="md:col-span-7 space-y-4">
                         <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                          <motion.div animate={shakeFields.firstName ? "shake" : "default"} variants={shakeVariants}>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1 text-left">
                               First Name
                             </label>
                             <input
@@ -321,12 +351,18 @@ export default function PaymentModal({
                               value={formData.firstName}
                               onChange={handleChange}
                               placeholder="John"
-                              required
-                              className="w-full rounded-xl bg-zinc-850 border border-zinc-700/60 px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 bg-zinc-800"
+                                                     className={`w-full rounded-xl bg-zinc-850 border px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 bg-zinc-800 ${
+                                errors.firstName
+                                  ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                                  : "border-zinc-700/60 focus:ring-emerald-500/30 focus:border-emerald-500"
+                              }`}
                             />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                            {errors.firstName && (
+                              <p className="mt-1 text-[10px] text-red-500 font-semibold text-left">{errors.firstName}</p>
+                            )}
+                          </motion.div>
+                          <motion.div animate={shakeFields.lastName ? "shake" : "default"} variants={shakeVariants}>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1 text-left">
                               Last Name
                             </label>
                             <input
@@ -336,14 +372,21 @@ export default function PaymentModal({
                               onChange={handleChange}
                               placeholder="Doe"
                               required
-                              className="w-full rounded-xl bg-zinc-850 border border-zinc-700/60 px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 bg-zinc-800"
+                              className={`w-full rounded-xl bg-zinc-850 border px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 bg-zinc-800 ${
+                                errors.lastName
+                                  ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                                  : "border-zinc-700/60 focus:ring-emerald-500/30 focus:border-emerald-500"
+                              }`}
                             />
-                          </div>
+                            {errors.lastName && (
+                              <p className="mt-1 text-[10px] text-red-500 font-semibold text-left">{errors.lastName}</p>
+                            )}
+                          </motion.div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                          <motion.div animate={shakeFields.email ? "shake" : "default"} variants={shakeVariants}>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1 text-left">
                               Email Address
                             </label>
                             <input
@@ -353,11 +396,18 @@ export default function PaymentModal({
                               onChange={handleChange}
                               placeholder="john@example.com"
                               required
-                              className="w-full rounded-xl bg-zinc-850 border border-zinc-700/60 px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 bg-zinc-800"
+                              className={`w-full rounded-xl bg-zinc-850 border px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 bg-zinc-800 ${
+                                errors.email
+                                  ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                                  : "border-zinc-700/60 focus:ring-emerald-500/30 focus:border-emerald-500"
+                              }`}
                             />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                            {errors.email && (
+                              <p className="mt-1 text-[10px] text-red-500 font-semibold text-left">{errors.email}</p>
+                            )}
+                          </motion.div>
+                          <motion.div animate={shakeFields.number ? "shake" : "default"} variants={shakeVariants}>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1 text-left">
                               Contact Number
                             </label>
                             <input
@@ -367,14 +417,21 @@ export default function PaymentModal({
                               onChange={handleChange}
                               placeholder="+91 98765 43210"
                               required
-                              className="w-full rounded-xl bg-zinc-850 border border-zinc-700/60 px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 bg-zinc-800"
+                              className={`w-full rounded-xl bg-zinc-850 border px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 bg-zinc-800 ${
+                                errors.number
+                                  ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                                  : "border-zinc-700/60 focus:ring-emerald-500/30 focus:border-emerald-500"
+                              }`}
                             />
-                          </div>
+                            {errors.number && (
+                              <p className="mt-1 text-[10px] text-red-500 font-semibold text-left">{errors.number}</p>
+                            )}
+                          </motion.div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                          <motion.div animate={shakeFields.role ? "shake" : "default"} variants={shakeVariants}>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1 text-left">
                               Program Selection
                             </label>
                             <select
@@ -383,7 +440,11 @@ export default function PaymentModal({
                               onChange={handleChange}
                               required
                               disabled={!!defaultProgram}
-                              className="w-full rounded-xl bg-zinc-850 border border-zinc-700/60 px-4 py-2 text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 bg-zinc-800 disabled:opacity-60"
+                              className={`w-full rounded-xl bg-zinc-850 border px-4 py-2 text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 bg-zinc-800 disabled:opacity-60 ${
+                                errors.role
+                                  ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                                  : "border-zinc-700/60 focus:ring-emerald-500/30 focus:border-emerald-500"
+                              }`}
                             >
                               <option value="" disabled>
                                 Select a program
@@ -395,9 +456,12 @@ export default function PaymentModal({
                               <option value="UG/Graduate/PG">UG/Graduate/PG</option>
                               <option value="Generalist to Specialist">Generalist to Specialist</option>
                             </select>
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                            {errors.role && (
+                              <p className="mt-1 text-[10px] text-red-500 font-semibold text-left">{errors.role}</p>
+                            )}
+                          </motion.div>
+                          <motion.div animate={shakeFields.transactionId ? "shake" : "default"} variants={shakeVariants}>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1 text-left">
                               UPI Transaction ID / Ref No
                             </label>
                             <input
@@ -407,14 +471,21 @@ export default function PaymentModal({
                               onChange={handleChange}
                               placeholder="TXN1234567890"
                               required
-                              className="w-full rounded-xl bg-zinc-850 border border-zinc-700/60 px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 bg-zinc-800"
+                              className={`w-full rounded-xl bg-zinc-850 border px-4 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 bg-zinc-800 ${
+                                errors.transactionId
+                                  ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                                  : "border-zinc-700/60 focus:ring-emerald-500/30 focus:border-emerald-500"
+                              }`}
                             />
-                          </div>
+                            {errors.transactionId && (
+                              <p className="mt-1 text-[10px] text-red-500 font-semibold text-left">{errors.transactionId}</p>
+                            )}
+                          </motion.div>
                         </div>
 
                         {/* Screenshot drag and drop upload zone */}
-                        <div>
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                        <motion.div animate={shakeFields.screenshot ? "shake" : "default"} variants={shakeVariants}>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5 text-left">
                             Upload Payment Receipt Screenshot
                           </label>
                           <div
@@ -426,6 +497,8 @@ export default function PaymentModal({
                             className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed py-5 px-4 text-center cursor-pointer transition-all duration-200 ${
                               isDragOver
                                 ? "border-emerald-500 bg-emerald-500/10 text-white"
+                                : errors.screenshot
+                                ? "border-red-500/80 bg-red-50/5 text-red-500 font-semibold"
                                 : fileName
                                 ? "border-emerald-500/50 bg-zinc-800/40 text-emerald-400"
                                 : "border-zinc-700/80 bg-zinc-800/60 hover:border-zinc-600 text-zinc-400 hover:bg-zinc-800"
@@ -457,7 +530,10 @@ export default function PaymentModal({
                               </div>
                             )}
                           </div>
-                        </div>
+                          {errors.screenshot && (
+                            <p className="mt-1 text-[10px] text-red-500 font-semibold text-left">{errors.screenshot}</p>
+                          )}
+                        </motion.div>
 
                         {submitError && (
                           <p id="payment-error-msg" className="text-red-400 text-xs font-medium">

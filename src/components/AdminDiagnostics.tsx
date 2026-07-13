@@ -29,6 +29,13 @@ interface Question {
   id: string;
   text: string;
   options: Option[];
+  correctValue?: string;
+}
+
+interface ResultProfile {
+  value: string;
+  title: string;
+  summary: string;
 }
 
 interface DiagnosticTest {
@@ -37,6 +44,8 @@ interface DiagnosticTest {
   subtitle?: string;
   description?: string;
   customFieldLabel?: string;
+  scoringMethod?: "personality" | "aptitude";
+  resultProfiles?: ResultProfile[];
   questions: Question[];
 }
 
@@ -146,6 +155,33 @@ export default function AdminDiagnostics() {
     setEditingTest(JSON.parse(JSON.stringify(test)));
   };
 
+  const handleCreateNewCustomTest = () => {
+    const customKey = `custom-${Date.now()}`;
+    const newTest: DiagnosticTest = {
+      key: customKey,
+      title: "New Custom Evaluation",
+      subtitle: "Custom Personality or Cognitive Assessment",
+      description: "A customized multi-choice evaluation with dynamic metrics reporting.",
+      customFieldLabel: "Target Professional Goal",
+      scoringMethod: "personality",
+      resultProfiles: [
+        { value: "Dimension-A", title: "Type A Explorer Profile", summary: "Detailed custom description of the Type A Explorer behavior, strengths, and career paths." }
+      ],
+      questions: [
+        {
+          id: `${customKey}_q1`,
+          text: "What is your primary approach to learning a complex new concept?",
+          correctValue: "A",
+          options: [
+            { id: "o1", text: "Read research papers and academic literature thoroughly.", value: "Dimension-A" },
+            { id: "o2", text: "Tinker hands-on with real projects or simulations.", value: "Dimension-B" }
+          ]
+        }
+      ]
+    };
+    setEditingTest(newTest);
+  };
+
   const handleUpdateTestQuestions = async () => {
     if (!editingTest) return;
     setSavingTest(true);
@@ -162,7 +198,14 @@ export default function AdminDiagnostics() {
       if (res.ok) {
         const data = await res.json();
         alert("Diagnostic test configuration updated successfully!");
-        setTests(prev => prev.map(t => t.key === editingTest.key ? data.test : t));
+        setTests(prev => {
+          const exists = prev.some(t => t.key === editingTest.key);
+          if (exists) {
+            return prev.map(t => t.key === editingTest.key ? data.test : t);
+          } else {
+            return [...prev, data.test];
+          }
+        });
         setEditingTest(null);
       } else {
         const err = await res.json();
@@ -536,7 +579,18 @@ export default function AdminDiagnostics() {
           
           {/* Tests List Left Panel */}
           <div className="lg:col-span-4 space-y-4">
-            <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest font-mono">Select Diagnostic Assessment</span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest font-mono">Select Diagnostic Assessment</span>
+            </div>
+
+            <button
+              id="admin-create-custom-test-btn"
+              onClick={handleCreateNewCustomTest}
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-700 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm hover:scale-[1.01] active:scale-95 duration-200"
+            >
+              <Plus className="h-4 w-4 text-emerald-500" /> Create New Custom Test
+            </button>
+
             <div className="bg-white rounded-3xl border border-zinc-200 shadow-sm overflow-hidden divide-y divide-zinc-100">
               {tests.map((test) => (
                 <div
@@ -595,6 +649,26 @@ export default function AdminDiagnostics() {
                 {/* Core Test Description Settings */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono block">Test Title</label>
+                    <input
+                      type="text"
+                      value={editingTest.title || ""}
+                      onChange={(e) => setEditingTest({ ...editingTest, title: e.target.value })}
+                      className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-zinc-900 font-bold"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono block">Unique Key ID</label>
+                    <input
+                      type="text"
+                      value={editingTest.key || ""}
+                      disabled={!editingTest.key?.startsWith("custom-")}
+                      onChange={(e) => setEditingTest({ ...editingTest, key: e.target.value.replace(/[^a-zA-Z0-9-]/g, "") })}
+                      className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-zinc-900 font-mono disabled:opacity-60 font-bold"
+                      title="For security and route integrity, default test keys cannot be altered. Custom test keys are editable."
+                    />
+                  </div>
+                  <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono block">Test Subtitle</label>
                     <input
                       type="text"
@@ -611,6 +685,17 @@ export default function AdminDiagnostics() {
                       onChange={(e) => setEditingTest({ ...editingTest, customFieldLabel: e.target.value })}
                       className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-zinc-900 font-medium"
                     />
+                  </div>
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono block">Evaluation & Scoring Method</label>
+                    <select
+                      value={editingTest.scoringMethod || "personality"}
+                      onChange={(e) => setEditingTest({ ...editingTest, scoringMethod: e.target.value as any })}
+                      className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-zinc-900 font-bold cursor-pointer"
+                    >
+                      <option value="personality">Personality & Psychometric Profiling (Tally of dominant answers)</option>
+                      <option value="aptitude">Aptitude, Cognitive & Academic Test (Correct options percentage score)</option>
+                    </select>
                   </div>
                   <div className="sm:col-span-2 space-y-1.5">
                     <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono block">Description / Instruction Prompt</label>
@@ -635,7 +720,7 @@ export default function AdminDiagnostics() {
                     </button>
                   </div>
 
-                  <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2">
+                  <div className="space-y-6 max-h-[450px] overflow-y-auto pr-2">
                     {editingTest.questions.map((q, qIdx) => (
                       <div key={q.id || qIdx} className="p-5 border border-zinc-200 bg-zinc-50/50 rounded-2xl space-y-4 relative group">
                         
@@ -658,6 +743,23 @@ export default function AdminDiagnostics() {
                             className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-zinc-900 font-bold"
                           />
                         </div>
+
+                        {editingTest.scoringMethod === "aptitude" && (
+                          <div className="space-y-1 bg-emerald-50/60 p-3.5 rounded-xl border border-emerald-100">
+                            <label className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest font-mono block">Correct Value Key (For Scoring)</label>
+                            <input
+                              type="text"
+                              value={q.correctValue || ""}
+                              placeholder="e.g., A, B (Must match the exact score value of the correct option)"
+                              onChange={(e) => {
+                                const qs = [...editingTest.questions];
+                                qs[qIdx].correctValue = e.target.value;
+                                setEditingTest({ ...editingTest, questions: qs });
+                              }}
+                              className="w-full bg-white border border-emerald-200 rounded-xl px-4 py-2 text-xs font-mono font-bold text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-500/20"
+                            />
+                          </div>
+                        )}
 
                         {/* Options editor */}
                         <div className="space-y-2">
@@ -703,6 +805,101 @@ export default function AdminDiagnostics() {
 
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                {/* Custom Result Profiles Editor */}
+                <div className="space-y-4 pt-6 border-t border-zinc-100">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h4 className="text-sm font-black text-zinc-950 uppercase tracking-wider font-sans">Custom Result Profiles</h4>
+                      <p className="text-[10px] text-zinc-500 mt-0.5 leading-relaxed">
+                        Define mapped result profiles. If the candidate's dominant selection matches the Dimension, this profile will form their report.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const profiles = editingTest.resultProfiles || [];
+                        setEditingTest({
+                          ...editingTest,
+                          resultProfiles: [
+                            ...profiles,
+                            { value: "Dimension-Code", title: "New Result Profile", summary: "Describe strengths, recommended tracks, and detailed advice here..." }
+                          ]
+                        });
+                      }}
+                      className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-600 hover:text-emerald-500 uppercase tracking-wider transition-all cursor-pointer"
+                    >
+                      <Plus className="h-4 w-4" /> Add Result Profile
+                    </button>
+                  </div>
+
+                  <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
+                    {(editingTest.resultProfiles || []).map((prof, pIdx) => (
+                      <div key={pIdx} className="p-4 border border-zinc-200 bg-zinc-50/50 rounded-xl space-y-3 relative">
+                        <button
+                          onClick={() => {
+                            const profiles = (editingTest.resultProfiles || []).filter((_, i) => i !== pIdx);
+                            setEditingTest({ ...editingTest, resultProfiles: profiles });
+                          }}
+                          className="absolute top-3 right-3 p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          title="Remove Profile"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Dimension Code / Mapped Value</label>
+                            <input
+                              type="text"
+                              value={prof.value}
+                              placeholder="e.g., D, I, or custom value"
+                              onChange={(e) => {
+                                const profiles = [...(editingTest.resultProfiles || [])];
+                                profiles[pIdx].value = e.target.value;
+                                setEditingTest({ ...editingTest, resultProfiles: profiles });
+                              }}
+                              className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-zinc-900 outline-none focus:ring-2 focus:ring-emerald-500/20"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Profile Title</label>
+                            <input
+                              type="text"
+                              value={prof.title}
+                              placeholder="e.g., Analytical Architect"
+                              onChange={(e) => {
+                                const profiles = [...(editingTest.resultProfiles || [])];
+                                profiles[pIdx].title = e.target.value;
+                                setEditingTest({ ...editingTest, resultProfiles: profiles });
+                              }}
+                              className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-zinc-900 outline-none focus:ring-2 focus:ring-emerald-500/20"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Detailed Advice & Career Alignment Summary</label>
+                          <textarea
+                            value={prof.summary}
+                            rows={3}
+                            placeholder="Write comprehensive, personalized feedback instructions..."
+                            onChange={(e) => {
+                              const profiles = [...(editingTest.resultProfiles || [])];
+                              profiles[pIdx].summary = e.target.value;
+                              setEditingTest({ ...editingTest, resultProfiles: profiles });
+                            }}
+                            className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-1.5 text-xs text-zinc-800 outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    {(editingTest.resultProfiles || []).length === 0 && (
+                      <div className="p-6 text-center text-zinc-400 text-xs border border-dashed border-zinc-200 rounded-xl">
+                        No custom result profiles defined yet. The default scoring summary fallback will be used.
+                      </div>
+                    )}
                   </div>
                 </div>
 

@@ -92,6 +92,41 @@ export default function Diagnostics() {
   const [submittingQuiz, setSubmittingQuiz] = useState(false);
   const [activeQuizReport, setActiveQuizReport] = useState<any | null>(null);
 
+  // Past Reports & Validation Animations
+  const [myReports, setMyReports] = useState<any[]>([]);
+  const [loadingReports, setLoadingReports] = useState(false);
+  const [shakeFields, setShakeFields] = useState<Record<string, boolean>>({});
+
+  const fetchMyReports = async (email: string) => {
+    setLoadingReports(true);
+    try {
+      const res = await fetch(`/api/diagnostic-tests/my-submissions?email=${encodeURIComponent(email)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setMyReports(data);
+      }
+    } catch (e) {
+      console.error("Error fetching user reports:", e);
+    } finally {
+      setLoadingReports(false);
+    }
+  };
+
+  const triggerShake = (field: string) => {
+    setShakeFields((prev) => ({ ...prev, [field]: true }));
+    setTimeout(() => {
+      setShakeFields((prev) => ({ ...prev, [field]: false }));
+    }, 500);
+  };
+
+  const shakeVariants = {
+    shake: {
+      x: [0, -6, 6, -6, 6, -4, 4, 0],
+      transition: { duration: 0.4 }
+    },
+    default: { x: 0 }
+  };
+
   useEffect(() => {
     // Load tests
     fetchTests();
@@ -99,7 +134,9 @@ export default function Diagnostics() {
     const cached = localStorage.getItem("pehlakadam_user");
     if (cached) {
       try {
-        setCurrentUser(JSON.parse(cached));
+        const u = JSON.parse(cached);
+        setCurrentUser(u);
+        fetchMyReports(u.email);
       } catch (e) {
         // clear corrupted
         localStorage.removeItem("pehlakadam_user");
@@ -155,7 +192,10 @@ export default function Diagnostics() {
     });
 
     if (!isNameValid || !isEmailValid || !isPhoneValid || !isSpecialValid) {
-      alert("Please fix the validation errors in the registration form before starting the test.");
+      if (!isNameValid) triggerShake("name");
+      if (!isEmailValid) triggerShake("email");
+      if (!isPhoneValid) triggerShake("phone");
+      if (!isSpecialValid) triggerShake("special");
       return;
     }
 
@@ -191,6 +231,7 @@ export default function Diagnostics() {
         // Cache user locally
         localStorage.setItem("pehlakadam_user", JSON.stringify(userData));
         setCurrentUser(userData);
+        fetchMyReports(userData.email);
         setSignupOpen(false);
 
         // Start the test!
@@ -264,6 +305,9 @@ export default function Diagnostics() {
       if (res.ok) {
         const data = await res.json();
         setActiveQuizReport(data.submission);
+        if (currentUser) {
+          fetchMyReports(currentUser.email);
+        }
       } else {
         alert("An error occurred while calculating your profile score. Please try again.");
       }
@@ -279,6 +323,7 @@ export default function Diagnostics() {
     if (confirm("Are you sure you want to log out? This will clear your current profile cache.")) {
       localStorage.removeItem("pehlakadam_user");
       setCurrentUser(null);
+      setMyReports([]);
       setSelectedTest(null);
       setActiveQuizReport(null);
     }
@@ -287,6 +332,16 @@ export default function Diagnostics() {
   const handleCloseWorkspace = () => {
     setSelectedTest(null);
     setActiveQuizReport(null);
+  };
+
+  const handleViewReport = (report: any) => {
+    const matchingTest = tests.find(t => t.key === report.testKey) || DEFAULT_DIAGNOSTICS.find(t => t.key === report.testKey);
+    setSelectedTest(matchingTest || {
+      key: report.testKey,
+      title: report.testTitle,
+      questions: []
+    } as any);
+    setActiveQuizReport(report);
   };
 
   const handlePrint = () => {
@@ -410,6 +465,63 @@ export default function Diagnostics() {
                         </motion.div>
                       );
                     })}
+                  </div>
+                )}
+
+                {currentUser && (
+                  <div className="mt-16 border-t border-zinc-200 pt-12 space-y-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">
+                        <Award className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-black text-zinc-950 font-sans tracking-tight">
+                          Your Completed Assessments
+                        </h2>
+                        <p className="text-xs text-zinc-500 font-sans">
+                          Click any report to view your detailed psychometric profiles and download or print them.
+                        </p>
+                      </div>
+                    </div>
+
+                    {loadingReports ? (
+                      <div className="flex items-center gap-2 text-zinc-500 text-xs font-semibold uppercase">
+                        <RefreshCw className="h-4 w-4 animate-spin text-emerald-600 animate" /> Fetching reports...
+                      </div>
+                    ) : myReports.length === 0 ? (
+                      <div className="bg-white rounded-3xl border border-zinc-150 p-8 text-center text-zinc-500 text-xs font-semibold">
+                        You haven't completed any assessments yet. Take your first test above!
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {myReports.map((report) => (
+                          <div 
+                            key={report.id || report._id}
+                            className="bg-white rounded-2xl border border-zinc-200 p-5 flex items-center justify-between hover:shadow-md hover:border-emerald-500/50 transition-all group"
+                          >
+                            <div className="space-y-1">
+                              <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider font-mono">
+                                {report.score?.title || "Psychometric Report"}
+                              </span>
+                              <h4 className="text-sm font-black text-zinc-950 font-sans group-hover:text-emerald-700 transition-colors">
+                                {report.testTitle}
+                              </h4>
+                              <p className="text-[11px] text-zinc-400 font-mono">
+                                Completed on {new Date(report.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </p>
+                            </div>
+
+                            <button
+                              onClick={() => handleViewReport(report)}
+                              className="px-3.5 py-2 bg-zinc-950 hover:bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5"
+                            >
+                              <span>View Report</span>
+                              <ChevronRight className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </motion.div>
@@ -688,16 +800,13 @@ export default function Diagnostics() {
 
                 <form onSubmit={handleSignupSubmit} className="space-y-4">
                   {/* Full Name Field */}
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between items-center">
+                  <motion.div 
+                    animate={shakeFields.name ? "shake" : "default"} 
+                    variants={shakeVariants}
+                    className="space-y-1"
+                  >
+                    <div className="flex justify-between items-center mb-1">
                       <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Your Full Name</label>
-                      {touchedFields.name && (
-                        isNameValid ? (
-                          <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">✓ Valid</span>
-                        ) : (
-                          <span className="text-[10px] text-rose-500 font-bold">At least 3 chars</span>
-                        )
-                      )}
                     </div>
                     <input
                       type="text"
@@ -713,24 +822,24 @@ export default function Diagnostics() {
                         touchedFields.name
                           ? isNameValid
                             ? "border-emerald-500/50 bg-emerald-50/10 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                            : "border-rose-400 bg-rose-50/10 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                            : "border-red-500/80 bg-red-50/5 focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
                           : "bg-zinc-50 border-zinc-200/80 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                       }`}
                     />
-                  </div>
+                    {touchedFields.name && !isNameValid && (
+                      <p className="mt-1 text-[11px] text-red-500 font-semibold text-left">Full name must be at least 3 characters long</p>
+                    )}
+                  </motion.div>
 
                   {/* Email & Phone Row */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center">
+                    <motion.div 
+                      animate={shakeFields.email ? "shake" : "default"} 
+                      variants={shakeVariants}
+                      className="space-y-1"
+                    >
+                      <div className="flex justify-between items-center mb-1">
                         <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Email Address</label>
-                        {touchedFields.email && (
-                          isEmailValid ? (
-                            <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">✓ Valid</span>
-                          ) : (
-                            <span className="text-[10px] text-rose-500 font-bold">Invalid Email</span>
-                          )
-                        )}
                       </div>
                       <input
                         type="email"
@@ -738,30 +847,30 @@ export default function Diagnostics() {
                         value={signupEmail}
                         onBlur={() => markFieldTouched("email")}
                         onChange={(e) => {
-                          setSignupEmail(e.target.value);
-                          markFieldTouched("email");
+                           setSignupEmail(e.target.value);
+                           markFieldTouched("email");
                         }}
                         placeholder="e.g. nrjstudywrk@gmail.com"
                         className={`w-full rounded-xl px-4 py-2.5 text-xs outline-none transition-all text-zinc-900 font-semibold border ${
                           touchedFields.email
                             ? isEmailValid
                               ? "border-emerald-500/50 bg-emerald-50/10 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                              : "border-rose-400 bg-rose-50/10 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                              : "border-red-500/80 bg-red-50/5 focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
                             : "bg-zinc-50 border-zinc-200/80 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                         }`}
                       />
-                    </div>
+                      {touchedFields.email && !isEmailValid && (
+                        <p className="mt-1 text-[11px] text-red-500 font-semibold text-left">Please enter a valid email address</p>
+                      )}
+                    </motion.div>
 
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center">
+                    <motion.div 
+                      animate={shakeFields.phone ? "shake" : "default"} 
+                      variants={shakeVariants}
+                      className="space-y-1"
+                    >
+                      <div className="flex justify-between items-center mb-1">
                         <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Mobile Number</label>
-                        {touchedFields.phone && (
-                          isPhoneValid ? (
-                            <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">✓ Valid</span>
-                          ) : (
-                            <span className="text-[10px] text-rose-500 font-bold">10-15 digits</span>
-                          )
-                        )}
                       </div>
                       <input
                         type="tel"
@@ -777,16 +886,19 @@ export default function Diagnostics() {
                           touchedFields.phone
                             ? isPhoneValid
                               ? "border-emerald-500/50 bg-emerald-50/10 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                              : "border-rose-400 bg-rose-50/10 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                              : "border-red-500/80 bg-red-50/5 focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
                             : "bg-zinc-50 border-zinc-200/80 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                         }`}
                       />
-                    </div>
+                      {touchedFields.phone && !isPhoneValid && (
+                        <p className="mt-1 text-[11px] text-red-500 font-semibold text-left">Contact number must be between 10 to 15 digits</p>
+                      )}
+                    </motion.div>
                   </div>
 
                   {/* Academic Track Field */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Academic Track / Profile</label>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono block mb-1">Academic Track / Profile</label>
                     <select
                       value={signupRole}
                       onChange={(e) => setSignupRole(e.target.value)}
@@ -802,18 +914,15 @@ export default function Diagnostics() {
                   </div>
 
                   {/* Contextual test-specific details field */}
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between items-center">
+                  <motion.div 
+                    animate={shakeFields.special ? "shake" : "default"} 
+                    variants={shakeVariants}
+                    className="space-y-1"
+                  >
+                    <div className="flex justify-between items-center mb-1">
                       <label className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest font-mono block">
                         {pendingTest.customFieldLabel || "Specific Detail / Career Aspiration"}
                       </label>
-                      {touchedFields.special && (
-                        isSpecialValid ? (
-                          <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">✓ Valid</span>
-                        ) : (
-                          <span className="text-[10px] text-rose-500 font-bold">At least 3 chars</span>
-                        )
-                      )}
                     </div>
                     <input
                       type="text"
@@ -829,11 +938,14 @@ export default function Diagnostics() {
                         touchedFields.special
                           ? isSpecialValid
                             ? "border-emerald-500/50 bg-emerald-50/10 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                            : "border-rose-400 bg-rose-50/10 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                            : "border-red-500/80 bg-red-50/5 focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
                           : "bg-zinc-50 border-zinc-200/80 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                       }`}
                     />
-                  </div>
+                    {touchedFields.special && !isSpecialValid && (
+                      <p className="mt-1 text-[11px] text-red-500 font-semibold text-left">{pendingTest.customFieldLabel || "Detail"} must be at least 3 characters long</p>
+                    )}
+                  </motion.div>
 
                   <button
                     type="submit"

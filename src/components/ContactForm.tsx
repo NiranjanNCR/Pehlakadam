@@ -20,6 +20,23 @@ export default function ContactForm() {
   // 💬 NEW WHATSAPP STATE: Holds the pre-formatted click-to-open WhatsApp URL returned from the server
   const [whatsappUrl, setWhatsappUrl] = useState("");
 
+  const [shakeFields, setShakeFields] = useState<Record<string, boolean>>({});
+
+  const triggerShake = (field: string) => {
+    setShakeFields((prev) => ({ ...prev, [field]: true }));
+    setTimeout(() => {
+      setShakeFields((prev) => ({ ...prev, [field]: false }));
+    }, 500);
+  };
+
+  const shakeVariants = {
+    shake: {
+      x: [0, -6, 6, -6, 6, -4, 4, 0],
+      transition: { duration: 0.4 }
+    },
+    default: { x: 0 }
+  };
+
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -40,6 +57,7 @@ export default function ContactForm() {
         const path = err.path[0] as keyof ContactFormData;
         if (path) {
           fieldErrors[path] = err.message;
+          triggerShake(path);
         }
       });
       setErrors(fieldErrors);
@@ -193,8 +211,8 @@ export default function ContactForm() {
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-6" noValidate>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">
+                    <motion.div animate={shakeFields.firstName ? "shake" : "default"} variants={shakeVariants}>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2 text-left">
                         First Name
                       </label>
                       <div className="relative">
@@ -215,10 +233,10 @@ export default function ContactForm() {
                       {errors.firstName && (
                         <p className="mt-1.5 text-xs text-red-400 font-medium text-left px-1">{errors.firstName}</p>
                       )}
-                    </div>
+                    </motion.div>
 
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">
+                    <motion.div animate={shakeFields.lastName ? "shake" : "default"} variants={shakeVariants}>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2 text-left">
                         Last Name
                       </label>
                       <div className="relative">
@@ -239,12 +257,12 @@ export default function ContactForm() {
                       {errors.lastName && (
                         <p className="mt-1.5 text-xs text-red-400 font-medium text-left px-1">{errors.lastName}</p>
                       )}
-                    </div>
+                    </motion.div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">
+                    <motion.div animate={shakeFields.email ? "shake" : "default"} variants={shakeVariants}>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2 text-left">
                         Email Address
                       </label>
                       <div className="relative">
@@ -265,10 +283,10 @@ export default function ContactForm() {
                       {errors.email && (
                         <p className="mt-1.5 text-xs text-red-400 font-medium text-left px-1">{errors.email}</p>
                       )}
-                    </div>
+                    </motion.div>
 
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">
+                    <motion.div animate={shakeFields.number ? "shake" : "default"} variants={shakeVariants}>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2 text-left">
                         Mobile Number
                       </label>
                       <div className="relative">
@@ -289,11 +307,11 @@ export default function ContactForm() {
                       {errors.number && (
                         <p className="mt-1.5 text-xs text-red-400 font-medium text-left px-1">{errors.number}</p>
                       )}
-                    </div>
+                    </motion.div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">
+                  <motion.div animate={shakeFields.role ? "shake" : "default"} variants={shakeVariants}>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2 text-left">
                       I want to enroll in
                     </label>
                     <select
@@ -319,10 +337,10 @@ export default function ContactForm() {
                     {errors.role && (
                       <p className="mt-1.5 text-xs text-red-400 font-medium text-left px-1">{errors.role}</p>
                     )}
-                  </div>
+                  </motion.div>
 
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">
+                  <motion.div animate={shakeFields.message ? "shake" : "default"} variants={shakeVariants}>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2 text-left">
                       Your Message / Inquiry
                     </label>
                     <div className="relative">
@@ -343,7 +361,7 @@ export default function ContactForm() {
                     {errors.message && (
                       <p className="mt-1.5 text-xs text-red-400 font-medium text-left px-1">{errors.message}</p>
                     )}
-                  </div>
+                  </motion.div>
 
                   {submitError && (
                     <p className="text-red-400 text-xs font-medium">{submitError}</p>

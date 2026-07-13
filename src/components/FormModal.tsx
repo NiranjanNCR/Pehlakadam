@@ -23,6 +23,23 @@ export default function FormModal() {
   // 💬 NEW WHATSAPP STATE: Holds the pre-compiled WhatsApp message URL returned from the server API
   const [whatsappUrl, setWhatsappUrl] = useState("");
 
+  const [shakeFields, setShakeFields] = useState<Record<string, boolean>>({});
+
+  const triggerShake = (field: string) => {
+    setShakeFields((prev) => ({ ...prev, [field]: true }));
+    setTimeout(() => {
+      setShakeFields((prev) => ({ ...prev, [field]: false }));
+    }, 500);
+  };
+
+  const shakeVariants = {
+    shake: {
+      x: [0, -6, 6, -6, 6, -4, 4, 0],
+      transition: { duration: 0.4 }
+    },
+    default: { x: 0 }
+  };
+
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -43,6 +60,7 @@ export default function FormModal() {
         const path = err.path[0] as keyof ContactFormData;
         if (path) {
           fieldErrors[path] = err.message;
+          triggerShake(path);
         }
       });
       setErrors(fieldErrors);
@@ -179,8 +197,8 @@ export default function FormModal() {
 
                     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
                       <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                        <motion.div animate={shakeFields.firstName ? "shake" : "default"} variants={shakeVariants}>
+                          <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5 text-left">
                             First Name
                           </label>
                           <input
@@ -198,9 +216,9 @@ export default function FormModal() {
                           {errors.firstName && (
                             <p className="mt-1 text-[11px] text-red-400 font-medium text-left">{errors.firstName}</p>
                           )}
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                        </motion.div>
+                        <motion.div animate={shakeFields.lastName ? "shake" : "default"} variants={shakeVariants}>
+                          <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5 text-left">
                             Last Name
                           </label>
                           <input
@@ -218,12 +236,12 @@ export default function FormModal() {
                           {errors.lastName && (
                             <p className="mt-1 text-[11px] text-red-400 font-medium text-left">{errors.lastName}</p>
                           )}
-                        </div>
+                        </motion.div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                        <motion.div animate={shakeFields.email ? "shake" : "default"} variants={shakeVariants}>
+                          <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5 text-left">
                             Email Address
                           </label>
                           <input
@@ -241,9 +259,9 @@ export default function FormModal() {
                           {errors.email && (
                             <p className="mt-1 text-[11px] text-red-400 font-medium text-left">{errors.email}</p>
                           )}
-                        </div>
-                        <div>
-                          <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                        </motion.div>
+                        <motion.div animate={shakeFields.number ? "shake" : "default"} variants={shakeVariants}>
+                          <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5 text-left">
                             Contact Number
                           </label>
                           <input
@@ -261,11 +279,11 @@ export default function FormModal() {
                           {errors.number && (
                             <p className="mt-1 text-[11px] text-red-400 font-medium text-left">{errors.number}</p>
                           )}
-                        </div>
+                        </motion.div>
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      <motion.div animate={shakeFields.role ? "shake" : "default"} variants={shakeVariants}>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5 text-left">
                           I want to enroll in
                         </label>
                         <select
@@ -291,10 +309,10 @@ export default function FormModal() {
                         {errors.role && (
                           <p className="mt-1 text-[11px] text-red-400 font-medium text-left">{errors.role}</p>
                         )}
-                      </div>
+                      </motion.div>
 
-                      <div>
-                        <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      <motion.div animate={shakeFields.message ? "shake" : "default"} variants={shakeVariants}>
+                        <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5 text-left">
                           Your Message / Career Goals
                         </label>
                         <textarea
@@ -312,7 +330,7 @@ export default function FormModal() {
                         {errors.message && (
                           <p className="mt-1 text-[11px] text-red-400 font-medium text-left">{errors.message}</p>
                         )}
-                      </div>
+                      </motion.div>
 
                       {submitError && (
                         <p id="form-error-msg" className="text-red-400 text-xs font-medium">
@@ -324,7 +342,7 @@ export default function FormModal() {
                         id="submit-form-modal-btn"
                         type="submit"
                         disabled={isSubmitting}
-                        className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 transition-all duration-200 shadow-md hover:shadow-emerald-500/20 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-55"
+                        className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 transition-all duration-200 shadow-md hover:shadow-emerald-500/20 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-55 cursor-pointer"
                       >
                         {isSubmitting ? "Submitting..." : "Send Request"}
                       </button>

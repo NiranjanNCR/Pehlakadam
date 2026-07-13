@@ -1,0 +1,724 @@
+[
+  {
+    "key": "disc",
+    "title": "DISC Assessment",
+    "subtitle": "Dominance, Influence, Steadiness, Conscientiousness",
+    "description": "Measures four core dimensions of behavior to understand communication, teamwork, and task styles.",
+    "customFieldLabel": "Primary Career Goal",
+    "scoringMethod": "personality",
+    "questions": [
+      {
+        "id": "disc_q1",
+        "text": "When facing a major challenge or obstacle, what is your immediate response?",
+        "options": [
+          { "id": "o1", "text": "Take charge directly and focus on a fast, decisive solution.", "value": "D" },
+          { "id": "o2", "text": "Gather people together to discuss, motivate, and brainstorm.", "value": "I" },
+          { "id": "o3", "text": "Step back, remain calm, and work methodically to maintain stability.", "value": "S" },
+          { "id": "o4", "text": "Analyze all data and details thoroughly before making a precise plan.", "value": "C" }
+        ]
+      },
+      {
+        "id": "disc_q2",
+        "text": "How would others most likely describe your communication style?",
+        "options": [
+          { "id": "o1", "text": "Direct, assertive, and results-oriented.", "value": "D" },
+          { "id": "o2", "text": "Enthusiastic, persuasive, and outgoing.", "value": "I" },
+          { "id": "o3", "text": "Patient, supportive, and an active listener.", "value": "S" },
+          { "id": "o4", "text": "Diplomatic, analytical, and detail-focused.", "value": "C" }
+        ]
+      },
+      {
+        "id": "disc_q3",
+        "text": "In a team or group project, which role do you naturally fall into?",
+        "options": [
+          { "id": "o1", "text": "The driver who sets targets and pushes for completion.", "value": "D" },
+          { "id": "o2", "text": "The promoter who builds relationships and keeps energy high.", "value": "I" },
+          { "id": "o3", "text": "The reliable team player who coordinates and supports others.", "value": "S" },
+          { "id": "o4", "text": "The quality checker who ensures standards and accuracy are met.", "value": "C" }
+        ]
+      },
+      {
+        "id": "disc_q4",
+        "text": "What is your biggest fear or source of discomfort at work or school?",
+        "options": [
+          { "id": "o1", "text": "Losing control, lack of progress, or wasting time.", "value": "D" },
+          { "id": "o2", "text": "Social rejection, isolation, or being ignored.", "value": "I" },
+          { "id": "o3", "text": "Sudden changes, instability, or conflict.", "value": "S" },
+          { "id": "o4", "text": "Making mistakes, low standards, or lack of clear guidelines.", "value": "C" }
+        ]
+      },
+      {
+        "id": "disc_q5",
+        "text": "What motivates you the most to excel?",
+        "options": [
+          { "id": "o1", "text": "Independence, power, and achieving major results.", "value": "D" },
+          { "id": "o2", "text": "Recognition, praise, and connecting with others.", "value": "I" },
+          { "id": "o3", "text": "Cooperation, security, and a peaceful environment.", "value": "S" },
+          { "id": "o4", "text": "Precision, quality work, and gaining deep expertise.", "value": "C" }
+        ]
+      },
+      {
+        "id": "disc_q6",
+        "text": "When communicating in writing (email or chat), what is your primary focus?",
+        "options": [
+          { "id": "o1", "text": "Brief, bullet-pointed, and focused only on action items.", "value": "D" },
+          { "id": "o2", "text": "Friendly, expressive, using exclamation marks or emojis.", "value": "I" },
+          { "id": "o3", "text": "Polite, supportive, and checking in on their well-being.", "value": "S" },
+          { "id": "o4", "text": "Formal, highly detailed, and grammatically precise.", "value": "C" }
+        ]
+      },
+      {
+        "id": "disc_q7",
+        "text": "How do you handle team members who are highly emotional or upset?",
+        "options": [
+          { "id": "o1", "text": "Encourage them to focus on tasks and keep moving forward.", "value": "D" },
+          { "id": "o2", "text": "Listen actively, offer positive encouragement, and lift spirits.", "value": "I" },
+          { "id": "o3", "text": "Provide a safe, quiet space and express genuine empathy.", "value": "S" },
+          { "id": "o4", "text": "Help them analyze the situation logically to find a solution.", "value": "C" }
+        ]
+      },
+      {
+        "id": "disc_q8",
+        "text": "What is your typical pace of working and making decisions?",
+        "options": [
+          { "id": "o1", "text": "Fast-paced, action-oriented, willing to take calculated risks.", "value": "D" },
+          { "id": "o2", "text": "Spontaneous, energetic, guided by intuition and inspiration.", "value": "I" },
+          { "id": "o3", "text": "Steady, deliberate, preferring a predictable step-by-step pace.", "value": "S" },
+          { "id": "o4", "text": "Slow, methodical, verifying facts and quality thoroughly.", "value": "C" }
+        ]
+      }
+    ]
+  },
+  {
+    "key": "mbti",
+    "title": "Myers-Briggs Type Indicator (MBTI)",
+    "subtitle": "16 Psychological Personalities",
+    "description": "Evaluates your preferences across four core cognitive dichotomies to identify one of the 16 personality types.",
+    "customFieldLabel": "Current Stream / Field of Study",
+    "scoringMethod": "personality",
+    "questions": [
+      {
+        "id": "mbti_q1",
+        "text": "After a busy and socially active week, how do you recharge your energy?",
+        "options": [
+          { "id": "o1", "text": "By spending time with friends, going out, or socializing.", "value": "E" },
+          { "id": "o2", "text": "By spending quiet time alone, reading, or relaxing in private.", "value": "I" }
+        ]
+      },
+      {
+        "id": "mbti_q2",
+        "text": "When in a social gathering, do you usually...",
+        options: [
+          { "id": "o1", "text": "Start conversations with many people, including strangers.", "value": "E" },
+          { "id": "o2", "text": "Keep conversations to a few people you already know well.", "value": "I" }
+        ]
+      },
+      {
+        "id": "mbti_q3",
+        "text": "When learning a new subject, what type of information appeals to you more?",
+        options: [
+          { "id": "o1", "text": "Practical facts, concrete details, and real-world examples.", "value": "S" },
+          { "id": "o2", "text": "General concepts, theoretical models, and future possibilities.", "value": "N" }
+        ]
+      },
+      {
+        "id": "mbti_q4",
+        "text": "You tend to trust...",
+        options: [
+          { "id": "o1", "text": "Direct experience, solid evidence, and historical data.", "value": "S" },
+          { "id": "o2", "text": "Your gut feelings, subtle patterns, and creative insights.", "value": "N" }
+        ]
+      },
+      {
+        "id": "mbti_q5",
+        "text": "When making a difficult decision, what do you prioritize?",
+        options: [
+          { "id": "o1", "text": "Logical analysis, objective truth, and fairness.", "value": "T" },
+          { "id": "o2", "text": "Impact on people, personal values, and harmony.", "value": "F" }
+        ]
+      },
+      {
+        "id": "mbti_q6",
+        "text": "How do others view your decision-making style?",
+        options: [
+          { "id": "o1", "text": "Reasonable, analytical, and sometimes tough-minded.", "value": "T" },
+          { "id": "o2", "text": "Warm, empathetic, and sensitive to feelings.", "value": "F" }
+        ]
+      },
+      {
+        "id": "mbti_q7",
+        "text": "How do you prefer to manage your daily schedule and tasks?",
+        options: [
+          { "id": "o1", "text": "Having a clear plan, checking off checklists, and avoiding last-minute rushes.", "value": "J" },
+          { "id": "o2", "text": "Remaining flexible, adapting to opportunities, and working under pressure.", "value": "P" }
+        ]
+      },
+      {
+        "id": "mbti_q8",
+        "text": "Your work and study spaces are typically...",
+        options: [
+          { "id": "o1", "text": "Organized, neat, and highly structured.", "value": "J" },
+          { "id": "o2", "text": "Relaxed, organic, and occasionally messy.", "value": "P" }
+        ]
+      },
+      {
+        "id": "mbti_q9",
+        "text": "When working on a project, do you prefer to...",
+        options: [
+          { "id": "o1", "text": "Brainstorm out loud with a collaborative group.", "value": "E" },
+          { "id": "o2", "text": "Process ideas internally first before sharing them.", "value": "I" }
+        ]
+      },
+      {
+        "id": "mbti_q10",
+        "text": "If you had to describe your approach to problem-solving, is it more...",
+        options: [
+          { "id": "o1", "text": "Grounded in realistic steps and practical constraints.", "value": "S" },
+          { "id": "o2", "text": "Focused on creative concepts and innovative possibilities.", "value": "N" }
+        ]
+      },
+      {
+        "id": "mbti_q11",
+        "text": "In a team disagreement, is it more important to be...",
+        options: [
+          { "id": "o1", "text": "Truthful, direct, and logically consistent.", "value": "T" },
+          { "id": "o2", "text": "Tactful, supportive, and maintain team morale.", "value": "F" }
+        ]
+      },
+      {
+        "id": "mbti_q12",
+        "text": "When planning a holiday or trip, do you prefer...",
+        options: [
+          { "id": "o1", "text": "A detailed, structured itinerary with pre-booked slots.", "value": "J" },
+          { "id": "o2", "text": "A loose plan, leaving room for spontaneous exploration.", "value": "P" }
+        ]
+      }
+    ]
+  },
+  {
+    "key": "16pf",
+    "title": "Personality Factor Questionnaire",
+    "subtitle": "16PF Career Matching",
+    "description": "Evaluates your primary work, thinking, and communication styles to map you to optimal career paths.",
+    "customFieldLabel": "Preferred Work / Study Style",
+    "scoringMethod": "personality",
+    "questions": [
+      {
+        "id": "pf_q1",
+        "text": "How do you approach complex problems requiring long-term analysis?",
+        "options": [
+          { "id": "o1", "text": "Break it down systematically and work in absolute quiet.", "value": "Analytical" },
+          { "id": "o2", "text": "Collaborate immediately with others and experiment actively.", "value": "Collaborative" },
+          { "id": "o3", "text": "Follow established guidelines and trusted standards.", "value": "Structured" }
+        ]
+      },
+      {
+        "id": "pf_q2",
+        "text": "When team roles are being assigned, you typically prefer:",
+        "options": [
+          { "id": "o1", "text": "Direct leadership, setting strategic goals.", "value": "Dominance" },
+          { "id": "o2", "text": "Execution, ensuring all tasks conform strictly to rules.", "value": "Rule-Conscious" },
+          { "id": "o3", "text": "Facilitating communication and helping resolve disputes.", "value": "Warmth" }
+        ]
+      },
+      {
+        "id": "pf_q3",
+        "text": "If a project plan changes suddenly at the last minute, you:",
+        "options": [
+          { "id": "o1", "text": "Adapt quickly and enjoy the challenge of finding new ways.", "value": "Open-To-Change" },
+          { "id": "o2", "text": "Feel anxious or stressed about the lack of structured planning.", "value": "Structured" },
+          { "id": "o3", "text": "Quietly double-check the logic of the change before acting.", "value": "Vigilant" }
+        ]
+      },
+      {
+        "id": "pf_q4",
+        "text": "In terms of personal reflection and internal thinking:",
+        "options": [
+          { "id": "o1", "text": "You frequently daydream and analyze philosophical ideas.", "value": "Abstracted" },
+          { "id": "o2", "text": "You focus strictly on realistic, practical, hands-on tasks.", "value": "Practical" }
+        ]
+      },
+      {
+        "id": "pf_q5",
+        "text": "When working in stressful conditions, you remain:",
+        "options": [
+          { "id": "o1", "text": "Calm, emotionally stable, and focused on the big picture.", "value": "Stable" },
+          { "id": "o2", "text": "Sensitive, highly alert, and reactive to details.", "value": "Sensitive" }
+        ]
+      },
+      {
+        "id": "pf_q6",
+        "text": "If you observe a colleague violating minor company guidelines, what do you do?",
+        "options": [
+          { "id": "o1", "text": "Remind them of the guidelines or notify a supervisor.", "value": "Rule-Conscious" },
+          { "id": "o2", "text": "Ignore it as long as the work quality remains good.", "value": "Open-To-Change" },
+          { "id": "o3", "text": "Gently mention it in private to help them avoid trouble.", "value": "Warmth" }
+        ]
+      },
+      {
+        "id": "pf_q7",
+        "text": "When learning a highly complex technical software or theory, you prefer:",
+        "options": [
+          { "id": "o1", "text": "Reading the technical documentation and manual step-by-step.", "value": "Analytical" },
+          { "id": "o2", "text": "Opening the tool and learning through trial and error.", "value": "Practical" }
+        ]
+      },
+      {
+        "id": "pf_q8",
+        "text": "In social gatherings, do you prefer to be:",
+        "options": [
+          { "id": "o1", "text": "Directly engaging with others, making warm connections.", "value": "Warmth" },
+          { "id": "o2", "text": "Reserved, observing the social environment carefully.", "value": "Vigilant" }
+        ]
+      }
+    ]
+  },
+  {
+    "key": "epi",
+    "title": "Eysenck Personality Inventory",
+    "subtitle": "EPI Temperament Scales",
+    "description": "Evaluates your biological temperament across Extraversion (E) and Neuroticism (N) scales to map to standard temperaments.",
+    "customFieldLabel": "Primary Stress Trigger / Coping Style",
+    "scoringMethod": "personality",
+    "questions: ": null,
+    "questions": [
+      {
+        "id": "epi_q1",
+        "text": "Do you tend to keep in the background on social occasions?",
+        "options": [
+          { "id": "o1", "text": "No, you love being active and part of the conversation.", "value": "E" },
+          { "id": "o2", "text": "Yes, you prefer to stay quiet and observe.", "value": "I" }
+        ]
+      },
+      {
+        "id": "epi_q2",
+        "text": "Does your mood often go up and down without any obvious reason?",
+        "options": [
+          { "id": "o1", "text": "Yes, your emotions fluctuate quite frequently.", "value": "N" },
+          { "id": "o2", "text": "No, you are generally emotionally steady and calm.", "value": "S" }
+        ]
+      },
+      {
+        "id": "epi_q3",
+        "text": "Would you say that you are a highly lively and talkative person?",
+        "options": [
+          { "id": "o1", "text": "Absolutely, you talk a lot and express energy.", "value": "E" },
+          { "id": "o2", "text": "Not really, you are reserved and think before talking.", "value": "I" }
+        ]
+      },
+      {
+        "id": "epi_q4",
+        "text": "Do you often worry about things that you should not have done or said?",
+        "options": [
+          { "id": "o1", "text": "Yes, you dwell on conversations and worry a lot.", "value": "N" },
+          { "id": "o2", "text": "No, you let go of things easily and do not worry.", "value": "S" }
+        ]
+      },
+      {
+        "id": "epi_q5",
+        "text": "When things go wrong, do you easily lose your temper or get upset?",
+        "options": [
+          { "id": "o1", "text": "Yes, you react intensely and feel stressed.", "value": "N" },
+          { "id": "o2", "text": "No, you stay cool and handle it calmly.", "value": "S" }
+        ]
+      },
+      {
+        "id": "epi_q6",
+        "text": "Do you usually make decisions on the spur of the moment?",
+        "options": [
+          { "id": "o1", "text": "Yes, you prefer fast, spontaneous action.", "value": "E" },
+          { "id": "o2", "text": "No, you take your time to weigh options carefully.", "value": "I" }
+        ]
+      },
+      {
+        "id": "epi_q7",
+        "text": "Do you often feel 'fed up' or down for no reason?",
+        "options": [
+          { "id": "o1", "text": "Yes, you feel emotional shifts quite easily.", "value": "N" },
+          { "id": "o2", "text": "No, your mood is generally positive and steady.", "value": "S" }
+        ]
+      },
+      {
+        "id": "epi_q8",
+        "text": "Are you a person who loves exciting, high-stimulation activities?",
+        "options": [
+          { "id": "o1", "text": "Absolutely, you seek thrills and active fun.", "value": "E" },
+          { "id": "o2", "text": "Not really, you prefer low-key, peaceful pastimes.", "value": "I" }
+        ]
+      }
+    ]
+  },
+  {
+    "key": "enneagram",
+    "title": "Enneagram Core Test",
+    "subtitle": "9 Interconnected Personality Types",
+    "description": "Uncovers your core motivations, deepest fears, and developmental pathways among the 9 archetypes.",
+    "customFieldLabel": "Your Core Life Motivation",
+    "scoringMethod": "personality",
+    "questions": [
+      {
+        "id": "en_q1",
+        "text": "What is your deepest core desire or ultimate goal in life?",
+        "options": [
+          { "id": "o1", "text": "To be perfect, upright, and have high moral standards.", "value": "Type 1 - Reformer" },
+          { "id": "o2", "text": "To feel loved, helpful, and deeply appreciated.", "value": "Type 2 - Helper" },
+          { "id": "o3", "text": "To be successful, admired, and highly productive.", "value": "Type 3 - Achiever" },
+          { "id": "o4", "text": "To be unique, authentic, and understand your deep feelings.", "value": "Type 4 - Individualist" }
+        ]
+      },
+      {
+        "id": "en_q2",
+        "text": "How do you typically react when a problem arises?",
+        "options": [
+          { "id": "o1", "text": "Analyze it intellectually, seeking knowledge.", "value": "Type 5 - Investigator" },
+          { "id": "o2", "text": "Anticipate risks, seek security, and consult systems.", "value": "Type 6 - Loyalist" },
+          { "id": "o3", "text": "Avoid pain, find fun alternatives and solutions.", "value": "Type 7 - Enthusiast" },
+          { "id": "o4", "text": "Take direct control and defend your boundaries.", "value": "Type 8 - Challenger" },
+          { "id": "o5", "text": "Keep the peace and go with the flow.", "value": "Type 9 - Peacemaker" }
+        ]
+      },
+      {
+        "id": "en_q3",
+        "text": "When working in a team, you feel most comfortable when:",
+        "options": [
+          { "id": "o1", "text": "Everything is organized correctly and matches high standards.", "value": "Type 1 - Reformer" },
+          { "id": "o2", "text": "You can support members and ensure warmth.", "value": "Type 2 - Helper" },
+          { "id": "o3", "text": "The team is hitting goals and achieving milestones.", "value": "Type 3 - Achiever" },
+          { "id": "o4", "text": "The project allows for personal expression and uniqueness.", "value": "Type 4 - Individualist" }
+        ]
+      },
+      {
+        "id": "en_q4",
+        "text": "Your attitude towards rules and security is usually:",
+        "options": [
+          { "id": "o1", "text": "You question them intellectually to find the absolute truth.", "value": "Type 5 - Investigator" },
+          { "id": "o2", "text": "You respect rules for safety but prepare for the worst.", "value": "Type 6 - Loyalist" },
+          { "id": "o3", "text": "You view rules as limiting and seek variety.", "value": "Type 7 - Enthusiast" },
+          { "id": "o4", "text": "You make your own rules and resist control.", "value": "Type 8 - Challenger" }
+        ]
+      },
+      {
+        "id": "en_q5",
+        "text": "If someone disagrees with you, your immediate reaction is to:",
+        "options": [
+          { "id": "o1", "text": "Correct them with facts and objective logic.", "value": "Type 1 - Reformer" },
+          { "id": "o2", "text": "Adapt or compromise to preserve a peaceful relationship.", "value": "Type 9 - Peacemaker" },
+          { "id": "o3", "text": "Assert your position strongly and engage in debate.", "value": "Type 8 - Challenger" },
+          { "id": "o4", "text": "Feel personally misunderstood or unique.", "value": "Type 4 - Individualist" }
+        ]
+      },
+      {
+        "id": "en_q6",
+        "text": "What is your biggest fear or source of vulnerability?",
+        "options": [
+          { "id": "o1", "text": "Being corrupt, defective, or failing standards.", "value": "Type 1 - Reformer" },
+          { "id": "o2", "text": "Being unwanted, unloved, or unhelpful.", "value": "Type 2 - Helper" },
+          { "id": "o3", "text": "Being overwhelmed, helpless, or incompetent.", "value": "Type 5 - Investigator" },
+          { "id": "o4", "text": "Lacking support, guidance, or security.", "value": "Type 6 - Loyalist" }
+        ]
+      },
+      {
+        "id": "en_q7",
+        "text": "How do you view success and productivity?",
+        "options": [
+          { "id": "o1", "text": "My primary goal is to be highly efficient, achieve milestones, and gain status.", "value": "Type 3 - Achiever" },
+          { "id": "o2", "text": "I care more about authentic expression than cold, efficient metrics.", "value": "Type 4 - Individualist" },
+          { "id": "o3", "text": "I value freedom and experiencing exciting new ideas or options.", "value": "Type 7 - Enthusiast" },
+          { "id": "o4", "text": "I prefer a harmonious, comfortable pace where everyone feels included.", "value": "Type 9 - Peacemaker" }
+        ]
+      },
+      {
+        "id": "en_q8",
+        "text": "When facing a major team challenge, your natural reaction is to:",
+        "options": [
+          { "id": "o1", "text": "Directly confront the problem, make firm decisions, and take charge.", "value": "Type 8 - Challenger" },
+          { "id": "o2", "text": "Identify potential risks, build a secure backup plan, and seek team alignment.", "value": "Type 6 - Loyalist" },
+          { "id": "o3", "text": "Research all technical background data in detail to find the optimal solution.", "value": "Type 5 - Investigator" },
+          { "id": "o4", "text": "Focus on how the team is feeling and make sure everyone is supported.", "value": "Type 2 - Helper" }
+        ]
+      },
+      {
+        "id": "en_q9",
+        "text": "How do you typically handle emotional pain or frustration?",
+        "options": [
+          { "id": "o1", "text": "Refocus on exciting plans, positive thoughts, and fun activities.", "value": "Type 7 - Enthusiast" },
+          { "id": "o2", "text": "Sit with my feelings, explore their unique meaning, and seek depth.", "value": "Type 4 - Individualist" },
+          { "id": "o3", "text": "Control my emotional reactions and focus on doing what is correct.", "value": "Type 1 - Reformer" },
+          { "id": "o4", "text": "Calm down, withdraw to maintain peace, and avoid dwelling on the conflict.", "value": "Type 9 - Peacemaker" }
+        ]
+      }
+    ]
+  },
+  {
+    "key": "caliper",
+    "title": "Caliper Profile",
+    "subtitle": "Job Performance Matching",
+    "description": "Aligns your cognitive styles and personal drivers directly with high-performance job domains and organizational roles.",
+    "customFieldLabel": "Desired Professional Field / Industry",
+    "scoringMethod": "personality",
+    "questions": [
+      {
+        "id": "cal_q1",
+        "text": "How do you handle persuading someone who initially disagrees with you?",
+        "options": [
+          { "id": "o1", "text": "Listen deeply to understand their needs, then adjust your pitch.", "value": "High Empathy" },
+          { "id": "o2", "text": "Present powerful facts, speak assertively, and push for agreement.", "value": "High Assertiveness" },
+          { "id": "o3", "text": "Feel highly energized by the challenge of winning them over.", "value": "High Ego-Drive" },
+          { "id": "o4", "text": "Find a structured, standard policy to settle the argument.", "value": "High Structure" }
+        ]
+      },
+      {
+        "id": "cal_q2",
+        "text": "When managing multiple tasks with tight deadlines, you:",
+        "options": [
+          { "id": "o1", "text": "Excel at shifting focus dynamically and taking quick risks.", "value": "High Flexibility" },
+          { "id": "o2", "text": "Methodically schedule each hour and avoid any deviations.", "value": "High Organization" },
+          { "id": "o3", "text": "Take absolute responsibility and direct others on what to do.", "value": "High Leadership" }
+        ]
+      },
+      {
+        "id": "cal_q3",
+        "text": "In terms of analyzing data and logical systems, you:",
+        "options": [
+          { "id": "o1", "text": "Love solving abstract puzzles and identifying hidden patterns.", "value": "High Cognitive" },
+          { "id": "o2", "text": "Prefer practical, hands-on application over abstract theories.", "value": "High Practical" }
+        ]
+      },
+      {
+        "id": "cal_q4",
+        "text": "What keeps you going after experiencing a significant setback?",
+        "options": [
+          { "id": "o1", "text": "The strong inner desire to prove your capability and win.", "value": "High Ego-Drive" },
+          { "id": "o2", "text": "Having a supportive team and maintaining stable workflows.", "value": "High Sociability" }
+        ]
+      },
+      {
+        "id": "cal_q5",
+        "text": "When presenting your ideas in a public meeting, you:",
+        "options": [
+          { "id": "o1", "text": "Express yourself with high confidence and relish the attention.", "value": "High Social Boldness" },
+          { "id": "o2", "text": "Write down a detailed script in advance to ensure total accuracy.", "value": "High Thoroughness" }
+        ]
+      },
+      {
+        "id": "cal_q6",
+        "text": "When you are in a team discussion about a new project idea, you usually:",
+        "options": [
+          { "id": "o1", "text": "Are the first to speak, sharing your ideas with confidence.", "value": "High Social Boldness" },
+          { "id": "o2", "text": "Listen first, taking detailed notes before expressing a view.", "value": "High Thoroughness" }
+        ]
+      },
+      {
+        "id": "cal_q7",
+        "text": "When a process or workflow is repetitive and routine, you:",
+        "options": [
+          { "id": "o1", "text": "Thrive in the consistency and predictable quality of the routine.", "value": "High Structure" },
+          { "id": "o2", "text": "Feel restless and seek ways to innovate or automate the steps.", "value": "High Flexibility" }
+        ]
+      },
+      {
+        "id": "cal_q8",
+        "text": "How do you handle client or customer interactions?",
+        "options": [
+          { "id": "o1", "text": "Focus heavily on understanding their underlying feelings and concerns.", "value": "High Empathy" },
+          { "id": "o2", "text": "Focus on the objective agreement, presenting persuasive advantages to close.", "value": "High Ego-Drive" }
+        ]
+      }
+    ]
+  },
+  {
+    "key": "mmpi",
+    "title": "Minnesota Multiphasic Test",
+    "subtitle": "MMPI Clinical Insights",
+    "description": "Evaluates your psychological coping capacity, emotional stability, and behavioral tendencies under stress.",
+    "customFieldLabel": "General Emotional State Recently",
+    "scoringMethod": "personality",
+    "questions": [
+      {
+        "id": "mmp_q1",
+        "text": "Under high academic or professional pressure, how do you feel physically?",
+        "options": [
+          { "id": "o1", "text": "You frequently develop headaches, fatigue, or stomach discomfort.", "value": "Somatic Tendency" },
+          { "id": "o2", "text": "Your physical state remains stable; you manage stress mentally.", "value": "Somatic Stability" }
+        ]
+      },
+      {
+        "id": "mmp_q2",
+        "text": "Do you occasionally feel like people around you are critical or talking about you?",
+        "options": [
+          { "id": "o1", "text": "Yes, you often feel defensive and suspicious of others' motives.", "value": "Paranoia Tendency" },
+          { "id": "o2", "text": "No, you rarely worry about what others say or think behind your back.", "value": "Social Confidence" }
+        ]
+      },
+      {
+        "id": "mmp_q3",
+        "text": "How would you describe your level of daily energy and excitement?",
+        "options": [
+          { "id": "o1", "text": "Extremely high; you often take on too many projects and speak rapidly.", "value": "Hypomania Tendency" },
+          { "id": "o2", "text": "Steady and balanced; you work at a sustainable, moderate pace.", "value": "Balanced Energy" },
+          { "id": "o3", "text": "Often quite low; you struggle with motivation and feel downcast.", "value": "Depression Tendency" }
+        ]
+      },
+      {
+        "id": "mmp_q4",
+        "text": "When in a social setting, how comfortable do you feel interacting?",
+        "options": [
+          { "id": "o1", "text": "You feel extremely anxious, prefer to stay alone, and avoid crowds.", "value": "Social Introversion" },
+          { "id": "o2", "text": "You are highly comfortable, outgoing, and thrive in group environments.", "value": "Social Extraversion" }
+        ]
+      },
+      {
+        "id": "mmp_q5",
+        "text": "How often do you find yourself double-checking your actions, thoughts, or doors?",
+        "options": [
+          { "id": "o1", "text": "Constantly; you worry excessively about mistakes and small details.", "value": "Anxiety Tendency" },
+          { "id": "o2", "text": "Occasionally or normally; you trust your actions and move on quickly.", "value": "High Self-Trust" }
+        ]
+      },
+      {
+        "id": "mmp_q6",
+        "text": "Do you find yourself experiencing sudden worries or fears without any clear cause?",
+        "options": [
+          { "id": "o1", "text": "Yes, you feel anxious or hyper-vigilant quite often.", "value": "Anxiety Tendency" },
+          { "id": "o2", "text": "No, you feel calm, trusting your environment.", "value": "High Self-Trust" }
+        ]
+      },
+      {
+        "id": "mmp_q7",
+        "text": "Do you struggle with feeling disconnected from others, even when in a group?",
+        "options": [
+          { "id": "o1", "text": "Yes, you feel isolated or misunderstood by most people.", "value": "Social Introversion" },
+          { "id": "o2", "text": "No, you feel deeply connected and adapt easily to group vibes.", "value": "Social Extraversion" }
+        ]
+      },
+      {
+        "id": "mmp_q8",
+        "text": "When you are very busy or excited, do you find it hard to rest or sleep?",
+        "options": [
+          { "id": "o1", "text": "Yes, your mind races with too many ideas and plans.", "value": "Hypomania Tendency" },
+          { "id": "o2", "text": "No, you can easily wind down and maintain healthy rest.", "value": "Balanced Energy" }
+        ]
+      }
+    ]
+  },
+  {
+    "key": "aptitude",
+    "title": "General Cognitive & Aptitude Test",
+    "subtitle": "Logical Reasoning, Quantitative Skills, Verbal Ability",
+    "description": "Evaluates your cognitive agility, analytical thinking, and verbal problem-solving to map you to aligned academic streams and fields.",
+    "customFieldLabel": "Target Academic Field",
+    "scoringMethod": "aptitude",
+    "questions": [
+      {
+        "id": "apt_q1",
+        "text": "If a train travels 360 km in 4 hours, what is its speed in meters per second (m/s)?",
+        "correctValue": "B",
+        "options": [
+          { "id": "o1", "text": "90 m/s", "value": "A" },
+          { "id": "o2", "text": "25 m/s", "value": "B" },
+          { "id": "o3", "text": "15 m/s", "value": "C" },
+          { "id": "o4", "text": "30 m/s", "value": "D" }
+        ]
+      },
+      {
+        "id": "apt_q2",
+        "text": "All circles are shapes. Some shapes are red. No red objects are cold. Which of the following must be true?",
+        "correctValue": "D",
+        "options": [
+          { "id": "o1", "text": "Some circles are cold.", "value": "A" },
+          { "id": "o2", "text": "No shapes are cold.", "value": "B" },
+          { "id": "o3", "text": "Some red objects are circles.", "value": "C" },
+          { "id": "o4", "text": "None of the above are logically guaranteed.", "value": "D" }
+        ]
+      },
+      {
+        "id": "apt_q3",
+        "text": "Select the word that is most nearly OPPOSITE in meaning to 'EPHEMERAL'.",
+        "correctValue": "B",
+        "options": [
+          { "id": "o1", "text": "Transient (short-lived)", "value": "A" },
+          { "id": "o2", "text": "Permanent (everlasting)", "value": "B" },
+          { "id": "o3", "text": "Volatile (unpredictable)", "value": "C" },
+          { "id": "o4", "text": "Delicate (fragile)", "value": "D" }
+        ]
+      },
+      {
+        "id": "apt_q4",
+        "text": "A shopkeeper sells a book for $240, making a 20% profit. What was the original cost price of the book?",
+        "correctValue": "A",
+        "options": [
+          { "id": "o1", "text": "$200", "value": "A" },
+          { "id": "o2", "text": "$192", "value": "B" },
+          { "id": "o3", "text": "$220", "value": "C" },
+          { "id": "o4", "text": "$180", "value": "D" }
+        ]
+      },
+      {
+        "id": "apt_q5",
+        "text": "Find the next number in the sequence: 3, 5, 9, 17, 33, ...",
+        "correctValue": "B",
+        "options": [
+          { "id": "o1", "text": "49", "value": "A" },
+          { "id": "o2", "text": "65", "value": "B" },
+          { "id": "o3", "text": "50", "value": "C" },
+          { "id": "o4", "text": "60", "value": "D" }
+        ]
+      },
+      {
+        "id": "apt_q6",
+        "text": "Complete the analogy: INK is to PEN as WIRE is to...",
+        "correctValue": "A",
+        "options": [
+          { "id": "o1", "text": "Electricity", "value": "A" },
+          { "id": "o2", "text": "Insulator", "value": "B" },
+          { "id": "o3", "text": "Appliance", "value": "C" },
+          { "id": "o4", "text": "Copper", "value": "D" }
+        ]
+      },
+      {
+        "id": "apt_q7",
+        "text": "If A is B's brother, B is C's sister, and C is D's father, how is A related to D?",
+        "correctValue": "B",
+        "options": [
+          { "id": "o1", "text": "Grandfather", "value": "A" },
+          { "id": "o2", "text": "Uncle", "value": "B" },
+          { "id": "o3", "text": "Brother", "value": "C" },
+          { "id": "o4", "text": "Father", "value": "D" }
+        ]
+      },
+      {
+        "id": "apt_q8",
+        "text": "What is the average of the first 5 prime numbers (2, 3, 5, 7, 11)?",
+        "correctValue": "A",
+        "options": [
+          { "id": "o1", "text": "5.6", "value": "A" },
+          { "id": "o2", "text": "4.5", "value": "B" },
+          { "id": "o3", "text": "5.0", "value": "C" },
+          { "id": "o4", "text": "6.2", "value": "D" }
+        ]
+      },
+      {
+        "id": "apt_q9",
+        "text": "Identify the misspelled word from the choices below.",
+        "correctValue": "D",
+        "options": [
+          { "id": "o1", "text": "Accommodation", "value": "A" },
+          { "id": "o2", "text": "Occurrence", "value": "B" },
+          { "id": "o3", "text": "Privilege", "value": "C" },
+          { "id": "o4", "text": "Cemetary", "value": "D" }
+        ]
+      },
+      {
+        "id": "apt_q10",
+        "text": "Five friends (P, Q, R, S, T) are sitting in a row. R is sitting in the exact middle. P is to the immediate left of R. S is to the right of T. Q is sitting at the extreme right. Who is sitting on the extreme left?",
+        "correctValue": "B",
+        "options": [
+          { "id": "o1", "text": "P", "value": "A" },
+          { "id": "o2", "text": "T", "value": "B" },
+          { "id": "o3", "text": "S", "value": "C" },
+          { "id": "o4", "text": "R", "value": "D" }
+        ]
+      }
+    ]
+  }
+]
