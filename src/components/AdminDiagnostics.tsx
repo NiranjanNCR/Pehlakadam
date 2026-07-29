@@ -23,6 +23,7 @@ interface Option {
   id: string;
   text: string;
   value: string;
+  correctnessPercentage?: number; // 0 to 100 percentage score weight
 }
 
 interface Question {
@@ -266,11 +267,18 @@ export default function AdminDiagnostics() {
     setEditingTest({ ...editingTest, questions: qs });
   };
 
+  const handleOptionPercentageChange = (qIdx: number, oIdx: number, pct: number) => {
+    if (!editingTest) return;
+    const qs = [...editingTest.questions];
+    qs[qIdx].options[oIdx].correctnessPercentage = Math.min(100, Math.max(0, isNaN(pct) ? 0 : pct));
+    setEditingTest({ ...editingTest, questions: qs });
+  };
+
   const handleAddOption = (qIdx: number) => {
     if (!editingTest) return;
     const qs = [...editingTest.questions];
     const newOId = `o${qs[qIdx].options.length + 1}`;
-    qs[qIdx].options.push({ id: newOId, text: "New Choice Text", value: "Value" });
+    qs[qIdx].options.push({ id: newOId, text: "New Choice Option", value: "Value", correctnessPercentage: 100 });
     setEditingTest({ ...editingTest, questions: qs });
   };
 
@@ -764,42 +772,94 @@ export default function AdminDiagnostics() {
                         {/* Options editor */}
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Multiple Choice Options</span>
+                            <div>
+                              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Multiple Choice Options & Correctness Percentages</span>
+                              <p className="text-[10px] text-zinc-400">Set option text, score code value, and assign exact correctness percentage weight (0% to 100%).</p>
+                            </div>
                             <button
                               onClick={() => handleAddOption(qIdx)}
-                              className="text-[10px] font-bold text-emerald-600 hover:text-emerald-500 uppercase tracking-wider cursor-pointer"
+                              className="text-[10px] font-bold text-emerald-600 hover:text-emerald-500 uppercase tracking-wider cursor-pointer bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-200"
                             >
                               + Add Option
                             </button>
                           </div>
 
-                          <div className="grid grid-cols-1 gap-2">
-                            {q.options.map((o, oIdx) => (
-                              <div key={o.id || oIdx} className="flex items-center gap-2">
-                                <input
-                                  type="text"
-                                  value={o.text}
-                                  placeholder="Option text..."
-                                  onChange={(e) => handleOptionTextChange(qIdx, oIdx, e.target.value)}
-                                  className="flex-1 bg-white border border-zinc-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 text-zinc-800 font-medium"
-                                />
-                                <input
-                                  type="text"
-                                  value={o.value}
-                                  placeholder="Score Value..."
-                                  title="Calculated code value (e.g., D, I, S, C or E, I)"
-                                  onChange={(e) => handleOptionValueChange(qIdx, oIdx, e.target.value)}
-                                  className="w-24 bg-white border border-zinc-200 rounded-lg px-3 py-1.5 text-xs text-center font-mono font-bold text-zinc-900 outline-none focus:ring-2 focus:ring-emerald-500/20"
-                                />
-                                <button
-                                  onClick={() => handleRemoveOption(qIdx, oIdx)}
-                                  className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
-                                  title="Remove Option"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </div>
-                            ))}
+                          <div className="grid grid-cols-1 gap-2.5">
+                            {q.options.map((o, oIdx) => {
+                              const pct = o.correctnessPercentage ?? 0;
+                              return (
+                                <div key={o.id || oIdx} className="p-2.5 bg-zinc-50 border border-zinc-200 rounded-xl space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-bold font-mono text-zinc-400 w-5 text-center">#{oIdx + 1}</span>
+                                    <input
+                                      type="text"
+                                      value={o.text}
+                                      placeholder="Option text..."
+                                      onChange={(e) => handleOptionTextChange(qIdx, oIdx, e.target.value)}
+                                      className="flex-1 bg-white border border-zinc-200 rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 text-zinc-800 font-medium"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={o.value}
+                                      placeholder="Score Value..."
+                                      title="Calculated code value (e.g., D, I, S, C or A, B)"
+                                      onChange={(e) => handleOptionValueChange(qIdx, oIdx, e.target.value)}
+                                      className="w-20 bg-white border border-zinc-200 rounded-lg px-2.5 py-1.5 text-xs text-center font-mono font-bold text-zinc-900 outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                    />
+                                    <button
+                                      onClick={() => handleRemoveOption(qIdx, oIdx)}
+                                      className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                                      title="Remove Option"
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+
+                                  {/* Correctness Percentage controls */}
+                                  <div className="flex items-center justify-between gap-2 pl-7 pt-1 border-t border-zinc-200/60">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Correctness Weight:</span>
+                                      <div className="flex items-center bg-white border border-zinc-200 rounded-lg px-2 py-0.5">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          max="100"
+                                          value={pct}
+                                          onChange={(e) => handleOptionPercentageChange(qIdx, oIdx, parseInt(e.target.value))}
+                                          className="w-12 text-xs font-bold text-emerald-700 text-center font-mono outline-none"
+                                        />
+                                        <span className="text-xs font-bold text-emerald-700">%</span>
+                                      </div>
+                                    </div>
+
+                                    {/* Preset Percentage buttons */}
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-[9px] font-bold text-zinc-400 uppercase mr-1">Presets:</span>
+                                      {[
+                                        { label: "100%", val: 100, cls: "bg-emerald-100 text-emerald-800 border-emerald-300" },
+                                        { label: "75%", val: 75, cls: "bg-teal-100 text-teal-800 border-teal-300" },
+                                        { label: "50%", val: 50, cls: "bg-amber-100 text-amber-800 border-amber-300" },
+                                        { label: "25%", val: 25, cls: "bg-orange-100 text-orange-800 border-orange-300" },
+                                        { label: "0%", val: 0, cls: "bg-zinc-100 text-zinc-700 border-zinc-300" },
+                                      ].map((preset) => (
+                                        <button
+                                          key={preset.val}
+                                          type="button"
+                                          onClick={() => handleOptionPercentageChange(qIdx, oIdx, preset.val)}
+                                          className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded border transition-all cursor-pointer ${
+                                            pct === preset.val
+                                              ? `${preset.cls} ring-2 ring-emerald-500/30 scale-105 font-black`
+                                              : "bg-white text-zinc-500 border-zinc-200 hover:bg-zinc-100"
+                                          }`}
+                                        >
+                                          {preset.label}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
 

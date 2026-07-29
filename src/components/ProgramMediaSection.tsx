@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { FileText, Play, Download, Video } from "lucide-react";
+import { FileText, Play, Eye } from "lucide-react";
 import BriefingVideoModal from "./BriefingVideoModal";
+import PdfViewerModal from "./PdfViewerModal";
 
 interface ProgramMediaSectionProps {
   programKey: string;
@@ -17,6 +18,7 @@ interface ProgramConfig {
 export default function ProgramMediaSection({ programKey }: ProgramMediaSectionProps) {
   const [config, setConfig] = useState<ProgramConfig | null>(null);
   const [isVideoOpen, setIsVideoOpen] = useState(false);
+  const [isBrochureModalOpen, setIsBrochureModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -39,41 +41,9 @@ export default function ProgramMediaSection({ programKey }: ProgramMediaSectionP
     fetchConfig();
   }, [programKey]);
 
-  // Download the brochure file safely
-  const handleDownloadBrochure = () => {
-    if (config && config.brochureFileData) {
-      try {
-        const link = document.createElement("a");
-        link.href = config.brochureFileData;
-        link.download = config.brochureFileName || `Pehlakadam_${programKey}_Brochure.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        return;
-      } catch (err) {
-        console.error("Failed to download brochure base64:", err);
-      }
-    }
-
-    if (config && config.brochureUrl) {
-      window.open(config.brochureUrl, "_blank");
-      return;
-    }
-
-    // High fidelity fallback: if no brochure is configured, generate and download a premium mock brochure file
-    try {
-      const mockContent = `%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << >> /MediaBox [0 0 595 842] /Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length 120 >>\nstream\nBT\n/F1 24 Tf\n70 700 Td\n(PEHLAKADAM CAREER ACADEMY BROCHURE) Tj\n/F1 14 Tf\n0 -50 Td\n(Program: ${programKey} Grade Track) Tj\n0 -30 Td\n(Consultation and Psychometric Profiling Brochure) Tj\nET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000009 00000 n\n0000000056 00000 n\n0000000111 00000 n\n0000000212 00000 n\ntrailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n382\n%%EOF`;
-      const blob = new Blob([mockContent], { type: "application/pdf" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `Pehlakadam_${programKey}_Official_Brochure.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (err) {
-      console.error("Failed to download fallback PDF brochure:", err);
-      alert("Brochure is not configured yet. Please check back soon.");
-    }
+  // View brochure in secure PDF viewer modal
+  const handleViewBrochure = () => {
+    setIsBrochureModalOpen(true);
   };
 
   const hasVideo = config && config.videoUrl;
@@ -82,14 +52,14 @@ export default function ProgramMediaSection({ programKey }: ProgramMediaSectionP
   return (
     <div id={`program-media-${programKey}`} className="mt-6 space-y-3 font-sans w-full">
       <div className="grid grid-cols-2 gap-3.5">
-        {/* 1. PDF Download as Brochure Button */}
+        {/* 1. PDF View Brochure Button */}
         <button
           id={`btn-brochure-${programKey}`}
-          onClick={handleDownloadBrochure}
+          onClick={handleViewBrochure}
           className="inline-flex items-center justify-center gap-2 rounded-2xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold py-3.5 px-4 text-xs tracking-wide uppercase border border-zinc-800 hover:border-zinc-700 transition-all duration-300 shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
         >
-          <FileText className="h-4 w-4 text-emerald-400 shrink-0" />
-          <span>Brochure PDF</span>
+          <Eye className="h-4 w-4 text-emerald-400 shrink-0" />
+          <span>View Brochure</span>
         </button>
 
         {/* 2. Briefing Video Button */}
@@ -108,6 +78,16 @@ export default function ProgramMediaSection({ programKey }: ProgramMediaSectionP
         isOpen={isVideoOpen}
         onClose={() => setIsVideoOpen(false)}
         videoUrl={currentVideoUrl}
+      />
+
+      {/* PDF Brochure Reader Modal overlay */}
+      <PdfViewerModal
+        isOpen={isBrochureModalOpen}
+        onClose={() => setIsBrochureModalOpen(false)}
+        title={`Pehlakadam Official Syllabus & Program Guide (${programKey})`}
+        category={`Grade ${programKey} Track`}
+        pdfUrl={config?.brochureUrl || `/api/programs/brochure/view/${programKey}`}
+        fileData={config?.brochureFileData}
       />
     </div>
   );

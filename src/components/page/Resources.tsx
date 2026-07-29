@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import NavigationBar from "../NavigationBar";
 import Footer from "../Footer";
 import YouTubeModal from "../YouTubeModal";
-import { BookOpen, Download, Search, FileText, Check, Play, Film, Loader2, AlertCircle, Lock, Unlock, MessageSquare, Key, ShieldCheck, LogOut, BrainCircuit } from "lucide-react";
+import PdfViewerModal from "../PdfViewerModal";
+import { BookOpen, Search, FileText, Check, Play, Film, Loader2, AlertCircle, Lock, Unlock, MessageSquare, Key, ShieldCheck, LogOut, BrainCircuit, Eye } from "lucide-react";
 import { ResourceMaterial } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -15,7 +16,10 @@ export default function Resources() {
   const [resources, setResources] = useState<ResourceMaterial[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [downloadingItem, setDownloadingItem] = useState<string | null>(null);
+
+  // PDF Viewer Modal State
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [selectedPdf, setSelectedPdf] = useState<{ title: string; category?: string; pdfUrl?: string; fileData?: string } | null>(null);
   
   // 🔒 PREMIUM ACCESS STATES
   const [accessFilter, setAccessFilter] = useState<"unpaid" | "paid">("unpaid");
@@ -113,15 +117,14 @@ export default function Resources() {
     }
   }, []);
 
-  const handleDownload = (id: string) => {
-    setDownloadingItem(id);
-    
-    // Direct link trigger for file attachment downloading
-    window.location.href = `/api/resources/download/${id}`;
-
-    setTimeout(() => {
-      setDownloadingItem(null);
-    }, 2000);
+  const handleViewPdf = (res: ResourceMaterial) => {
+    setSelectedPdf({
+      title: res.title,
+      category: res.category,
+      pdfUrl: `/api/resources/view/${res.id}`,
+      fileData: res.fileData
+    });
+    setIsPdfModalOpen(true);
   };
 
   const handleWatchVideo = (url: string) => {
@@ -468,7 +471,7 @@ export default function Resources() {
                           <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 inline" /> Premium Whitelisted Class
                         </>
                       ) : (
-                        res.type === "pdf" ? "Free Educational Download" : "Free Strategic Masterclass"
+                        res.type === "pdf" ? "In-App Reading Material" : "Free Strategic Masterclass"
                       )}
                     </p>
                     
@@ -482,24 +485,11 @@ export default function Resources() {
                           <BrainCircuit className="h-3.5 w-3.5 text-emerald-300" /> Start Test
                         </button>
                         <button
-                          id={`download-btn-${res.id}`}
-                          onClick={() => handleDownload(res.id)}
-                          disabled={downloadingItem === res.id}
-                          className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${
-                            downloadingItem === res.id
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : "bg-zinc-900 hover:bg-emerald-600 text-white hover:shadow-md cursor-pointer"
-                          }`}
+                          id={`view-pdf-btn-${res.id}`}
+                          onClick={() => handleViewPdf(res)}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-900 hover:bg-emerald-600 text-white px-4 py-2.5 text-xs font-bold transition-all cursor-pointer hover:shadow-md"
                         >
-                          {downloadingItem === res.id ? (
-                            <>
-                              <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" /> Downloading...
-                            </>
-                          ) : (
-                            <>
-                              <Download className="h-3.5 w-3.5" /> Download Guide
-                            </>
-                          )}
+                          <Eye className="h-3.5 w-3.5" /> View PDF
                         </button>
                       </div>
                     ) : (
@@ -530,6 +520,16 @@ export default function Resources() {
         videoUrl={selectedVideo || ""}
         isOpen={isVideoModalOpen}
         onClose={() => setIsVideoModalOpen(false)}
+      />
+
+      {/* PDF Reader Modal integration */}
+      <PdfViewerModal
+        isOpen={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        title={selectedPdf?.title || "Educational Guide"}
+        category={selectedPdf?.category || "Resource PDF"}
+        pdfUrl={selectedPdf?.pdfUrl}
+        fileData={selectedPdf?.fileData}
       />
 
       <Footer />

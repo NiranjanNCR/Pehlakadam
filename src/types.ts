@@ -38,6 +38,7 @@ export interface ResourceMaterial {
   format?: string;
   videoUrl?: string;
   fileUrl?: string;
+  fileData?: string;
   isPaid?: boolean;
   createdAt?: string;
 }

@@ -31,7 +31,8 @@ import {
   Settings,
   BrainCircuit,
   Globe,
-  Sparkles
+  Sparkles,
+  UserCheck
 } from "lucide-react";
 import { Submission, ResourceMaterial, SessionUpdate, Testimonial } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
@@ -46,7 +47,7 @@ import { motion, AnimatePresence } from "motion/react";
 // - "broadcast": Dispatching simulated alerts (SMS/Email) to registered leads.
 // - "programs-config": Managing brochures and briefing video links for program landing pages.
 // =========================================================================================
-type AdminTab = "leads" | "payments" | "resources" | "broadcast" | "paid-access" | "programs-config" | "diagnostics" | "system-stats" | "subscribers" | "testimonials";
+type AdminTab = "leads" | "payments" | "resources" | "broadcast" | "paid-access" | "programs-config" | "diagnostics" | "system-stats" | "subscribers" | "waitlist" | "testimonials";
 
 export default function AdminSubmissions() {
   const [activeTab, setActiveTab] = useState<AdminTab>("leads");
@@ -59,6 +60,7 @@ export default function AdminSubmissions() {
   const [authorizedNumbers, setAuthorizedNumbers] = useState<{ id: string, number: string, createdAt: string }[]>([]);
   const [programsConfigs, setProgramsConfigs] = useState<any[]>([]);
   const [subscribers, setSubscribers] = useState<{ id: string; email: string; phone?: string; createdAt: string }[]>([]);
+  const [waitlistEntries, setWaitlistEntries] = useState<{ id: string; email: string; name?: string; phone?: string; gradeOrInterest?: string; createdAt: string }[]>([]);
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   
   // 📝 NEW TESTIMONIAL FORM STATES
@@ -386,6 +388,20 @@ export default function AdminSubmissions() {
       console.error("Error loading subscribers:", err);
     }
 
+    // 8.5 Fetch Mentorship Cohort Waitlist Entries
+    try {
+      const resWaitlist = await fetch("/api/waitlist", { headers: authHeaders });
+      if (checkUnauthorized(resWaitlist)) return;
+      if (resWaitlist.ok) {
+        const waitlistData = await resWaitlist.json();
+        if (Array.isArray(waitlistData)) {
+          setWaitlistEntries(waitlistData);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading waitlist entries:", err);
+    }
+
     // 9. Fetch Success Testimonials
     try {
       const resTesti = await fetch("/api/testimonials");
@@ -452,6 +468,27 @@ export default function AdminSubmissions() {
     } catch (err) {
       console.error("Error deleting subscriber:", err);
       alert("Failed to remove subscriber.");
+    }
+  };
+
+  const handleDeleteWaitlistEntry = async (id: string) => {
+    if (!confirm("Are you sure you want to remove this entry from the Mentorship Cohort Waitlist?")) return;
+    try {
+      const token = localStorage.getItem("pehlakadam_admin_token");
+      const res = await fetch(`/api/waitlist/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        setWaitlistEntries(prev => prev.filter(w => w.id !== id));
+      } else {
+        alert("Failed to delete waitlist entry.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error deleting waitlist entry.");
     }
   };
 
@@ -1046,6 +1083,16 @@ export default function AdminSubmissions() {
               }`}
             >
               <Mail className="h-4 w-4" /> Tips Subscribers ({subscribers.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("waitlist")}
+              className={`py-4 px-6 text-xs uppercase tracking-wider font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === "waitlist"
+                  ? "border-emerald-600 text-emerald-700 bg-emerald-50/20"
+                  : "border-transparent text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50"
+              }`}
+            >
+              <UserCheck className="h-4 w-4" /> Cohort Waitlist ({waitlistEntries.length})
             </button>
             <button
               onClick={() => setActiveTab("testimonials")}
@@ -2188,6 +2235,89 @@ export default function AdminSubmissions() {
                                     onClick={() => handleDeleteSubscriber(sub.id)}
                                     className="p-2 text-zinc-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all cursor-pointer inline-flex items-center gap-1 animate-none select-none outline-none border-none bg-transparent"
                                     title="Delete Subscriber"
+                                  >
+                                    <Trash2 className="h-4 w-4 text-zinc-400 hover:text-red-500" />
+                                    <span className="text-xs font-semibold">Remove</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {activeTab === "waitlist" && (
+                <motion.div
+                  key="waitlist-workspace"
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -15 }}
+                  className="space-y-8"
+                >
+                  <div className="bg-white rounded-3xl border border-zinc-200 p-8 shadow-sm">
+                    <div className="flex items-center gap-4 mb-8">
+                      <div className="bg-emerald-50 text-emerald-600 rounded-2xl p-3">
+                        <UserCheck className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-bold text-zinc-900">Mentorship Cohorts Waitlist ({waitlistEntries.length})</h2>
+                        <p className="text-zinc-500 text-xs mt-0.5">
+                          View and manage candidates and parents who signed up for upcoming mentorship cohorts.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      {waitlistEntries.length === 0 ? (
+                        <div className="text-center py-16 text-zinc-400 text-sm">
+                          No candidates on the waitlist yet. Submissions from the Home page waitlist form will appear here.
+                        </div>
+                      ) : (
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="border-b border-zinc-100 text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                              <th className="pb-4 font-semibold">Candidate Info</th>
+                              <th className="pb-4 font-semibold">Preferred Track / Cohort</th>
+                              <th className="pb-4 font-semibold">Submitted Date</th>
+                              <th className="pb-4 font-semibold text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-50 text-sm text-zinc-700">
+                            {waitlistEntries.map((w, index) => (
+                              <tr key={w.id || index} className="hover:bg-zinc-50/50 transition-colors">
+                                <td className="py-4">
+                                  <div className="font-bold text-zinc-900 flex items-center gap-1.5">
+                                    <User className="h-3.5 w-3.5 text-zinc-400" />
+                                    <span>{w.name || "Candidate"}</span>
+                                  </div>
+                                  <div className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1.5">
+                                    <Mail className="h-3.5 w-3.5 text-emerald-500" />
+                                    <span>{w.email}</span>
+                                  </div>
+                                  {w.phone && (
+                                    <div className="text-xs text-zinc-500 font-mono mt-0.5 flex items-center gap-1.5">
+                                      <Phone className="h-3.5 w-3.5 text-zinc-400" />
+                                      <span>{w.phone}</span>
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-4">
+                                  <span className="px-3 py-1 bg-zinc-100 text-zinc-800 rounded-full text-xs font-semibold inline-block">
+                                    {w.gradeOrInterest || "General Mentorship Cohort"}
+                                  </span>
+                                </td>
+                                <td className="py-4 text-xs font-mono text-zinc-500">
+                                  {new Date(w.createdAt).toLocaleString()}
+                                </td>
+                                <td className="py-4 text-right">
+                                  <button
+                                    onClick={() => handleDeleteWaitlistEntry(w.id)}
+                                    className="p-2 text-zinc-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all cursor-pointer inline-flex items-center gap-1"
+                                    title="Delete Waitlist Entry"
                                   >
                                     <Trash2 className="h-4 w-4 text-zinc-400 hover:text-red-500" />
                                     <span className="text-xs font-semibold">Remove</span>
