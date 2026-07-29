@@ -32,7 +32,11 @@ import {
   BrainCircuit,
   Globe,
   Sparkles,
-  UserCheck
+  Clock,
+  Video,
+  ExternalLink,
+  X,
+  CheckCircle2
 } from "lucide-react";
 import { Submission, ResourceMaterial, SessionUpdate, Testimonial } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
@@ -40,14 +44,7 @@ import { motion, AnimatePresence } from "motion/react";
 // =========================================================================================
 // 👑 ADMIN DASHBOARD SUB-SYSTEM ROUTING DEFINITION
 // =========================================================================================
-// These tabs determine which management system is visible to the advisor:
-// - "leads": Reviewing registrations, goals, and user messages.
-// - "payments": Reviewing transactions and downloaded screenshots.
-// - "resources": Composing, uploading, and publishing PDF handbooks or video masterclasses.
-// - "broadcast": Dispatching simulated alerts (SMS/Email) to registered leads.
-// - "programs-config": Managing brochures and briefing video links for program landing pages.
-// =========================================================================================
-type AdminTab = "leads" | "payments" | "resources" | "broadcast" | "paid-access" | "programs-config" | "diagnostics" | "system-stats" | "subscribers" | "waitlist" | "testimonials";
+type AdminTab = "leads" | "payments" | "resources" | "broadcast" | "paid-access" | "programs-config" | "diagnostics" | "system-stats" | "subscribers" | "testimonials";
 
 export default function AdminSubmissions() {
   const [activeTab, setActiveTab] = useState<AdminTab>("leads");
@@ -60,8 +57,20 @@ export default function AdminSubmissions() {
   const [authorizedNumbers, setAuthorizedNumbers] = useState<{ id: string, number: string, createdAt: string }[]>([]);
   const [programsConfigs, setProgramsConfigs] = useState<any[]>([]);
   const [subscribers, setSubscribers] = useState<{ id: string; email: string; phone?: string; createdAt: string }[]>([]);
-  const [waitlistEntries, setWaitlistEntries] = useState<{ id: string; email: string; name?: string; phone?: string; gradeOrInterest?: string; createdAt: string }[]>([]);
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
+
+  // 🎯 COUNSELING SCHEDULING & INDIVIDUAL NOTIFICATION STATES
+  const [selectedLeadForCounselling, setSelectedLeadForCounselling] = useState<Submission | null>(null);
+  const [counsellingForm, setCounsellingForm] = useState({
+    counsellingDate: "",
+    counsellingTime: "",
+    counsellingTopic: "1-on-1 Stream Selection & Career Strategy Session",
+    joiningLink: "",
+    counsellingNotes: ""
+  });
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const [sendingNotifyChannel, setSendingNotifyChannel] = useState<"email" | "whatsapp" | "sms" | null>(null);
+  const [notifyResultMsg, setNotifyResultMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   
   // 📝 NEW TESTIMONIAL FORM STATES
   const [testiStudentName, setTestiStudentName] = useState("");
@@ -388,20 +397,6 @@ export default function AdminSubmissions() {
       console.error("Error loading subscribers:", err);
     }
 
-    // 8.5 Fetch Mentorship Cohort Waitlist Entries
-    try {
-      const resWaitlist = await fetch("/api/waitlist", { headers: authHeaders });
-      if (checkUnauthorized(resWaitlist)) return;
-      if (resWaitlist.ok) {
-        const waitlistData = await resWaitlist.json();
-        if (Array.isArray(waitlistData)) {
-          setWaitlistEntries(waitlistData);
-        }
-      }
-    } catch (err) {
-      console.error("Error loading waitlist entries:", err);
-    }
-
     // 9. Fetch Success Testimonials
     try {
       const resTesti = await fetch("/api/testimonials");
@@ -471,24 +466,102 @@ export default function AdminSubmissions() {
     }
   };
 
-  const handleDeleteWaitlistEntry = async (id: string) => {
-    if (!confirm("Are you sure you want to remove this entry from the Mentorship Cohort Waitlist?")) return;
+  const handleOpenCounsellingModal = (sub: Submission) => {
+    setSelectedLeadForCounselling(sub);
+    setCounsellingForm({
+      counsellingDate: sub.counsellingDate || "",
+      counsellingTime: sub.counsellingTime || "",
+      counsellingTopic: sub.counsellingTopic || "1-on-1 Stream Selection & Career Strategy Session",
+      joiningLink: sub.joiningLink || "",
+      counsellingNotes: sub.counsellingNotes || ""
+    });
+    setNotifyResultMsg(null);
+  };
+
+  const handleSaveCounsellingSchedule = async () => {
+    if (!selectedLeadForCounselling) return;
+    setSavingSchedule(true);
+    setNotifyResultMsg(null);
+
     try {
       const token = localStorage.getItem("pehlakadam_admin_token");
-      const res = await fetch(`/api/waitlist/${id}`, {
-        method: "DELETE",
+      const res = await fetch(`/api/submissions/${selectedLeadForCounselling.id}/counselling`, {
+        method: "PUT",
         headers: {
+          "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
-        }
+        },
+        body: JSON.stringify(counsellingForm)
       });
-      if (res.ok) {
-        setWaitlistEntries(prev => prev.filter(w => w.id !== id));
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSubmissions(prev =>
+          prev.map(item => item.id === selectedLeadForCounselling.id ? { ...item, ...counsellingForm } : item)
+        );
+        setSelectedLeadForCounselling(prev => prev ? { ...prev, ...counsellingForm } : null);
+        setNotifyResultMsg({ type: "success", text: "Counseling session schedule saved successfully!" });
       } else {
-        alert("Failed to delete waitlist entry.");
+        setNotifyResultMsg({ type: "error", text: data.error || "Failed to save schedule." });
       }
     } catch (err) {
       console.error(err);
-      alert("Error deleting waitlist entry.");
+      setNotifyResultMsg({ type: "error", text: "Network error while saving schedule." });
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
+  const handleSendNotification = async (channel: "email" | "whatsapp" | "sms") => {
+    if (!selectedLeadForCounselling) return;
+    setSendingNotifyChannel(channel);
+    setNotifyResultMsg(null);
+
+    try {
+      const token = localStorage.getItem("pehlakadam_admin_token");
+      const res = await fetch(`/api/submissions/${selectedLeadForCounselling.id}/notify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          channel,
+          customMessage: counsellingForm.counsellingNotes
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setNotifyResultMsg({
+          type: "success",
+          text: `Notification dispatched via ${channel.toUpperCase()} to ${selectedLeadForCounselling.firstName}!`
+        });
+
+        if (channel === "whatsapp" && data.details?.whatsappUrl) {
+          window.open(data.details.whatsappUrl, "_blank");
+        }
+
+        // Save notification record to local submission state
+        if (data.notification) {
+          setSubmissions(prev =>
+            prev.map(item => {
+              if (item.id === selectedLeadForCounselling.id) {
+                const updatedNotes = item.notifications || [];
+                return { ...item, notifications: [...updatedNotes, data.notification] };
+              }
+              return item;
+            })
+          );
+        }
+      } else {
+        setNotifyResultMsg({ type: "error", text: data.error || "Failed to send notification." });
+      }
+    } catch (err) {
+      console.error(err);
+      setNotifyResultMsg({ type: "error", text: "Network error sending notification." });
+    } finally {
+      setSendingNotifyChannel(null);
     }
   };
 
@@ -1085,16 +1158,6 @@ export default function AdminSubmissions() {
               <Mail className="h-4 w-4" /> Tips Subscribers ({subscribers.length})
             </button>
             <button
-              onClick={() => setActiveTab("waitlist")}
-              className={`py-4 px-6 text-xs uppercase tracking-wider font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-                activeTab === "waitlist"
-                  ? "border-emerald-600 text-emerald-700 bg-emerald-50/20"
-                  : "border-transparent text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50"
-              }`}
-            >
-              <UserCheck className="h-4 w-4" /> Cohort Waitlist ({waitlistEntries.length})
-            </button>
-            <button
               onClick={() => setActiveTab("testimonials")}
               className={`py-4 px-6 text-xs uppercase tracking-wider font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
                 activeTab === "testimonials"
@@ -1206,23 +1269,76 @@ export default function AdminSubmissions() {
                             </p>
                           </div>
 
-                          {/* 💬 DYNAMIC WHATSAPP OUTREACH BUTTON FOR ADVISOR
-                              Enables the Career Advisor to initiate a highly polished, pre-formatted
-                              personal message thread directly with the student via WhatsApp with a single click. */}
-                          <div className="mt-4 pt-4 border-t border-zinc-100 flex items-center justify-between gap-3">
-                            <span className="text-[10px] text-zinc-400 font-medium">Outreach Hub:</span>
-                            <a
-                              id={`whatsapp-outreach-btn-${sub.id}`}
-                              href={`https://api.whatsapp.com/send?phone=${sub.number.replace(/[^0-9]/g, "")}&text=${encodeURIComponent(
-                                `Hello ${sub.firstName} ${sub.lastName},\n\nThank you for registering on Pehlakadam Career Advisory. I am your career counselor.\n\nI reviewed your profile as a ${sub.role} and goals:\n"${sub.message}"\n\nLet's schedule a 15-minute diagnostic call to map out your next steps. What time suits you?`
-                              )}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 py-1.5 px-3 text-[11px] font-bold transition-all shadow-sm border border-emerald-100 cursor-pointer"
+                          {/* 📅 SCHEDULED COUNSELING STATUS BADGE */}
+                          {sub.counsellingDate ? (
+                            <div className="mt-3 p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-xs space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-emerald-900 flex items-center gap-1.5">
+                                  <Calendar className="h-3.5 w-3.5 text-emerald-600" />
+                                  Counseling Scheduled
+                                </span>
+                                <span className="text-[10px] bg-emerald-200/60 text-emerald-900 font-bold px-2 py-0.5 rounded-full">
+                                  Confirmed
+                                </span>
+                              </div>
+                              <p className="text-emerald-800 font-medium text-[11px]">
+                                🎯 {sub.counsellingTopic || "1-on-1 Counseling Session"}
+                              </p>
+                              <div className="flex items-center gap-3 text-emerald-700 font-medium text-[11px]">
+                                <span>📅 {sub.counsellingDate}</span>
+                                {sub.counsellingTime && <span>⏰ {sub.counsellingTime}</span>}
+                              </div>
+                              {sub.joiningLink && (
+                                <a
+                                  href={sub.joiningLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 underline"
+                                >
+                                  <ExternalLink className="h-3 w-3" /> Join Link: {sub.joiningLink}
+                                </a>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="mt-3 p-3 rounded-xl bg-amber-50/60 border border-amber-200/60 text-xs flex items-center justify-between text-amber-900">
+                              <span className="flex items-center gap-1.5 font-medium text-[11px]">
+                                <Clock className="h-3.5 w-3.5 text-amber-600" />
+                                Counseling Pending Schedule
+                              </span>
+                            </div>
+                          )}
+
+                          {/* 🔔 SENT NOTIFICATIONS HISTORY LOG */}
+                          {sub.notifications && sub.notifications.length > 0 && (
+                            <div className="mt-3 pt-2.5 border-t border-zinc-100 flex flex-wrap items-center gap-1.5">
+                              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Sent Updates:</span>
+                              {sub.notifications.map((n, idx) => (
+                                <span
+                                  key={idx}
+                                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                    n.channel === "email"
+                                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                                      : n.channel === "whatsapp"
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                      : "bg-purple-50 text-purple-700 border-purple-200"
+                                  }`}
+                                >
+                                  {n.channel.toUpperCase()}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* 🎯 ACTION BUTTONS FOR COUNSELING SCHEDULING & NOTIFICATION */}
+                          <div className="mt-4 pt-4 border-t border-zinc-100 flex items-center justify-between gap-2">
+                            <button
+                              id={`schedule-counselling-btn-${sub.id}`}
+                              onClick={() => handleOpenCounsellingModal(sub)}
+                              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-3 text-xs font-bold transition-all shadow-sm cursor-pointer"
                             >
-                              <MessageSquare className="h-3.5 w-3.5" />
-                              WhatsApp Connect
-                            </a>
+                              <Calendar className="h-3.5 w-3.5" />
+                              Schedule & Notify Counseling
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -2250,89 +2366,6 @@ export default function AdminSubmissions() {
                 </motion.div>
               )}
 
-              {activeTab === "waitlist" && (
-                <motion.div
-                  key="waitlist-workspace"
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -15 }}
-                  className="space-y-8"
-                >
-                  <div className="bg-white rounded-3xl border border-zinc-200 p-8 shadow-sm">
-                    <div className="flex items-center gap-4 mb-8">
-                      <div className="bg-emerald-50 text-emerald-600 rounded-2xl p-3">
-                        <UserCheck className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h2 className="text-lg font-bold text-zinc-900">Mentorship Cohorts Waitlist ({waitlistEntries.length})</h2>
-                        <p className="text-zinc-500 text-xs mt-0.5">
-                          View and manage candidates and parents who signed up for upcoming mentorship cohorts.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                      {waitlistEntries.length === 0 ? (
-                        <div className="text-center py-16 text-zinc-400 text-sm">
-                          No candidates on the waitlist yet. Submissions from the Home page waitlist form will appear here.
-                        </div>
-                      ) : (
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="border-b border-zinc-100 text-[11px] font-bold uppercase tracking-wider text-zinc-400">
-                              <th className="pb-4 font-semibold">Candidate Info</th>
-                              <th className="pb-4 font-semibold">Preferred Track / Cohort</th>
-                              <th className="pb-4 font-semibold">Submitted Date</th>
-                              <th className="pb-4 font-semibold text-right">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-zinc-50 text-sm text-zinc-700">
-                            {waitlistEntries.map((w, index) => (
-                              <tr key={w.id || index} className="hover:bg-zinc-50/50 transition-colors">
-                                <td className="py-4">
-                                  <div className="font-bold text-zinc-900 flex items-center gap-1.5">
-                                    <User className="h-3.5 w-3.5 text-zinc-400" />
-                                    <span>{w.name || "Candidate"}</span>
-                                  </div>
-                                  <div className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1.5">
-                                    <Mail className="h-3.5 w-3.5 text-emerald-500" />
-                                    <span>{w.email}</span>
-                                  </div>
-                                  {w.phone && (
-                                    <div className="text-xs text-zinc-500 font-mono mt-0.5 flex items-center gap-1.5">
-                                      <Phone className="h-3.5 w-3.5 text-zinc-400" />
-                                      <span>{w.phone}</span>
-                                    </div>
-                                  )}
-                                </td>
-                                <td className="py-4">
-                                  <span className="px-3 py-1 bg-zinc-100 text-zinc-800 rounded-full text-xs font-semibold inline-block">
-                                    {w.gradeOrInterest || "General Mentorship Cohort"}
-                                  </span>
-                                </td>
-                                <td className="py-4 text-xs font-mono text-zinc-500">
-                                  {new Date(w.createdAt).toLocaleString()}
-                                </td>
-                                <td className="py-4 text-right">
-                                  <button
-                                    onClick={() => handleDeleteWaitlistEntry(w.id)}
-                                    className="p-2 text-zinc-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all cursor-pointer inline-flex items-center gap-1"
-                                    title="Delete Waitlist Entry"
-                                  >
-                                    <Trash2 className="h-4 w-4 text-zinc-400 hover:text-red-500" />
-                                    <span className="text-xs font-semibold">Remove</span>
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
               {activeTab === "testimonials" && (
                 <motion.div
                   key="testimonials-workspace"
@@ -2554,6 +2587,181 @@ export default function AdminSubmissions() {
           )}
         </main>
       </div>
+
+      {/* 🎯 INDIVIDUAL COUNSELING SCHEDULING & NOTIFICATION MODAL */}
+      <AnimatePresence>
+        {selectedLeadForCounselling && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl border border-zinc-200 shadow-2xl max-w-2xl w-full p-6 sm:p-8 relative my-8"
+            >
+              <button
+                onClick={() => setSelectedLeadForCounselling(null)}
+                className="absolute top-6 right-6 h-9 w-9 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center text-zinc-600 transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              {/* Header */}
+              <div className="flex items-center gap-3.5 mb-6">
+                <div className="h-12 w-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-lg">
+                  {selectedLeadForCounselling.firstName[0]}
+                  {selectedLeadForCounselling.lastName[0]}
+                </div>
+                <div>
+                  <h3 className="text-xl font-extrabold text-zinc-950 font-sans">
+                    Schedule Counseling: {selectedLeadForCounselling.firstName} {selectedLeadForCounselling.lastName}
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500 mt-0.5">
+                    <span className="flex items-center gap-1"><Mail className="h-3 w-3" /> {selectedLeadForCounselling.email}</span>
+                    <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {selectedLeadForCounselling.number}</span>
+                    <span className="bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded text-[10px] border border-emerald-200 uppercase">{selectedLeadForCounselling.role}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Inputs */}
+              <div className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-zinc-700 font-bold mb-1">
+                    Counseling Topic / Session Title
+                  </label>
+                  <input
+                    type="text"
+                    value={counsellingForm.counsellingTopic}
+                    onChange={(e) => setCounsellingForm({ ...counsellingForm, counsellingTopic: e.target.value })}
+                    placeholder="e.g. 1-on-1 Stream Selection Strategy & Roadmap"
+                    className="w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-zinc-700 font-bold mb-1">
+                      Scheduled Date
+                    </label>
+                    <input
+                      type="date"
+                      value={counsellingForm.counsellingDate}
+                      onChange={(e) => setCounsellingForm({ ...counsellingForm, counsellingDate: e.target.value })}
+                      className="w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-700 font-bold mb-1">
+                      Scheduled Time
+                    </label>
+                    <input
+                      type="text"
+                      value={counsellingForm.counsellingTime}
+                      onChange={(e) => setCounsellingForm({ ...counsellingForm, counsellingTime: e.target.value })}
+                      placeholder="e.g. 4:30 PM IST"
+                      className="w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-zinc-700 font-bold mb-1">
+                    Online Joining Link (Google Meet / Zoom / Video URL)
+                  </label>
+                  <input
+                    type="url"
+                    value={counsellingForm.joiningLink}
+                    onChange={(e) => setCounsellingForm({ ...counsellingForm, joiningLink: e.target.value })}
+                    placeholder="https://meet.google.com/abc-defg-hij"
+                    className="w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-zinc-700 font-bold mb-1">
+                    Advisor Note / Personalized Message to Candidate
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={counsellingForm.counsellingNotes}
+                    onChange={(e) => setCounsellingForm({ ...counsellingForm, counsellingNotes: e.target.value })}
+                    placeholder="e.g. Please bring your 10th marksheets and stream preferences list to the session."
+                    className="w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* Status Banner */}
+              {notifyResultMsg && (
+                <div
+                  className={`mt-4 p-3.5 rounded-xl border text-xs font-semibold flex items-center gap-2 ${
+                    notifyResultMsg.type === "success"
+                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                      : "bg-red-50 text-red-800 border-red-200"
+                  }`}
+                >
+                  {notifyResultMsg.type === "success" ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+                  )}
+                  {notifyResultMsg.text}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="mt-6 pt-4 border-t border-zinc-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <button
+                  onClick={handleSaveCounsellingSchedule}
+                  disabled={savingSchedule}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-900 hover:bg-black text-white py-2.5 px-5 text-xs font-bold transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                >
+                  {savingSchedule ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Calendar className="h-3.5 w-3.5" />}
+                  Save Session Schedule
+                </button>
+
+                {/* Dispatch Individual Updates Panel */}
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+                  <span className="text-[11px] font-bold text-zinc-400 mr-1">Notify Candidate:</span>
+                  
+                  {/* Email Dispatch */}
+                  <button
+                    onClick={() => handleSendNotification("email")}
+                    disabled={sendingNotifyChannel === "email"}
+                    title="Send Email Invitation"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                  >
+                    {sendingNotifyChannel === "email" ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+                    Email
+                  </button>
+
+                  {/* WhatsApp Dispatch */}
+                  <button
+                    onClick={() => handleSendNotification("whatsapp")}
+                    disabled={sendingNotifyChannel === "whatsapp"}
+                    title="Send WhatsApp Update"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-3 text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                  >
+                    {sendingNotifyChannel === "whatsapp" ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <MessageSquare className="h-3.5 w-3.5" />}
+                    WhatsApp
+                  </button>
+
+                  {/* SMS Dispatch */}
+                  <button
+                    onClick={() => handleSendNotification("sms")}
+                    disabled={sendingNotifyChannel === "sms"}
+                    title="Send SMS Alert"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white py-2 px-3 text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                  >
+                    {sendingNotifyChannel === "sms" ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
+                    SMS
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <Footer />
     </motion.div>

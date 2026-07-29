@@ -10,6 +10,17 @@ export interface ContactFormData {
 export interface Submission extends ContactFormData {
   id: string;
   createdAt: string;
+  counsellingDate?: string;
+  counsellingTime?: string;
+  counsellingTopic?: string;
+  joiningLink?: string;
+  counsellingNotes?: string;
+  notifications?: {
+    channel: "email" | "whatsapp" | "sms";
+    sentAt: string;
+    status: string;
+    message?: string;
+  }[];
 }
 
 export interface Mentor {

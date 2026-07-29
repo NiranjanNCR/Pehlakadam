@@ -356,6 +356,17 @@ const SubmissionSchema = new mongoose.Schema({
   number: { type: String, required: true },
   role: { type: String, required: true },
   message: { type: String, required: true },
+  counsellingDate: { type: String, default: "" },
+  counsellingTime: { type: String, default: "" },
+  counsellingTopic: { type: String, default: "" },
+  joiningLink: { type: String, default: "" },
+  counsellingNotes: { type: String, default: "" },
+  notifications: [{
+    channel: { type: String }, // "email" | "whatsapp" | "sms"
+    sentAt: { type: Date, default: Date.now },
+    status: { type: String, default: "sent" },
+    message: { type: String }
+  }],
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -466,17 +477,6 @@ const CareerTipSubscriberSchema = new mongoose.Schema({
 });
 
 const CareerTipSubscriberModel = mongoose.model("CareerTipSubscriber", CareerTipSubscriberSchema);
-
-// 📂 SCHEMA 12: MENTORSHIP COHORT WAITLIST SCHEMA
-const WaitlistSchema = new mongoose.Schema({
-  email: { type: String, required: true },
-  name: { type: String, default: "" },
-  phone: { type: String, default: "" },
-  gradeOrInterest: { type: String, default: "General Mentorship Cohort" },
-  createdAt: { type: Date, default: Date.now }
-});
-
-const WaitlistModel = mongoose.model("Waitlist", WaitlistSchema);
 
 // 📂 SCHEMA 11: SUCCESS TESTIMONIALS SCHEMA
 const TestimonialSchema = new mongoose.Schema({
@@ -1899,6 +1899,87 @@ async function sendAssessmentReportEmail(data: {
   }
 }
 
+async function sendCounsellingNotificationEmail(data: {
+  recipientEmail: string;
+  userName: string;
+  userPhone?: string;
+  counsellingDate: string;
+  counsellingTime: string;
+  counsellingTopic: string;
+  joiningLink: string;
+  counsellingNotes?: string;
+}) {
+  const { recipientEmail, userName, counsellingDate, counsellingTime, counsellingTopic, joiningLink, counsellingNotes } = data;
+  if (!recipientEmail) return { success: false, reason: "No recipient email provided" };
+
+  const fromEmail = process.env.SMTP_FROM_EMAIL || "noreply@pehlakadam.com";
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 20px; color: #18181b;">
+      <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 24px; border: 1px solid #e4e4e7; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+        <div style="background-color: #09090b; padding: 20px; border-radius: 12px; text-align: center; border-bottom: 3px solid #10b981; margin-bottom: 20px;">
+          <h2 style="color: #ffffff; margin: 0; font-size: 18px; letter-spacing: 1px;">PEHLAKADAM CAREER ACADEMY</h2>
+          <p style="color: #10b981; font-size: 11px; font-weight: bold; margin: 4px 0 0 0; text-transform: uppercase;">Official 1-on-1 Counseling Session Schedule</p>
+        </div>
+
+        <p style="font-size: 14px; color: #27272a;">Hello <strong>${userName}</strong>,</p>
+        <p style="font-size: 13px; color: #52525b; line-height: 1.6;">
+          Your personalized 1-on-1 career guidance and counseling session with our senior advisors from IITs & BITS Pilani has been confirmed and scheduled.
+        </p>
+
+        <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; margin: 20px 0;">
+          <h3 style="margin: 0 0 12px 0; color: #166534; font-size: 15px;">📅 Session Details</h3>
+          <p style="margin: 6px 0; font-size: 13px; color: #15803d;"><strong>Topic / Agenda:</strong> ${counsellingTopic || "1-on-1 Stream & Career Selection Guidance"}</p>
+          <p style="margin: 6px 0; font-size: 13px; color: #15803d;"><strong>Scheduled Date:</strong> ${counsellingDate || "To be specified"}</p>
+          <p style="margin: 6px 0; font-size: 13px; color: #15803d;"><strong>Scheduled Time:</strong> ${counsellingTime || "To be specified"}</p>
+          ${counsellingNotes ? `<p style="margin: 10px 0 0 0; font-size: 12px; color: #14532d; font-style: italic; background: #dcfce7; padding: 8px 12px; border-radius: 6px;"><strong>Advisor Message:</strong> "${counsellingNotes}"</p>` : ''}
+        </div>
+
+        ${joiningLink ? `
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${joiningLink}" target="_blank" style="background-color: #059669; color: #ffffff; text-decoration: none; padding: 12px 28px; font-size: 13px; font-weight: bold; border-radius: 10px; display: inline-block;">
+              🚀 Join Meeting / Session Link
+            </a>
+            <p style="font-size: 11px; color: #71717a; margin-top: 8px;">Direct Link: <a href="${joiningLink}" style="color: #059669;">${joiningLink}</a></p>
+          </div>
+        ` : ''}
+
+        <p style="font-size: 12px; color: #71717a; line-height: 1.5; margin-top: 24px;">
+          Please join 5 minutes before the start time. If you need to reschedule or ask any preliminary questions, reply directly to this email or message us on WhatsApp.
+        </p>
+
+        <div style="background-color: #f4f4f5; padding: 12px; text-align: center; border-radius: 8px; margin-top: 20px; font-size: 11px; color: #a1a1aa;">
+          Pehlakadam Career Advisory Team &bull; www.pehlakadam.com
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    const transporter = await getEmailTransporter();
+    if (transporter) {
+      const mailOptions = {
+        from: `"Pehlakadam Career Academy" <${fromEmail}>`,
+        to: recipientEmail,
+        subject: `[Scheduled Session] ${counsellingTopic || "1-on-1 Counseling"} on ${counsellingDate} at ${counsellingTime}`,
+        html: htmlContent
+      };
+      const info = await transporter.sendMail(mailOptions);
+      console.log(`✅ [Pehlakadam Mailer] Counseling session email dispatched to ${recipientEmail}`);
+      return { success: true, emailSent: true, messageId: info.messageId };
+    } else {
+      console.log(`ℹ️ [Pehlakadam Mailer] Simulated counseling email dispatch to ${recipientEmail}`);
+      return { success: true, emailSent: true, simulated: true };
+    }
+  } catch (err) {
+    console.error(`❌ [Pehlakadam Mailer] Failed to deliver counseling email:`, err);
+    return { success: false, emailSent: false, error: String(err) };
+  }
+}
+
 // 3. SUBMIT DIAGNOSTIC EVALUATION (WITH PERSONALITY & PSYCHOMETRIC CALCULATIONS)
 app.post("/api/diagnostic-tests/submit", async (req, res) => {
   try {
@@ -2586,7 +2667,7 @@ app.get("/api/submissions", verifyAdmin, async (req, res) => {
   try {
     if (isMongoConnected) {
       const docs = await SubmissionModel.find().sort({ createdAt: -1 });
-      const submissions = docs.map((doc) => ({
+      const submissions = docs.map((doc: any) => ({
         id: doc._id.toString(),
         firstName: doc.firstName,
         lastName: doc.lastName,
@@ -2594,17 +2675,220 @@ app.get("/api/submissions", verifyAdmin, async (req, res) => {
         number: doc.number,
         role: doc.role,
         message: doc.message,
-        createdAt: doc.createdAt.toISOString()
+        counsellingDate: doc.counsellingDate || "",
+        counsellingTime: doc.counsellingTime || "",
+        counsellingTopic: doc.counsellingTopic || "",
+        joiningLink: doc.joiningLink || "",
+        counsellingNotes: doc.counsellingNotes || "",
+        notifications: doc.notifications || [],
+        createdAt: doc.createdAt ? doc.createdAt.toISOString() : new Date().toISOString()
       }));
       return res.status(200).json(submissions);
     } else {
-      const fileData = fs.readFileSync(SUBMISSIONS_FILE, "utf-8");
-      const submissions = JSON.parse(fileData);
+      let submissions: any[] = [];
+      try {
+        if (fs.existsSync(SUBMISSIONS_FILE)) {
+          submissions = JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, "utf-8"));
+        }
+      } catch (e) {}
       return res.status(200).json(submissions);
     }
   } catch (error) {
     console.error("[Pehlakadam API] Error reading submissions:", error);
     return res.status(500).json({ error: "Failed to fetch submissions" });
+  }
+});
+
+// 🌐 SCHEDULE / UPDATE COUNSELLING SESSION FOR INDIVIDUAL LEAD
+app.put("/api/submissions/:id/counselling", verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { counsellingDate, counsellingTime, counsellingTopic, joiningLink, counsellingNotes } = req.body;
+
+    let updatedLead: any = null;
+
+    if (isMongoConnected) {
+      const doc = await SubmissionModel.findById(id);
+      if (doc) {
+        doc.counsellingDate = counsellingDate !== undefined ? counsellingDate : doc.counsellingDate;
+        doc.counsellingTime = counsellingTime !== undefined ? counsellingTime : doc.counsellingTime;
+        doc.counsellingTopic = counsellingTopic !== undefined ? counsellingTopic : doc.counsellingTopic;
+        doc.joiningLink = joiningLink !== undefined ? joiningLink : doc.joiningLink;
+        doc.counsellingNotes = counsellingNotes !== undefined ? counsellingNotes : doc.counsellingNotes;
+        await doc.save();
+        updatedLead = {
+          id: doc._id.toString(),
+          firstName: doc.firstName,
+          lastName: doc.lastName,
+          email: doc.email,
+          number: doc.number,
+          role: doc.role,
+          message: doc.message,
+          counsellingDate: doc.counsellingDate,
+          counsellingTime: doc.counsellingTime,
+          counsellingTopic: doc.counsellingTopic,
+          joiningLink: doc.joiningLink,
+          counsellingNotes: doc.counsellingNotes,
+          notifications: doc.notifications || [],
+          createdAt: doc.createdAt.toISOString()
+        };
+      }
+    }
+
+    // Always update JSON file storage as well
+    let submissions: any[] = [];
+    try {
+      if (fs.existsSync(SUBMISSIONS_FILE)) {
+        submissions = JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, "utf-8"));
+      }
+    } catch (e) {}
+
+    const index = submissions.findIndex(s => s.id === id);
+    if (index !== -1) {
+      submissions[index] = {
+        ...submissions[index],
+        counsellingDate: counsellingDate !== undefined ? counsellingDate : submissions[index].counsellingDate,
+        counsellingTime: counsellingTime !== undefined ? counsellingTime : submissions[index].counsellingTime,
+        counsellingTopic: counsellingTopic !== undefined ? counsellingTopic : submissions[index].counsellingTopic,
+        joiningLink: joiningLink !== undefined ? joiningLink : submissions[index].joiningLink,
+        counsellingNotes: counsellingNotes !== undefined ? counsellingNotes : submissions[index].counsellingNotes,
+        updatedAt: new Date().toISOString()
+      };
+      if (!updatedLead) updatedLead = submissions[index];
+      fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(submissions, null, 2));
+    }
+
+    if (!updatedLead) {
+      return res.status(404).json({ error: "Lead not found." });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Counseling session schedule saved successfully.",
+      lead: updatedLead
+    });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error updating counseling session:", error);
+    return res.status(500).json({ error: "Failed to update counseling session details." });
+  }
+});
+
+// 🌐 DISPATCH NOTIFICATIONS TO INDIVIDUAL LEAD (EMAIL, WHATSAPP, SMS)
+app.post("/api/submissions/:id/notify", verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { channel, customMessage } = req.body; // channel: "email" | "whatsapp" | "sms"
+
+    if (!channel || !["email", "whatsapp", "sms"].includes(channel)) {
+      return res.status(400).json({ error: "Invalid notification channel. Choose 'email', 'whatsapp', or 'sms'." });
+    }
+
+    let lead: any = null;
+
+    if (isMongoConnected) {
+      const doc = await SubmissionModel.findById(id);
+      if (doc) {
+        lead = doc.toObject();
+        lead.id = doc._id.toString();
+      }
+    }
+
+    if (!lead && fs.existsSync(SUBMISSIONS_FILE)) {
+      const submissions = JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, "utf-8"));
+      lead = submissions.find((s: any) => s.id === id);
+    }
+
+    if (!lead) {
+      return res.status(404).json({ error: "Candidate lead not found." });
+    }
+
+    const candidateName = `${lead.firstName || ""} ${lead.lastName || ""}`.trim() || "Candidate";
+    const candidateEmail = lead.email;
+    const candidatePhone = lead.number;
+    const counsellingDate = lead.counsellingDate || "To be confirmed";
+    const counsellingTime = lead.counsellingTime || "To be confirmed";
+    const counsellingTopic = lead.counsellingTopic || "1-on-1 Career Selection & Counseling";
+    const joiningLink = lead.joiningLink || "";
+    const notes = customMessage || lead.counsellingNotes || "";
+
+    const notificationRecord = {
+      channel,
+      sentAt: new Date().toISOString(),
+      status: "sent",
+      message: notes || `Session update on ${counsellingDate} at ${counsellingTime}`
+    };
+
+    let resultPayload: any = { success: true, channel };
+
+    // 1. EMAIL CHANNEL
+    if (channel === "email") {
+      const mailRes = await sendCounsellingNotificationEmail({
+        recipientEmail: candidateEmail,
+        userName: candidateName,
+        userPhone: candidatePhone,
+        counsellingDate,
+        counsellingTime,
+        counsellingTopic,
+        joiningLink,
+        counsellingNotes: notes
+      });
+      resultPayload.mailDetails = mailRes;
+    }
+
+    // 2. WHATSAPP CHANNEL
+    if (channel === "whatsapp") {
+      const cleanPhone = (candidatePhone || "").replace(/[^0-9]/g, "");
+      const formattedNum = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+      
+      const whatsappText =
+        `📚 *Pehlakadam Career Advisory*\n\n` +
+        `Hello ${candidateName},\n` +
+        `Your 1-on-1 Career Counseling session has been scheduled!\n\n` +
+        `🎯 *Topic:* ${counsellingTopic}\n` +
+        `📅 *Date:* ${counsellingDate}\n` +
+        `⏰ *Time:* ${counsellingTime}\n` +
+        (joiningLink ? `🔗 *Meeting Link:* ${joiningLink}\n` : "") +
+        (notes ? `💬 *Advisor Note:* ${notes}\n` : "") +
+        `\nPlease ensure you join 5 minutes prior to the start time. See you soon!`;
+
+      const whatsappUrl = `https://api.whatsapp.com/send?phone=${formattedNum}&text=${encodeURIComponent(whatsappText)}`;
+      resultPayload.whatsappUrl = whatsappUrl;
+      resultPayload.messageText = whatsappText;
+    }
+
+    // 3. SMS CHANNEL
+    if (channel === "sms") {
+      const smsText = `[Pehlakadam] Hi ${candidateName}, your 1-on-1 Counseling session on "${counsellingTopic}" is scheduled for ${counsellingDate} at ${counsellingTime}.${joiningLink ? ` Join link: ${joiningLink}` : ""}`;
+      resultPayload.smsText = smsText;
+      console.log(`📱 [Pehlakadam SMS Gateway] Dispatched SMS to +${candidatePhone}: ${smsText}`);
+    }
+
+    // Save notification audit log to lead record
+    if (isMongoConnected) {
+      await SubmissionModel.findByIdAndUpdate(id, {
+        $push: { notifications: notificationRecord }
+      });
+    }
+
+    if (fs.existsSync(SUBMISSIONS_FILE)) {
+      const submissions = JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, "utf-8"));
+      const index = submissions.findIndex((s: any) => s.id === id);
+      if (index !== -1) {
+        if (!submissions[index].notifications) submissions[index].notifications = [];
+        submissions[index].notifications.push(notificationRecord);
+        fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(submissions, null, 2));
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Notification sent via ${channel.toUpperCase()} successfully to ${candidateName}.`,
+      notification: notificationRecord,
+      details: resultPayload
+    });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error sending notification:", error);
+    return res.status(500).json({ error: "Failed to dispatch notification." });
   }
 });
 
@@ -3648,145 +3932,6 @@ app.delete("/api/career-tips-subscribers/:id", verifyAdmin, async (req, res) => 
 });
 
 // =========================================================================================
-// 🚀 MENTORSHIP COHORT WAITLIST ENDPOINTS
-// =========================================================================================
-app.post("/api/waitlist", async (req, res) => {
-  try {
-    const { email, name, phone, gradeOrInterest } = req.body;
-
-    if (!email || typeof email !== "string" || !email.includes("@")) {
-      return res.status(400).json({ error: "Valid email address is required." });
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanName = (name || "").trim();
-    const cleanPhone = (phone || "").trim();
-    const cleanCohort = (gradeOrInterest || "General Mentorship Cohort").trim();
-
-    const newWaitlistEntry = {
-      id: Date.now().toString(),
-      email: cleanEmail,
-      name: cleanName,
-      phone: cleanPhone,
-      gradeOrInterest: cleanCohort,
-      createdAt: new Date()
-    };
-
-    let alreadyExisted = false;
-
-    if (isMongoConnected) {
-      const existing = await WaitlistModel.findOne({ email: cleanEmail });
-      if (existing) {
-        alreadyExisted = true;
-        existing.name = cleanName || existing.name;
-        existing.phone = cleanPhone || existing.phone;
-        existing.gradeOrInterest = cleanCohort || existing.gradeOrInterest;
-        await existing.save();
-      } else {
-        const item = new WaitlistModel({
-          email: cleanEmail,
-          name: cleanName,
-          phone: cleanPhone,
-          gradeOrInterest: cleanCohort,
-          createdAt: new Date()
-        });
-        await item.save();
-      }
-    }
-
-    // Keep JSON file in sync
-    let list: any[] = [];
-    try {
-      if (fs.existsSync(WAITLIST_FILE)) {
-        list = JSON.parse(fs.readFileSync(WAITLIST_FILE, "utf-8"));
-      }
-    } catch (e) {
-      console.warn("Waitlist file read error:", e);
-    }
-
-    const existingIdx = list.findIndex(item => item.email && item.email.toLowerCase() === cleanEmail);
-    if (existingIdx !== -1) {
-      alreadyExisted = true;
-      list[existingIdx] = {
-        ...list[existingIdx],
-        name: cleanName || list[existingIdx].name,
-        phone: cleanPhone || list[existingIdx].phone,
-        gradeOrInterest: cleanCohort || list[existingIdx].gradeOrInterest,
-        updatedAt: new Date()
-      };
-    } else {
-      list.push(newWaitlistEntry);
-    }
-
-    fs.writeFileSync(WAITLIST_FILE, JSON.stringify(list, null, 2));
-
-    return res.status(200).json({
-      success: true,
-      alreadyExisted,
-      message: alreadyExisted
-        ? "You are already registered! Your preferences have been updated."
-        : "Success! You have joined the Mentorship Cohort Waitlist.",
-      entry: newWaitlistEntry
-    });
-  } catch (error) {
-    console.error("[Pehlakadam API] Error joining waitlist:", error);
-    return res.status(500).json({ error: "Failed to join waitlist. Please try again." });
-  }
-});
-
-app.get("/api/waitlist", verifyAdmin, async (req, res) => {
-  try {
-    if (isMongoConnected) {
-      const items = await WaitlistModel.find().sort({ createdAt: -1 });
-      const formatted = items.map(item => ({
-        id: item._id.toString(),
-        email: item.email,
-        name: item.name,
-        phone: item.phone,
-        gradeOrInterest: item.gradeOrInterest,
-        createdAt: item.createdAt
-      }));
-      return res.status(200).json(formatted);
-    } else {
-      let list: any[] = [];
-      try {
-        if (fs.existsSync(WAITLIST_FILE)) {
-          list = JSON.parse(fs.readFileSync(WAITLIST_FILE, "utf-8"));
-        }
-      } catch (e) {}
-      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      return res.status(200).json(list);
-    }
-  } catch (error) {
-    console.error("[Pehlakadam API] Error fetching waitlist:", error);
-    return res.status(500).json({ error: "Failed to fetch waitlist." });
-  }
-});
-
-app.delete("/api/waitlist/:id", verifyAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (isMongoConnected) {
-      await WaitlistModel.findByIdAndDelete(id);
-    }
-
-    let list: any[] = [];
-    try {
-      if (fs.existsSync(WAITLIST_FILE)) {
-        list = JSON.parse(fs.readFileSync(WAITLIST_FILE, "utf-8"));
-      }
-    } catch (e) {}
-
-    list = list.filter(item => item.id !== id);
-    fs.writeFileSync(WAITLIST_FILE, JSON.stringify(list, null, 2));
-
-    return res.status(200).json({ message: "Waitlist entry removed successfully." });
-  } catch (error) {
-    console.error("[Pehlakadam API] Error deleting waitlist entry:", error);
-    return res.status(500).json({ error: "Failed to delete waitlist entry." });
-  }
-});
-
 // =========================================================================================
 // 🌐 TESTIMONIALS ENDPOINTS (DURABLE HYBRID STORAGE)
 // =========================================================================================

@@ -6,7 +6,6 @@ import ContactForm from "../ContactForm";
 import NavigationBar from "../NavigationBar";
 import Footer from "../Footer";
 import Mentors from "../Mentors";
-import WaitlistSection from "../WaitlistSection";
 import TestimonyCarousel from "../TestimonyCarousel";
 import { motion } from "motion/react";
 
@@ -26,7 +25,6 @@ export default function Home() {
       <HomeSecTwo />
       <Industry />
       <Mentors />
-      <WaitlistSection />
       <TestimonyCarousel />
       <ContactForm />
       <Footer />
