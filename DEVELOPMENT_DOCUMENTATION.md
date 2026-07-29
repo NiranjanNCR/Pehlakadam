@@ -9,7 +9,7 @@ This document serves as an exhaustive reference guide covering the system archit
 Pehlakadam is a high-performance, full-stack career counseling, skill diagnosis, and personality assessment suite. Built with **React 18**, **Vite**, **TypeScript**, and **Tailwind CSS** on the frontend, and backed by an **Express.js** and **Mongoose (MongoDB)** backend with automated JSON file-system backups.
 
 The architecture guarantees high availability and resilient persistence:
-*   **Database Dual-Persistence Pattern**: When MongoDB is connected, the server utilizes real Mongoose models for querying and updates. If the database goes into transient offline states, it falls back to parsing and writing to synchronized JSON flat-files (`system_stats.json`, `career_tips_subscribers.json`, etc.) instantly, preventing any disruption to user operations.
+*   **Database Dual-Persistence Pattern**: When MongoDB is connected, the server utilizes real Mongoose models for querying and updates. If the database goes into transient offline states, it falls back to parsing and writing to synchronized JSON flat-files (`system_stats.json`, `career_tips_subscribers.json`, `submissions.json`, `authorized_numbers.json`, etc.) instantly, preventing any disruption to user operations.
 *   **Secure API Routing**: Secret-key operations, whitelisting, and credential verifications are proxied strictly server-side through `/api/*` routes.
 *   **Hot-Module Ingress Routing**: The application is served on port `3000` via automated reverse-proxying.
 
@@ -24,23 +24,39 @@ The architecture guarantees high availability and resilient persistence:
     2. Admin updates these inside the **Admin Control Room** tab.
     3. The updated metrics persist to MongoDB and `system_stats.json` and refresh in real time.
 
-### 💳 Premium Course Whitelist & Dynamic UPI System
+### 💳 Course Enrollment & Program Selection System
 *   **Flow**:
-    1. Students click "Enroll Now" or "Unlock Premium".
-    2. The platform dynamically queries `GET /api/system-stats` to retrieve the current secure payee account (e.g., **UPI Address** and **Merchant Registered Name**).
-    3. A dynamic UPI payload string is compiled: `upi://pay?pa={upiId}&pn={merchantName}&am={price}&cu=INR&tn={planName}`.
-    4. A scannable custom QR code is rendered instantly using this payload.
-    5. After transferring funds, the student uploads their transaction screenshot.
-    6. Admin logs into the Admin panel under **Payment Proofs**, verifies the transaction ID and image, and clicks **Approve & Whitelist**.
-    7. The student’s mobile number is instantly authorized, giving them immediate entry to all premium courses and scientific evaluations.
+    1. Students click "Enroll Now" or "Unlock Premium" on any course card across the platform.
+    2. The checkout modal opens with a fully interactive program selection dropdown, pre-filling or allowing the user to select their exact grade or track ("Primary Kudos", "6-8 Grade", "8-10 Grade", "11-12 Grade", "UG/Graduate/PG", "Generalist to Specialist").
+    3. The platform dynamically queries `GET /api/system-stats` to retrieve the current payee account details (**UPI Address** and **Merchant Registered Name**).
+    4. A dynamic UPI payload string is generated: `upi://pay?pa={upiId}&pn={merchantName}&am={price}&cu=INR&tn={planName}`.
+    5. A scannable custom QR code is rendered instantly using this payload alongside deep-linking buttons for GPay, PhonePe, and Paytm.
+    6. Students upload their transaction screenshot and submit proof.
+    7. Admin verifies the transaction under **Payment Proofs** and clicks **Approve & Whitelist** to grant immediate access.
+
+### 🔑 Leads Manager - Direct Paid Section Whitelisting
+*   **Flow**:
+    1. Admins reviewing registered leads in the **Consultation Leads** tab can see each candidate's Paid Access Status.
+    2. Admins can click **"Add to Paid Section"** directly on any lead card to instantly authorize their mobile number for full paid resource access on `/resources` without navigating away.
+    3. The system immediately registers the phone number in `authorized_numbers.json` and MongoDB, with a **"Revoke Access"** option available at any time.
+
+### 📅 1-on-1 Counseling Scheduler & Multi-Channel Dispatch
+*   **Flow**:
+    1. Inside the **Consultation Leads** manager, advisors can click **"Schedule & Notify Counseling"** for any candidate.
+    2. A rich modal opens allowing the advisor to set the session topic, scheduled date, time, online joining link (Google Meet/Zoom), and personalized advisor notes.
+    3. The schedule is saved server-side under `PUT /api/submissions/:id/counselling`.
+    4. Admins can dispatch notifications with 1-click via:
+        *   **Email**: Professional HTML formatted invitation delivered via SMTP mailer.
+        *   **WhatsApp**: Generates formatted session link and opens direct outreach thread.
+        *   **SMS**: Dispatches instant text message confirmation.
 
 ### ✉️ Weekly Career Tips & Community Conversion Funnel
 *   **Active Funnel**:
     1. Visitors enter their Email or Mobile Number in the Newsletter section of the footer.
     2. A secure request is dispatched to `POST /api/career-tips-join`.
     3. The details are safely persisted in MongoDB under `CareerTipSubscriber` (or `career_tips_subscribers.json` fallback).
-    4. Upon successful submission, the system fetches the Admin-specified **WhatsApp Group Link** and **Alternative Forum Link** (e.g. Telegram or custom forum) in the response.
-    5. The UI dynamically morphs to present premium **"Join Official WhatsApp Group"** and **"Join Career Forum"** buttons instantly, converting standard subscribers into highly active community members.
+    4. Upon successful submission, the system fetches the Admin-specified **WhatsApp Group Link** and **Alternative Forum Link** in the response.
+    5. The UI dynamically morphs to present premium **"Join Official WhatsApp Group"** and **"Join Career Forum"** buttons instantly.
 
 ---
 
@@ -67,11 +83,26 @@ The architecture guarantees high availability and resilient persistence:
 }
 ```
 
-### ✉️ Career Tips Subscriber Schema (`CareerTipSubscriberModel`)
+### 📋 Candidate Lead Submission Schema (`SubmissionModel`)
 ```typescript
 {
+  firstName: { type: String, required: true },
+  lastName: { type: String, required: true },
   email: { type: String, required: true },
-  phone: { type: String, default: "" },
+  number: { type: String, required: true },
+  role: { type: String, required: true },
+  message: { type: String, required: true },
+  counsellingDate: { type: String, default: "" },
+  counsellingTime: { type: String, default: "" },
+  counsellingTopic: { type: String, default: "" },
+  joiningLink: { type: String, default: "" },
+  counsellingNotes: { type: String, default: "" },
+  notifications: [{
+    channel: { type: String }, // "email" | "whatsapp" | "sms"
+    sentAt: { type: Date, default: Date.now },
+    status: { type: String, default: "sent" },
+    message: { type: String }
+  }],
   createdAt: { type: Date, default: Date.now }
 }
 ```
@@ -81,36 +112,35 @@ The architecture guarantees high availability and resilient persistence:
 ## 4. Admin Panel Layout
 
 The Admin panel is structured as an elegant, multi-tab console containing:
-1.  **Consultation Leads**: View name, class, contact phone, counseling selections, and date.
+1.  **Consultation Leads**: View lead profiles, schedule 1-on-1 counseling sessions, dispatch notifications (Email, WhatsApp, SMS), and directly grant or revoke Paid Section Access with 1-click.
 2.  **Payment Proofs**: Interactive verification table displaying proof screenshot attachments, transaction codes, and the instant **Approve & Whitelist** button.
 3.  **Resources**: Add new PDF Handbooks or briefing videos to the static resource library.
 4.  **Broadcast Manager**: Dispatch bulk communications.
-5.  **Paid Access Manager**: View manually whitelisted premium phone numbers.
-6.  **Programs Config**: Customize brochures and counseling video highlights.
+5.  **Paid Access Manager**: View and manage manually whitelisted premium phone numbers.
+6.  **Programs Config**: Customize brochures and counseling video highlights for all grade levels.
 7.  **Home Page Stats (Control Room)**:
     *   Modify Students Count, Experts Count, and Success Rate metrics.
     *   Set dynamic **UPI Address** and **Merchant Name** configurations.
     *   Update social links (**Instagram**, **YouTube**, and **WhatsApp Support**).
     *   Configure dynamic **Weekly WhatsApp Group Invite Links** and **Forum Join Links**.
-    *   **World-Class SEO Metadata Configuration**: Control Global Page Titles, Meta Descriptions, Focus Keywords, and Meta Author attributes to drive maximum search visibility.
-8.  **Tips Subscribers**: Live database tracker showing all users registered for career newsletters with contact details, sign-up date, and a safe **Remove Subscriber** action.
+    *   **SEO Metadata Configuration**: Control Global Page Titles, Meta Descriptions, Focus Keywords, and Meta Author attributes.
+8.  **Tips Subscribers**: Live database tracker showing all newsletter subscribers with contact details and removal controls.
+9.  **Success Testimonials**: Manage featured student reviews and ratings.
 
 ---
 
 ## 5. Global Search Engine Optimization (SEO) Architecture
 
-Pehlakadam implements a professional, dynamic SEO injection system to achieve peak organic search results:
-*   **Static Meta Tags**: `/index.html` has pre-rendered optimized semantic meta tags (Title, Description, Keywords, og:title, og:description, og:type) ensuring instant indexability by search engines and spiders.
-*   **Dynamic Head Hydration**: On client startup, a secure background thread queries `GET /api/system-stats` and dynamically synchronizes browser attributes:
-    *   `document.title` is populated with the custom admin-configured title.
-    *   Descriptions, comma-separated search keywords, and author tag values are updated dynamically on the `document.head` meta tree.
-    *   Open Graph tags (`og:title`, `og:description`) are updated dynamically to facilitate high click-through sharing previews across social platforms (LinkedIn, Facebook, WhatsApp, etc.).
+Pehlakadam implements a dynamic SEO injection system:
+*   **Static Meta Tags**: `/index.html` contains pre-rendered semantic meta tags for search engine crawling.
+*   **Dynamic Head Hydration**: On client startup, the app fetches `GET /api/system-stats` and dynamically updates `document.title` and meta tags for description, focus keywords, author, and Open Graph previews (`og:title`, `og:description`).
 
 ---
 
 ## 6. Responsiveness & Styling Reference
 
-*   **Fluid Layouts**: Integrated elegant Tailwind configurations using `w-full max-w-7xl mx-auto px-6` to prevent ultra-wide viewport stretching.
-*   **Touch Targets**: Touch targets for input buttons and links are strictly set to `min-h-[44px]` or robust paddings to provide perfect click/tap actions on mobile interfaces.
-*   **Card Containers**: Cards utilize elegant, modern borders (`border border-zinc-200 shadow-sm hover:shadow-md transition-all rounded-3xl`) which transition beautifully on screens of all dimensions.
-*   **Theme Continuity**: A professional, high-contrast dark-mode footer and workspace accents are rendered using custom colors (`emerald-600`, `zinc-900`, `zinc-950`).
+*   **Fluid Layouts**: Tailwind configurations with `w-full max-w-7xl mx-auto px-6` prevent ultra-wide stretching.
+*   **Touch Targets**: Input buttons and links maintain touch target sizes (`min-h-[44px]`) for mobile accessibility.
+*   **Card Containers**: Cards utilize clean, high-contrast borders (`border border-zinc-200 shadow-sm hover:shadow-md transition-all rounded-3xl`).
+*   **Theme Continuity**: Dark and light elements use accessible, high-contrast color palettes (`emerald-600`, `zinc-900`, `zinc-950`).
+

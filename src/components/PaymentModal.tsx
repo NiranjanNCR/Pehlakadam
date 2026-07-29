@@ -439,22 +439,21 @@ export default function PaymentModal({
                               value={formData.role}
                               onChange={handleChange}
                               required
-                              disabled={!!defaultProgram}
-                              className={`w-full rounded-xl bg-zinc-850 border px-4 py-2 text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 bg-zinc-800 disabled:opacity-60 ${
+                              className={`w-full rounded-xl bg-zinc-850 border px-4 py-2 text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 bg-zinc-800 ${
                                 errors.role
                                   ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
                                   : "border-zinc-700/60 focus:ring-emerald-500/30 focus:border-emerald-500"
                               }`}
                             >
-                              <option value="" disabled>
+                              <option value="" disabled className="bg-zinc-800 text-zinc-400">
                                 Select a program
                               </option>
-                              <option value="Primary Kudos">Primary Kudos</option>
-                              <option value="6-8 Grade Student">6-8 Grade Student</option>
-                              <option value="8-10 Grade Student">8-10 Grade Student</option>
-                              <option value="11-12 Grade Student">11-12 Grade Student</option>
-                              <option value="UG/Graduate/PG">UG/Graduate/PG</option>
-                              <option value="Generalist to Specialist">Generalist to Specialist</option>
+                              <option value="Primary Kudos" className="bg-zinc-800 text-white">Primary Kudos</option>
+                              <option value="6-8 Grade Student" className="bg-zinc-800 text-white">6-8 Grade Student</option>
+                              <option value="8-10 Grade Student" className="bg-zinc-800 text-white">8-10 Grade Student</option>
+                              <option value="11-12 Grade Student" className="bg-zinc-800 text-white">11-12 Grade Student</option>
+                              <option value="UG/Graduate/PG" className="bg-zinc-800 text-white">UG/Graduate/PG</option>
+                              <option value="Generalist to Specialist" className="bg-zinc-800 text-white">Generalist to Specialist</option>
                             </select>
                             {errors.role && (
                               <p className="mt-1 text-[10px] text-red-500 font-semibold text-left">{errors.role}</p>

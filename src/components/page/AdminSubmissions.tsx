@@ -565,6 +565,71 @@ export default function AdminSubmissions() {
     }
   };
 
+  const handleGrantPaidAccessForLead = async (phone: string, name?: string) => {
+    if (!phone) {
+      alert("This candidate does not have a valid phone number recorded.");
+      return;
+    }
+    const cleanNum = phone.replace(/[^0-9]/g, "");
+    if (!cleanNum) {
+      alert("Invalid phone number formatting.");
+      return;
+    }
+    try {
+      const token = localStorage.getItem("pehlakadam_admin_token");
+      const res = await fetch("/api/authorized-numbers", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ number: cleanNum })
+      });
+      if (res.ok) {
+        const resAuth = await fetch("/api/authorized-numbers", {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (resAuth.ok) {
+          const authData = await resAuth.json();
+          setAuthorizedNumbers(authData);
+        }
+        alert(`🎉 Paid Section Access successfully granted for ${name || phone}!`);
+      } else {
+        const errData = await res.json();
+        alert(errData.error || "Failed to grant paid section access.");
+      }
+    } catch (err) {
+      console.error("Error granting paid section access:", err);
+      alert("Network error granting paid section access.");
+    }
+  };
+
+  const handleRevokePaidAccessForLead = async (phone: string, name?: string) => {
+    const cleanNum = phone.replace(/[^0-9]/g, "");
+    if (!confirm(`Are you sure you want to remove ${name || phone} from Paid Section Access?`)) return;
+    try {
+      const token = localStorage.getItem("pehlakadam_admin_token");
+      const res = await fetch(`/api/authorized-numbers/${cleanNum}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const resAuth = await fetch("/api/authorized-numbers", {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (resAuth.ok) {
+          const authData = await resAuth.json();
+          setAuthorizedNumbers(authData);
+        }
+      } else {
+        alert("Failed to revoke paid access.");
+      }
+    } catch (err) {
+      console.error("Error revoking paid access:", err);
+      alert("Error revoking paid access.");
+    }
+  };
+
   const handleTestiFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1328,6 +1393,55 @@ export default function AdminSubmissions() {
                               ))}
                             </div>
                           )}
+
+                          {/* 🔑 PAID SECTION ACCESS CONTROL */}
+                          {(() => {
+                            const cleanLeadPhone = (sub.number || "").replace(/[^0-9]/g, "");
+                            const isPaidUser = authorizedNumbers.some(item => (item.number || "").replace(/[^0-9]/g, "") === cleanLeadPhone);
+
+                            return (
+                              <div className={`mt-3 p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs transition-all ${
+                                isPaidUser 
+                                  ? "bg-emerald-50/80 border-emerald-200/90 text-emerald-900" 
+                                  : "bg-zinc-50 border-zinc-200 text-zinc-700"
+                              }`}>
+                                <div className="flex items-center gap-2">
+                                  <ShieldCheck className={`h-4 w-4 shrink-0 ${isPaidUser ? "text-emerald-600" : "text-zinc-400"}`} />
+                                  <div>
+                                    <span className="font-bold flex items-center gap-1.5 text-[11px]">
+                                      {isPaidUser ? "Paid Section Access: Active" : "Paid Section Access: Not Granted"}
+                                    </span>
+                                    <p className="text-[10px] text-zinc-500 font-medium">
+                                      {isPaidUser 
+                                        ? "Candidate can access all paid resources & study guides on /resources" 
+                                        : "Grant paid access so this candidate can view exclusive materials"}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="shrink-0">
+                                  {isPaidUser ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRevokePaidAccessForLead(sub.number, `${sub.firstName} ${sub.lastName}`)}
+                                      className="inline-flex items-center gap-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 py-1.5 px-3 text-[11px] font-bold transition-all cursor-pointer border border-red-200"
+                                    >
+                                      <Lock className="h-3 w-3" />
+                                      Revoke Access
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleGrantPaidAccessForLead(sub.number, `${sub.firstName} ${sub.lastName}`)}
+                                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 px-3 text-[11px] font-bold transition-all shadow-sm cursor-pointer"
+                                    >
+                                      <Sparkles className="h-3 w-3" />
+                                      Add to Paid Section
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
 
                           {/* 🎯 ACTION BUTTONS FOR COUNSELING SCHEDULING & NOTIFICATION */}
                           <div className="mt-4 pt-4 border-t border-zinc-100 flex items-center justify-between gap-2">
@@ -2620,6 +2734,31 @@ export default function AdminSubmissions() {
                     <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {selectedLeadForCounselling.number}</span>
                     <span className="bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded text-[10px] border border-emerald-200 uppercase">{selectedLeadForCounselling.role}</span>
                   </div>
+                  
+                  {/* Paid Section Quick Toggle Badge */}
+                  {(() => {
+                    const cleanPhone = (selectedLeadForCounselling.number || "").replace(/[^0-9]/g, "");
+                    const isPaid = authorizedNumbers.some(item => (item.number || "").replace(/[^0-9]/g, "") === cleanPhone);
+                    return (
+                      <div className="mt-2.5 flex items-center gap-2">
+                        {isPaid ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 text-[11px] font-bold border border-emerald-200">
+                            <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                            Paid Section Access Active
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleGrantPaidAccessForLead(selectedLeadForCounselling.number, `${selectedLeadForCounselling.firstName} ${selectedLeadForCounselling.lastName}`)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-all shadow-sm cursor-pointer"
+                          >
+                            <Sparkles className="h-3 w-3" />
+                            Add to Paid Section
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
