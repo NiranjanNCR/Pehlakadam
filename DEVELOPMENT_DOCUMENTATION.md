@@ -9,8 +9,12 @@ This document serves as an exhaustive reference guide covering the system archit
 Pehlakadam is a high-performance, full-stack career counseling, skill diagnosis, and personality assessment suite. Built with **React 18**, **Vite**, **TypeScript**, and **Tailwind CSS** on the frontend, and backed by an **Express.js** and **Mongoose (MongoDB)** backend with automated JSON file-system backups.
 
 The architecture guarantees high availability and resilient persistence:
-*   **Database Dual-Persistence Pattern**: When MongoDB is connected, the server utilizes real Mongoose models for querying and updates. If the database goes into transient offline states, it falls back to parsing and writing to synchronized JSON flat-files (`system_stats.json`, `career_tips_subscribers.json`, `submissions.json`, `authorized_numbers.json`, etc.) instantly, preventing any disruption to user operations.
+*   **Database Dual-Persistence Pattern**: When MongoDB is connected, the server utilizes real Mongoose models for querying and updates. If the database goes into transient offline states, it falls back to parsing and writing to synchronized JSON flat-files (`system_stats.json`, `career_tips_subscribers.json`, `submissions.json`, `authorized_numbers.json`, `courses.json`, `coupons.json`, etc.) instantly, preventing any disruption to user operations.
 *   **Secure API Routing**: Secret-key operations, whitelisting, and credential verifications are proxied strictly server-side through `/api/*` routes.
+*   **Access Tier Hierarchy**: Standardized 3-tier access architecture across all courses and resources:
+    1. **Basic Tier**: Free/standard PDFs & basic resource guides.
+    2. **Advance Tier**: Interactive LMS Video Courses & Dashboard access.
+    3. **Pro Tier**: Full unrestricted access to all Custom Courses, LMS Video Modules, and 1:1 Expert Support.
 *   **Hot-Module Ingress Routing**: The application is served on port `3000` via automated reverse-proxying.
 
 ---
@@ -24,21 +28,37 @@ The architecture guarantees high availability and resilient persistence:
     2. Admin updates these inside the **Admin Control Room** tab.
     3. The updated metrics persist to MongoDB and `system_stats.json` and refresh in real time.
 
+### 📚 LMS Course Curriculum & Video Player System (`/courses`)
+*   **Endpoints**: `GET /api/courses`, `POST /api/courses`, `PUT /api/courses/:id`, `DELETE /api/courses/:id`
+*   **Pathways**:
+    1. Students browse available courses filtered by Tier requirement (Basic, Advance, Pro) or Academic Category ("Primary Kudos", "6-8 Grade", "8-10 Grade", "11-12 Grade", "UG/Graduate/PG", "Generalist to Specialist").
+    2. Students authorize their registered phone number to verify tier access level (`POST /api/check-premium-access`).
+    3. Unlocked courses launch an interactive course modal equipped with chapter dropdowns, video embeds, lesson summaries, and downloadable PDF worksheets.
+    4. Admins manage chapters, video links, and worksheet attachments directly inside the **LMS Courses** tab in the Admin Panel.
+
+### 🎟️ Promo Coupons & Discount Manager
+*   **Endpoints**: `GET /api/coupons`, `POST /api/coupons`, `PUT /api/coupons/:id`, `DELETE /api/coupons/:id`, `POST /api/coupons/validate`
+*   **Pathways**:
+    1. Admins create custom promo codes (Percentage % or Flat ₹ Off, min cart requirements, active/inactive toggles).
+    2. During course enrollment checkout, students enter promo codes (e.g., `PEHLA50`, `PRO100`, `FESTIVE100`).
+    3. The checkout engine validates the code against server-side active coupons and applies discounts in real-time.
+
 ### 💳 Course Enrollment & Program Selection System
 *   **Flow**:
     1. Students click "Enroll Now" or "Unlock Premium" on any course card across the platform.
     2. The checkout modal opens with a fully interactive program selection dropdown, pre-filling or allowing the user to select their exact grade or track ("Primary Kudos", "6-8 Grade", "8-10 Grade", "11-12 Grade", "UG/Graduate/PG", "Generalist to Specialist").
-    3. The platform dynamically queries `GET /api/system-stats` to retrieve the current payee account details (**UPI Address** and **Merchant Registered Name**).
-    4. A dynamic UPI payload string is generated: `upi://pay?pa={upiId}&pn={merchantName}&am={price}&cu=INR&tn={planName}`.
-    5. A scannable custom QR code is rendered instantly using this payload alongside deep-linking buttons for GPay, PhonePe, and Paytm.
-    6. Students upload their transaction screenshot and submit proof.
-    7. Admin verifies the transaction under **Payment Proofs** and clicks **Approve & Whitelist** to grant immediate access.
+    3. Students apply discount coupons (`PRO100`, `PEHLA50`, etc.) to reduce final cart prices.
+    4. The platform dynamically queries `GET /api/system-stats` to retrieve the current payee account details (**UPI Address** and **Merchant Registered Name**).
+    5. A dynamic UPI payload string is generated: `upi://pay?pa={upiId}&pn={merchantName}&am={price}&cu=INR&tn={planName}`.
+    6. A scannable custom QR code is rendered instantly using this payload alongside deep-linking buttons for GPay, PhonePe, and Paytm.
+    7. Students upload their transaction screenshot and submit proof.
+    8. Admin verifies the transaction under **Payment Proofs** and clicks **Approve & Whitelist** to grant immediate access.
 
-### 🔑 Leads Manager - Direct Paid Section Whitelisting
+### 🔑 Leads & Quick Student Tier Authorization Bar
 *   **Flow**:
-    1. Admins reviewing registered leads in the **Consultation Leads** tab can see each candidate's Paid Access Status.
-    2. Admins can click **"Add to Paid Section"** directly on any lead card to instantly authorize their mobile number for full paid resource access on `/resources` without navigating away.
-    3. The system immediately registers the phone number in `authorized_numbers.json` and MongoDB, with a **"Revoke Access"** option available at any time.
+    1. Admins reviewing registered leads or inside the LMS manager can grant instant course access via the **Instant Student Phone Access Authorization** bar.
+    2. Admins input student phone numbers and select their access level (**Basic**, **Advance**, **Pro**).
+    3. The system immediately registers the phone number in `authorized_numbers.json` and MongoDB with the specified tier, authorizing the student instantly across the `/courses` and `/resources` portals.
 
 ### 📅 1-on-1 Counseling Scheduler & Multi-Channel Dispatch
 *   **Flow**:
@@ -61,6 +81,56 @@ The architecture guarantees high availability and resilient persistence:
 ---
 
 ## 3. Database Schemas
+
+### 🎓 LMS Course Schema (`Course`)
+```typescript
+{
+  id: string,
+  title: string,
+  slug: string,
+  description: string,
+  thumbnailUrl: string,
+  tier: "basic" | "advance" | "pro",
+  category: string,
+  originalPrice: number,
+  discountPrice: number,
+  duration: string,
+  level: string,
+  published: boolean,
+  createdAt: string,
+  chapters: [{
+    id: string,
+    title: string,
+    lessons: [{
+      id: string,
+      title: string,
+      duration: string,
+      videoUrl: string,
+      summary: string,
+      isFreePreview: boolean,
+      attachments: [{
+        id: string,
+        title: string,
+        type: "pdf" | "doc" | "link",
+        fileUrl: string
+      }]
+    }]
+  }]
+}
+```
+
+### 🎟️ Promo Coupon Schema (`Coupon`)
+```typescript
+{
+  id: string,
+  code: string,
+  discountType: "percentage" | "fixed",
+  discountValue: number,
+  minOrderAmount: number,
+  active: boolean,
+  createdAt: string
+}
+```
 
 ### 📊 System Stats & Config Schema (`SystemStatsModel`)
 ```typescript
@@ -115,17 +185,19 @@ The Admin panel is structured as an elegant, multi-tab console containing:
 1.  **Consultation Leads**: View lead profiles, schedule 1-on-1 counseling sessions, dispatch notifications (Email, WhatsApp, SMS), and directly grant or revoke Paid Section Access with 1-click.
 2.  **Payment Proofs**: Interactive verification table displaying proof screenshot attachments, transaction codes, and the instant **Approve & Whitelist** button.
 3.  **Resources**: Add new PDF Handbooks or briefing videos to the static resource library.
-4.  **Broadcast Manager**: Dispatch bulk communications.
-5.  **Paid Access Manager**: View and manage manually whitelisted premium phone numbers.
-6.  **Programs Config**: Customize brochures and counseling video highlights for all grade levels.
-7.  **Home Page Stats (Control Room)**:
+4.  **LMS Courses**: Launch new custom LMS courses, build multi-chapter video curriculums, link downloadable PDF worksheets, and set tier access requirements (Basic, Advance, Pro).
+5.  **Coupon Manager**: Create percentage (%) or flat (₹) discount codes with cart limits and live activation toggles.
+6.  **Broadcast Manager**: Dispatch bulk communications.
+7.  **Paid Access Manager**: View and manage whitelisted student phone numbers with tier assignments (Basic, Advance, Pro).
+8.  **Programs Config**: Customize brochures and counseling video highlights for all grade levels.
+9.  **Home Page Stats (Control Room)**:
     *   Modify Students Count, Experts Count, and Success Rate metrics.
     *   Set dynamic **UPI Address** and **Merchant Name** configurations.
     *   Update social links (**Instagram**, **YouTube**, and **WhatsApp Support**).
     *   Configure dynamic **Weekly WhatsApp Group Invite Links** and **Forum Join Links**.
     *   **SEO Metadata Configuration**: Control Global Page Titles, Meta Descriptions, Focus Keywords, and Meta Author attributes.
-8.  **Tips Subscribers**: Live database tracker showing all newsletter subscribers with contact details and removal controls.
-9.  **Success Testimonials**: Manage featured student reviews and ratings.
+10. **Tips Subscribers**: Live database tracker showing all newsletter subscribers with contact details and removal controls.
+11. **Success Testimonials**: Manage featured student reviews and ratings.
 
 ---
 

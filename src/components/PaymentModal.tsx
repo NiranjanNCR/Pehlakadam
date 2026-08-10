@@ -112,7 +112,7 @@ export default function PaymentModal({
   const effectiveAmount = appliedCoupon ? appliedCoupon.finalPrice : numericAmount;
   const effectivePriceStr = "₹" + effectiveAmount.toLocaleString("en-IN");
 
-  const handleApplyCoupon = async (e: React.FormEvent) => {
+  const handleApplyCoupon = async (e: FormEvent) => {
     e.preventDefault();
     if (!couponInput.trim()) return;
     setIsValidatingCoupon(true);

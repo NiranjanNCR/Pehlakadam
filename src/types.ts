@@ -130,6 +130,7 @@ export interface Course {
   discountPrice: number;
   duration: string;
   level: string;
+  batch?: string;
   chapters: Chapter[];
   published: boolean;
   createdAt?: string;

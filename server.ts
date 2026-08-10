@@ -3464,8 +3464,15 @@ app.post("/api/updates", verifyAdmin, async (req, res) => {
 // 🌐 API ENDPOINTS FOR PREMIUM ACCESS CONTROL (AUTHORIZED NUMBERS)
 // =========================================================================================
 
-// Helper to sanitize phone numbers (keeping digits only)
-const cleanPhoneDigits = (num: string) => num.replace(/[^0-9]/g, "");
+// Helper to sanitize phone numbers (extracting last 10 digits)
+const cleanPhoneDigits = (num: string) => {
+  if (!num) return "";
+  let digits = String(num).replace(/[^0-9]/g, "");
+  if (digits.length > 10) {
+    digits = digits.slice(-10);
+  }
+  return digits;
+};
 
 // 1. GET ALL AUTHORIZED PREMIUM NUMBERS
 app.get("/api/authorized-numbers", verifyAdmin, async (req, res) => {
@@ -3579,20 +3586,25 @@ app.post("/api/check-access", async (req, res) => {
     }
 
     if (isMongoConnected) {
-      const doc = await AuthorizedNumberModel.findOne({ number: cleanedNum });
-      return res.status(200).json({ authorized: !!doc, tier: doc?.tier || "pro" });
-    } else {
-      const list = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
-      const found = list.find((item: any) => cleanPhoneDigits(item.number) === cleanedNum);
-      return res.status(200).json({ authorized: !!found, tier: found?.tier || "pro" });
+      const doc = await AuthorizedNumberModel.findOne({
+        $or: [
+          { number: cleanedNum },
+          { number: { $regex: cleanedNum + "$" } }
+        ]
+      });
+      if (doc) return res.status(200).json({ authorized: true, tier: (doc as any).tier || "pro" });
     }
+
+    const list = fs.existsSync(AUTHORIZED_NUMBERS_FILE) ? JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8")) : [];
+    const found = list.find((item: any) => cleanPhoneDigits(item.number) === cleanedNum);
+    return res.status(200).json({ authorized: !!found, tier: found?.tier || "pro" });
   } catch (error) {
     console.error("[Pehlakadam API] Error checking premium access:", error);
     return res.status(500).json({ error: "Failed to check premium access." });
   }
 });
 
-// CHECK PREMIUM ACCESS WITH TIER
+// CHECK PREMIUM ACCESS WITH TIER (Comprehensive Mongo + JSON across Authorized Numbers, Payments, and Submissions)
 app.post("/api/check-premium-access", async (req, res) => {
   try {
     const { number } = req.body;
@@ -3604,15 +3616,63 @@ app.post("/api/check-premium-access", async (req, res) => {
       return res.status(200).json({ authorized: false });
     }
 
-    const list = fs.existsSync(AUTHORIZED_NUMBERS_FILE) ? JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8")) : [];
-    const found = list.find((item: any) => cleanPhoneDigits(item.number) === cleanedNum);
-    if (found) {
-      return res.status(200).json({ authorized: true, tier: found.tier || "pro" });
+    // 1. Check Mongo Authorized Numbers if connected
+    if (isMongoConnected) {
+      const authDoc = await AuthorizedNumberModel.findOne({
+        $or: [
+          { number: cleanedNum },
+          { number: { $regex: cleanedNum + "$" } }
+        ]
+      });
+      if (authDoc) {
+        return res.status(200).json({ authorized: true, tier: (authDoc as any).tier || "pro" });
+      }
+
+      const paidDoc = await PaymentModel.findOne({
+        $or: [
+          { number: cleanedNum },
+          { number: { $regex: cleanedNum + "$" } }
+        ]
+      });
+      if (paidDoc) {
+        return res.status(200).json({ authorized: true, tier: (paidDoc as any).tier || "pro" });
+      }
+
+      const subDoc = await SubmissionModel.findOne({
+        $and: [
+          {
+            $or: [
+              { number: cleanedNum },
+              { number: { $regex: cleanedNum + "$" } }
+            ]
+          },
+          {
+            $or: [{ isPaid: true }, { hasPaidAccess: true }]
+          }
+        ]
+      });
+      if (subDoc) {
+        return res.status(200).json({ authorized: true, tier: (subDoc as any).tier || "pro" });
+      }
     }
+
+    // 2. Check JSON Flat Files Fallback
+    const authorizedList = fs.existsSync(AUTHORIZED_NUMBERS_FILE) ? JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8")) : [];
+    const foundAuth = authorizedList.find((item: any) => cleanPhoneDigits(item.number) === cleanedNum);
+    if (foundAuth) {
+      return res.status(200).json({ authorized: true, tier: foundAuth.tier || "pro" });
+    }
+
     const payments = fs.existsSync(PAYMENTS_FILE) ? JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8")) : [];
-    const paid = payments.find((p: any) => cleanPhoneDigits(p.phone) === cleanedNum);
-    if (paid) {
-      return res.status(200).json({ authorized: true, tier: paid.tier || "pro" });
+    const foundPayment = payments.find((p: any) => cleanPhoneDigits(p.number || p.phone) === cleanedNum);
+    if (foundPayment) {
+      return res.status(200).json({ authorized: true, tier: foundPayment.tier || "pro" });
+    }
+
+    const submissions = fs.existsSync(SUBMISSIONS_FILE) ? JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, "utf-8")) : [];
+    const foundSub = submissions.find((s: any) => cleanPhoneDigits(s.number) === cleanedNum && (s.isPaid || s.hasPaidAccess));
+    if (foundSub) {
+      return res.status(200).json({ authorized: true, tier: foundSub.tier || "pro" });
     }
 
     return res.status(200).json({ authorized: false });
@@ -3647,6 +3707,7 @@ app.post("/api/courses", verifyAdmin, async (req, res) => {
       discountPrice: Number(req.body.discountPrice) || 1999,
       duration: req.body.duration || "10 Hours",
       level: req.body.level || "All Levels",
+      batch: req.body.batch || "Regular Self-Paced Batch",
       published: req.body.published ?? true,
       chapters: req.body.chapters || [],
       createdAt: new Date().toISOString()

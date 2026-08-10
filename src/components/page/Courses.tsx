@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { 
   PlayCircle, CheckCircle, Lock, ShieldCheck, FileText, Download, 
@@ -16,6 +16,7 @@ export default function Courses() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTier, setSelectedTier] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedBatch, setSelectedBatch] = useState<string>("all");
 
   // Student Auth State
   const [studentPhone, setStudentPhone] = useState("");
@@ -71,7 +72,8 @@ export default function Courses() {
     if (!phoneToVerify.trim()) return;
     setIsVerifying(true);
     try {
-      const cleanNum = phoneToVerify.replace(/[^0-9]/g, "");
+      const rawDigits = phoneToVerify.replace(/[^0-9]/g, "");
+      const cleanNum = rawDigits.length > 10 ? rawDigits.slice(-10) : rawDigits;
       const res = await fetch("/api/check-premium-access", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -111,7 +113,7 @@ export default function Courses() {
     }
   };
 
-  const handlePhoneSubmit = (e: React.FormEvent) => {
+  const handlePhoneSubmit = (e: FormEvent) => {
     e.preventDefault();
     verifyStudentAccess(inputPhone);
   };
@@ -175,16 +177,28 @@ export default function Courses() {
     return url;
   };
 
+  // Helper to guarantee external URLs open with protocol in new tabs
+  const formatExternalUrl = (url?: string) => {
+    if (!url) return "#";
+    if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) {
+      return url;
+    }
+    return `https://${url}`;
+  };
+
   const filteredCourses = courses.filter(course => {
     const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           course.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          course.category.toLowerCase().includes(searchQuery.toLowerCase());
+                          course.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (course.batch && course.batch.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesTier = selectedTier === "all" || course.tier === selectedTier;
     const matchesCategory = selectedCategory === "all" || course.category === selectedCategory;
-    return matchesSearch && matchesTier && matchesCategory;
+    const matchesBatch = selectedBatch === "all" || course.batch === selectedBatch;
+    return matchesSearch && matchesTier && matchesCategory && matchesBatch;
   });
 
   const categories = Array.from(new Set(courses.map(c => c.category)));
+  const batches = Array.from(new Set(courses.map(c => c.batch).filter(Boolean))) as string[];
 
   return (
     <div className="min-h-screen bg-zinc-900 text-zinc-100 flex flex-col font-sans">
@@ -318,12 +332,12 @@ export default function Courses() {
             )}
           </div>
 
-          {/* Tier & Category Filters */}
+          {/* Tier, Category & Batch Filters */}
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
             <select
               value={selectedTier}
               onChange={(e) => setSelectedTier(e.target.value)}
-              className="rounded-xl bg-zinc-800 border border-zinc-700 px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="rounded-xl bg-zinc-800 border border-zinc-700 px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
             >
               <option value="all">All Access Tiers</option>
               <option value="basic">Basic Tier</option>
@@ -334,13 +348,26 @@ export default function Courses() {
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="rounded-xl bg-zinc-800 border border-zinc-700 px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="rounded-xl bg-zinc-800 border border-zinc-700 px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
             >
               <option value="all">All Categories & Grades</option>
               {categories.map((cat, idx) => (
                 <option key={idx} value={cat}>{cat}</option>
               ))}
             </select>
+
+            {batches.length > 0 && (
+              <select
+                value={selectedBatch}
+                onChange={(e) => setSelectedBatch(e.target.value)}
+                className="rounded-xl bg-zinc-800 border border-emerald-500/40 px-3 py-2 text-xs text-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+              >
+                <option value="all">All Course Batches</option>
+                {batches.map((batch, idx) => (
+                  <option key={idx} value={batch}>Batch: {batch}</option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
       </section>
@@ -358,7 +385,7 @@ export default function Courses() {
             <h3 className="text-lg font-bold text-white mb-1">No Courses Found</h3>
             <p className="text-xs text-zinc-400 mb-4">Try adjusting your search query or filters.</p>
             <button
-              onClick={() => { setSearchQuery(""); setSelectedTier("all"); setSelectedCategory("all"); }}
+              onClick={() => { setSearchQuery(""); setSelectedTier("all"); setSelectedCategory("all"); setSelectedBatch("all"); }}
               className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-white transition-all"
             >
               Reset Filters
@@ -419,9 +446,19 @@ export default function Courses() {
 
                   {/* Course Body */}
                   <div className="flex flex-1 flex-col p-5">
-                    <h3 className="text-base font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-2 mb-2">
+                    <h3 className="text-base font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-2 mb-1">
                       {course.title}
                     </h3>
+
+                    {course.batch && (
+                      <div className="mb-2">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                          <Sparkles className="h-3 w-3 text-emerald-400" />
+                          Batch: {course.batch}
+                        </span>
+                      </div>
+                    )}
+
                     <p className="text-xs text-zinc-400 line-clamp-2 mb-4 leading-relaxed">
                       {course.description}
                     </p>
@@ -442,7 +479,7 @@ export default function Courses() {
                     <div className="flex items-center justify-between gap-3 pt-1">
                       <div>
                         <div className="text-[10px] text-zinc-500 line-through">₹{course.originalPrice.toLocaleString("en-IN")}</div>
-                        <div className="text-base font-black text-white">₹{course.discountPrice.toLocaleString("en-IN")}</div>
+                        <div className="text-base font-black text-emerald-400">₹{course.discountPrice.toLocaleString("en-IN")}</div>
                       </div>
 
                       {hasAccess ? (
@@ -455,7 +492,7 @@ export default function Courses() {
                         </button>
                       ) : (
                         <PaymentModal
-                          planName={course.title}
+                          planName={`${course.title}${course.batch ? ` [Batch: ${course.batch}]` : ''}`}
                           planPrice={`₹${course.discountPrice}`}
                           defaultProgram={course.category}
                           buttonText={`Unlock (${course.tier.toUpperCase()})`}
@@ -510,7 +547,7 @@ export default function Courses() {
                 {activeLesson ? (
                   <>
                     {/* Video Window */}
-                    <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl mb-4">
+                    <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl mb-2">
                       {activeLesson.videoUrl ? (
                         <iframe
                           src={formatEmbedUrl(activeLesson.videoUrl)}
@@ -527,6 +564,20 @@ export default function Courses() {
                         </div>
                       )}
                     </div>
+
+                    {activeLesson.videoUrl && (
+                      <div className="flex justify-end mb-4">
+                        <a
+                          href={formatExternalUrl(activeLesson.videoUrl)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-emerald-400 hover:text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition-colors border border-zinc-800"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Open Video Link in New Window / App ↗
+                        </a>
+                      </div>
+                    )}
 
                     {/* Lesson Title & Completion Toggle */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800/80 pb-4 mb-4">
@@ -603,7 +654,7 @@ export default function Courses() {
                                 </div>
                                 {att.fileUrl ? (
                                   <a
-                                    href={att.fileUrl}
+                                    href={formatExternalUrl(att.fileUrl)}
                                     target="_blank"
                                     rel="noreferrer"
                                     className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1.5 transition-all"

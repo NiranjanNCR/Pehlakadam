@@ -1,15 +1,32 @@
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, FormEvent, ChangeEvent } from "react";
 import { Course, Lesson, Chapter, UserTier, LessonAttachment } from "../types";
 import { 
   Plus, Trash2, Edit3, Video, FileText, Layers, CheckCircle, 
   X, Save, Sparkles, BookOpen, Clock, Tag, ExternalLink, ChevronDown, Upload
 } from "lucide-react";
 
+const COURSE_BATCH_OPTIONS = [
+  "Regular Self-Paced Batch",
+  "Weekend Intensive Batch",
+  "Fast-Track Mastery Batch",
+  "Live Mentorship Batch 2026",
+  "Evening Executive Batch",
+  "Summer Career Acceleration Batch",
+  "Custom Evening Batch",
+  "Morning Fast-Track Cohort"
+];
+
 export default function AdminCourses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreatingCourse, setIsCreatingCourse] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+
+  // Custom Batch States
+  const [isCustomBatchNew, setIsCustomBatchNew] = useState(false);
+  const [customBatchTextNew, setCustomBatchTextNew] = useState("");
+  const [isCustomBatchEdit, setIsCustomBatchEdit] = useState(false);
+  const [customBatchTextEdit, setCustomBatchTextEdit] = useState("");
 
   // New Course Form State
   const [courseForm, setCourseForm] = useState({
@@ -19,6 +36,7 @@ export default function AdminCourses() {
     thumbnailUrl: "",
     tier: "advance" as UserTier,
     category: "Primary Kudos",
+    batch: "Regular Self-Paced Batch",
     originalPrice: 4999,
     discountPrice: 1999,
     duration: "10 Hours",
@@ -116,6 +134,7 @@ export default function AdminCourses() {
           thumbnailUrl: "",
           tier: "advance",
           category: "Primary Kudos",
+          batch: "Regular Self-Paced Batch",
           originalPrice: 4999,
           discountPrice: 1999,
           duration: "10 Hours",
@@ -150,6 +169,51 @@ export default function AdminCourses() {
     }
   };
 
+  // Image File Uploader Helper
+  const handleImageFileUpload = (e: ChangeEvent<HTMLInputElement>, isEditMode: boolean) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      if (isEditMode && editingCourse) {
+        setEditingCourse({ ...editingCourse, thumbnailUrl: base64 });
+      } else {
+        setCourseForm(prev => ({ ...prev, thumbnailUrl: base64 }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUpdateCourse = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingCourse || !editingCourse.title.trim()) return;
+    try {
+      const token = localStorage.getItem("pehlakadam_admin_token");
+      const res = await fetch(`/api/courses/${editingCourse.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(editingCourse)
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setEditingCourse(null);
+        fetchCourses();
+        if (selectedCourseForCurriculum?.id === updated.id) {
+          setSelectedCourseForCurriculum(updated);
+        }
+        alert("✅ Course updated successfully!");
+      } else {
+        alert("Failed to update course.");
+      }
+    } catch (err) {
+      console.error("Error updating course:", err);
+    }
+  };
+
   const handleAddChapter = async (e: FormEvent) => {
     e.preventDefault();
     if (!selectedCourseForCurriculum || !newChapterTitle.trim()) return;
@@ -163,6 +227,18 @@ export default function AdminCourses() {
     const updatedChapters = [...(selectedCourseForCurriculum.chapters || []), newChapter];
     await saveCourseCurriculum(selectedCourseForCurriculum.id, updatedChapters);
     setNewChapterTitle("");
+    setActiveChapterId(newChapter.id); // Auto-open lesson form for the new chapter
+  };
+
+  const handleDeleteChapter = async (chapterId: string, chapterTitle: string) => {
+    if (!selectedCourseForCurriculum) return;
+    if (!confirm(`Are you sure you want to delete chapter "${chapterTitle}" and all its lessons?`)) return;
+
+    const updatedChapters = selectedCourseForCurriculum.chapters.filter(ch => ch.id !== chapterId);
+    await saveCourseCurriculum(selectedCourseForCurriculum.id, updatedChapters);
+    if (activeChapterId === chapterId) {
+      setActiveChapterId("");
+    }
   };
 
   const handleAddLesson = async (e: FormEvent) => {
@@ -354,6 +430,63 @@ export default function AdminCourses() {
               </select>
             </div>
 
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-bold uppercase text-zinc-400">Course Batch Option</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !isCustomBatchNew;
+                    setIsCustomBatchNew(next);
+                    if (next) {
+                      const val = customBatchTextNew || "Custom Special Batch 2026";
+                      setCourseForm(prev => ({ ...prev, batch: val }));
+                    } else {
+                      setCourseForm(prev => ({ ...prev, batch: COURSE_BATCH_OPTIONS[0] }));
+                    }
+                  }}
+                  className="text-[10px] text-emerald-400 hover:text-emerald-300 font-semibold hover:underline cursor-pointer flex items-center gap-1"
+                >
+                  {isCustomBatchNew ? "← Select Predefined Batch" : "✍️ Type Custom Batch"}
+                </button>
+              </div>
+
+              {!isCustomBatchNew ? (
+                <select
+                  value={courseForm.batch}
+                  onChange={e => {
+                    if (e.target.value === "__CUSTOM__") {
+                      setIsCustomBatchNew(true);
+                      const val = customBatchTextNew || "Custom Special Batch 2026";
+                      setCourseForm(prev => ({ ...prev, batch: val }));
+                    } else {
+                      setCourseForm(prev => ({ ...prev, batch: e.target.value }));
+                    }
+                  }}
+                  className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white font-medium"
+                >
+                  {COURSE_BATCH_OPTIONS.map((b, idx) => (
+                    <option key={idx} value={b}>{b}</option>
+                  ))}
+                  <option value="__CUSTOM__">✨ ✍️ Type Custom Batch Name...</option>
+                </select>
+              ) : (
+                <div className="space-y-1">
+                  <input
+                    type="text"
+                    value={customBatchTextNew}
+                    onChange={e => {
+                      setCustomBatchTextNew(e.target.value);
+                      setCourseForm(prev => ({ ...prev, batch: e.target.value }));
+                    }}
+                    placeholder="Enter Custom Batch Name (e.g. JEE Target Batch 2026)"
+                    className="w-full rounded-xl bg-zinc-900 border border-emerald-500/60 px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium"
+                  />
+                  <p className="text-[10px] text-emerald-400">Custom batch name will be assigned to this course.</p>
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">Original Price (₹)</label>
@@ -375,15 +508,33 @@ export default function AdminCourses() {
               </div>
             </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">Course Thumbnail Image URL</label>
-              <input
-                type="url"
-                value={courseForm.thumbnailUrl}
-                onChange={e => setCourseForm({ ...courseForm, thumbnailUrl: e.target.value })}
-                placeholder="https://images.unsplash.com/photo-..."
-                className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white placeholder-zinc-500"
-              />
+            <div className="md:col-span-2 space-y-2">
+              <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">Course Thumbnail Image (System Upload or URL)</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="url"
+                  value={courseForm.thumbnailUrl}
+                  onChange={e => setCourseForm({ ...courseForm, thumbnailUrl: e.target.value })}
+                  placeholder="Paste Image URL or select file from system ->"
+                  className="flex-1 rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white placeholder-zinc-500"
+                />
+                <label className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-bold cursor-pointer flex items-center gap-1.5 shrink-0">
+                  <Upload className="h-3.5 w-3.5 text-emerald-400" />
+                  Upload from System
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={e => handleImageFileUpload(e, false)}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+              {courseForm.thumbnailUrl && (
+                <div className="mt-2 h-20 w-36 rounded-xl overflow-hidden border border-zinc-700 relative bg-zinc-900">
+                  <img src={courseForm.thumbnailUrl} alt="Thumbnail preview" className="h-full w-full object-cover" />
+                  <span className="absolute bottom-1 right-1 bg-black/80 px-1.5 py-0.5 rounded text-[9px] text-emerald-400 font-bold">Preview</span>
+                </div>
+              )}
             </div>
 
             <div className="md:col-span-2">
@@ -442,18 +593,42 @@ export default function AdminCourses() {
                     {course.tier}
                   </span>
 
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteCourse(course.id, course.title);
-                    }}
-                    className="text-zinc-500 hover:text-red-400 p-1"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingCourse(course);
+                        const isPre = COURSE_BATCH_OPTIONS.includes(course.batch || "");
+                        setIsCustomBatchEdit(!isPre);
+                        setCustomBatchTextEdit(course.batch || "");
+                      }}
+                      className="text-zinc-400 hover:text-amber-400 p-1 rounded-lg hover:bg-zinc-800 transition-colors"
+                      title="Edit Launch Course"
+                    >
+                      <Edit3 className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteCourse(course.id, course.title);
+                      }}
+                      className="text-zinc-500 hover:text-red-400 p-1 rounded-lg hover:bg-zinc-800 transition-colors"
+                      title="Delete Course"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 <h4 className="font-bold text-white text-xs mb-1 line-clamp-2">{course.title}</h4>
+                {course.batch && (
+                  <div className="mb-2">
+                    <span className="px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold inline-flex items-center gap-1">
+                      <Sparkles className="h-2.5 w-2.5 text-emerald-400" />
+                      Batch: {course.batch}
+                    </span>
+                  </div>
+                )}
                 <p className="text-[11px] text-zinc-400 line-clamp-2 mb-3">{course.description}</p>
 
                 <div className="flex items-center justify-between text-[10px] text-zinc-500 border-t border-zinc-800/80 pt-2">
@@ -506,12 +681,21 @@ export default function AdminCourses() {
                           <span className="text-xs font-bold text-emerald-400">CH {index + 1}</span>
                           <h4 className="font-bold text-white text-xs">{chapter.title}</h4>
                         </div>
-                        <button
-                          onClick={() => setActiveChapterId(activeChapterId === chapter.id ? "" : chapter.id)}
-                          className="text-[10px] text-emerald-400 font-semibold hover:underline"
-                        >
-                          {activeChapterId === chapter.id ? "Close Add Lesson" : "+ Add Video Lesson"}
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => setActiveChapterId(activeChapterId === chapter.id ? "" : chapter.id)}
+                            className="text-[10px] text-emerald-400 font-semibold hover:underline"
+                          >
+                            {activeChapterId === chapter.id ? "Close Add Lesson" : "+ Add Video Lesson"}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteChapter(chapter.id, chapter.title)}
+                            className="text-zinc-500 hover:text-red-400 p-1 transition-colors"
+                            title="Delete Chapter"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
 
                       {/* Add Lesson Sub-Form inside Chapter */}
@@ -607,6 +791,203 @@ export default function AdminCourses() {
           )}
         </div>
       </div>
+
+      {/* ✏️ EDIT LAUNCH COURSE MODAL */}
+      {editingCourse && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+          <form onSubmit={handleUpdateCourse} className="relative w-full max-w-2xl bg-zinc-950 border border-amber-500/40 rounded-3xl p-6 space-y-4 shadow-2xl animate-scale-up my-8">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Edit3 className="h-4 w-4 text-amber-400" />
+                Edit Launch Course Details
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingCourse(null)}
+                className="text-zinc-400 hover:text-white p-1"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">Course Title</label>
+                <input
+                  type="text"
+                  value={editingCourse.title}
+                  onChange={e => setEditingCourse({ ...editingCourse, title: e.target.value })}
+                  required
+                  className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">Access Tier Requirement</label>
+                <select
+                  value={editingCourse.tier}
+                  onChange={e => setEditingCourse({ ...editingCourse, tier: e.target.value as UserTier })}
+                  className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white font-semibold"
+                >
+                  <option value="basic">Basic Tier</option>
+                  <option value="advance">Advance Tier</option>
+                  <option value="pro">Pro Tier (Full Access)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">Academic Category / Grade</label>
+                <select
+                  value={editingCourse.category}
+                  onChange={e => setEditingCourse({ ...editingCourse, category: e.target.value })}
+                  className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white"
+                >
+                  <option value="Primary Kudos">Primary Kudos</option>
+                  <option value="6-8 Grade">6-8 Grade</option>
+                  <option value="8-10 Grade">8-10 Grade</option>
+                  <option value="11-12 Grade">11-12 Grade</option>
+                  <option value="UG/Graduate/PG">UG/Graduate/PG</option>
+                  <option value="Generalist to Specialist">Generalist to Specialist</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[10px] font-bold uppercase text-zinc-400">Course Batch Option</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !isCustomBatchEdit;
+                      setIsCustomBatchEdit(next);
+                      if (next) {
+                        const val = customBatchTextEdit || editingCourse.batch || "Custom Batch 2026";
+                        setEditingCourse({ ...editingCourse, batch: val });
+                      } else {
+                        setEditingCourse({ ...editingCourse, batch: COURSE_BATCH_OPTIONS[0] });
+                      }
+                    }}
+                    className="text-[10px] text-amber-400 hover:text-amber-300 font-semibold hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    {isCustomBatchEdit ? "← Select Predefined Batch" : "✍️ Type Custom Batch"}
+                  </button>
+                </div>
+
+                {!isCustomBatchEdit ? (
+                  <select
+                    value={COURSE_BATCH_OPTIONS.includes(editingCourse.batch || "") ? editingCourse.batch : "__CUSTOM__"}
+                    onChange={e => {
+                      if (e.target.value === "__CUSTOM__") {
+                        setIsCustomBatchEdit(true);
+                        const val = customBatchTextEdit || editingCourse.batch || "Custom Batch 2026";
+                        setEditingCourse({ ...editingCourse, batch: val });
+                      } else {
+                        setEditingCourse({ ...editingCourse, batch: e.target.value });
+                      }
+                    }}
+                    className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white font-medium"
+                  >
+                    {COURSE_BATCH_OPTIONS.map((b, idx) => (
+                      <option key={idx} value={b}>{b}</option>
+                    ))}
+                    <option value="__CUSTOM__">✨ ✍️ Type Custom Batch Name...</option>
+                  </select>
+                ) : (
+                  <div className="space-y-1">
+                    <input
+                      type="text"
+                      value={editingCourse.batch || customBatchTextEdit}
+                      onChange={e => {
+                        setCustomBatchTextEdit(e.target.value);
+                        setEditingCourse({ ...editingCourse, batch: e.target.value });
+                      }}
+                      placeholder="Enter Custom Batch Name (e.g. JEE Rankers Batch 2026)"
+                      className="w-full rounded-xl bg-zinc-900 border border-amber-500/60 px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
+                    />
+                    <p className="text-[10px] text-amber-400">Custom batch name will be saved for this course.</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">Original Price (₹)</label>
+                  <input
+                    type="number"
+                    value={editingCourse.originalPrice}
+                    onChange={e => setEditingCourse({ ...editingCourse, originalPrice: Number(e.target.value) })}
+                    className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">Discount Price (₹)</label>
+                  <input
+                    type="number"
+                    value={editingCourse.discountPrice}
+                    onChange={e => setEditingCourse({ ...editingCourse, discountPrice: Number(e.target.value) })}
+                    className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="md:col-span-2 space-y-2">
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">Course Thumbnail Image (System Upload or Link)</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="url"
+                    value={editingCourse.thumbnailUrl}
+                    onChange={e => setEditingCourse({ ...editingCourse, thumbnailUrl: e.target.value })}
+                    placeholder="Image URL or upload from device ->"
+                    className="flex-1 rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white"
+                  />
+                  <label className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-bold cursor-pointer flex items-center gap-1.5 shrink-0">
+                    <Upload className="h-3.5 w-3.5 text-amber-400" />
+                    Upload from System
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={e => handleImageFileUpload(e, true)}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                {editingCourse.thumbnailUrl && (
+                  <div className="mt-2 h-20 w-36 rounded-xl overflow-hidden border border-zinc-700 relative bg-zinc-900">
+                    <img src={editingCourse.thumbnailUrl} alt="Thumbnail preview" className="h-full w-full object-cover" />
+                    <span className="absolute bottom-1 right-1 bg-black/80 px-1.5 py-0.5 rounded text-[9px] text-amber-400 font-bold">Updated Preview</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">Course Description & Overview</label>
+                <textarea
+                  value={editingCourse.description}
+                  onChange={e => setEditingCourse({ ...editingCourse, description: e.target.value })}
+                  rows={3}
+                  className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white"
+                ></textarea>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setEditingCourse(null)}
+                className="px-4 py-2 rounded-xl bg-zinc-800 text-zinc-300 text-xs font-bold hover:bg-zinc-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-lg flex items-center gap-1.5 cursor-pointer"
+              >
+                <Save className="h-3.5 w-3.5" />
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
