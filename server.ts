@@ -637,6 +637,55 @@ const DiagnosticRegistrationSchema = new mongoose.Schema({
 
 const DiagnosticRegistrationModel = mongoose.model("DiagnosticRegistration", DiagnosticRegistrationSchema);
 
+// 📂 SCHEMA 12: LMS COURSES SCHEMA
+const CourseSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  slug: { type: String },
+  description: { type: String },
+  thumbnailUrl: { type: String },
+  tier: { type: String, default: "pro" },
+  category: { type: String, default: "Primary Kudos" },
+  originalPrice: { type: Number, default: 4999 },
+  discountPrice: { type: Number, default: 1999 },
+  duration: { type: String, default: "10 Hours" },
+  level: { type: String, default: "All Levels" },
+  batch: { type: String, default: "Regular Self-Paced Batch" },
+  published: { type: Boolean, default: true },
+  chapters: [{
+    id: { type: String },
+    title: { type: String },
+    lessons: [{
+      id: { type: String },
+      title: { type: String },
+      duration: { type: String },
+      videoUrl: { type: String },
+      summary: { type: String },
+      isFreePreview: { type: Boolean, default: false },
+      attachments: [{
+        id: { type: String },
+        title: { type: String },
+        type: { type: String },
+        fileUrl: { type: String }
+      }]
+    }]
+  }],
+  createdAt: { type: Date, default: Date.now }
+});
+
+const CourseModel = mongoose.model("Course", CourseSchema);
+
+// 📂 SCHEMA 13: PROMO COUPONS SCHEMA
+const CouponSchema = new mongoose.Schema({
+  code: { type: String, required: true, unique: true },
+  discountType: { type: String, enum: ["percentage", "fixed"], default: "percentage" },
+  discountValue: { type: Number, required: true },
+  minOrderAmount: { type: Number, default: 0 },
+  active: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const CouponModel = mongoose.model("Coupon", CouponSchema);
+
 /**
  * 🔒 URI MASKING UTILITY
  * Safely hides your database password and usernames from system console logs
@@ -3685,20 +3734,46 @@ app.post("/api/check-premium-access", async (req, res) => {
 // LMS COURSES ENDPOINTS
 app.get("/api/courses", async (req, res) => {
   try {
-    const courses = fs.existsSync(COURSES_FILE) ? JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8")) : [];
-    return res.status(200).json(courses);
+    if (isMongoConnected) {
+      let docs = await CourseModel.find().sort({ createdAt: -1 });
+      if (docs.length === 0) {
+        // Seed default courses into MongoDB if empty
+        const seeded = await CourseModel.insertMany(defaultCourses);
+        docs = seeded as any[];
+      }
+      const formatted = docs.map((doc: any) => ({
+        id: doc._id ? doc._id.toString() : doc.id,
+        title: doc.title,
+        slug: doc.slug,
+        description: doc.description,
+        thumbnailUrl: doc.thumbnailUrl,
+        tier: doc.tier,
+        category: doc.category,
+        originalPrice: doc.originalPrice,
+        discountPrice: doc.discountPrice,
+        duration: doc.duration,
+        level: doc.level,
+        batch: doc.batch || "Regular Self-Paced Batch",
+        published: doc.published ?? true,
+        chapters: doc.chapters || [],
+        createdAt: doc.createdAt ? (doc.createdAt.toISOString ? doc.createdAt.toISOString() : doc.createdAt) : new Date().toISOString()
+      }));
+      return res.status(200).json(formatted);
+    } else {
+      const courses = fs.existsSync(COURSES_FILE) ? JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8")) : defaultCourses;
+      return res.status(200).json(courses);
+    }
   } catch (err) {
+    console.error("[Pehlakadam API] Error fetching courses:", err);
     return res.status(500).json({ error: "Failed to fetch courses." });
   }
 });
 
 app.post("/api/courses", verifyAdmin, async (req, res) => {
   try {
-    const courses = fs.existsSync(COURSES_FILE) ? JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8")) : [];
-    const newCourse = {
-      id: "course-" + Date.now(),
+    const courseData = {
       title: req.body.title || "Untitled Course",
-      slug: req.body.slug || "course-" + Date.now(),
+      slug: req.body.slug || (req.body.title ? req.body.title.toLowerCase().replace(/[^a-z0-9]/g, "-") : "course-" + Date.now()),
       description: req.body.description || "",
       thumbnailUrl: req.body.thumbnailUrl || "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=800",
       tier: req.body.tier || "pro",
@@ -3709,38 +3784,118 @@ app.post("/api/courses", verifyAdmin, async (req, res) => {
       level: req.body.level || "All Levels",
       batch: req.body.batch || "Regular Self-Paced Batch",
       published: req.body.published ?? true,
-      chapters: req.body.chapters || [],
-      createdAt: new Date().toISOString()
+      chapters: req.body.chapters || []
     };
+
+    let newCourse: any = null;
+
+    if (isMongoConnected) {
+      const created = new CourseModel(courseData);
+      await created.save();
+      newCourse = {
+        id: created._id.toString(),
+        ...courseData,
+        createdAt: created.createdAt.toISOString()
+      };
+    } else {
+      newCourse = {
+        id: "course-" + Date.now(),
+        ...courseData,
+        createdAt: new Date().toISOString()
+      };
+    }
+
+    // Keep JSON file in sync for fallback
+    let courses: any[] = [];
+    try {
+      if (fs.existsSync(COURSES_FILE)) {
+        courses = JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8"));
+      }
+    } catch (e) {}
     courses.push(newCourse);
     fs.writeFileSync(COURSES_FILE, JSON.stringify(courses, null, 2));
+
     return res.status(201).json(newCourse);
   } catch (err) {
+    console.error("[Pehlakadam API] Error creating course:", err);
     return res.status(500).json({ error: "Failed to create course." });
   }
 });
 
 app.put("/api/courses/:id", verifyAdmin, async (req, res) => {
   try {
-    const courses = fs.existsSync(COURSES_FILE) ? JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8")) : [];
-    const index = courses.findIndex((c: any) => c.id === req.params.id);
-    if (index === -1) return res.status(404).json({ error: "Course not found" });
+    const { id } = req.params;
+    let updatedCourse: any = null;
 
-    courses[index] = { ...courses[index], ...req.body };
-    fs.writeFileSync(COURSES_FILE, JSON.stringify(courses, null, 2));
-    return res.status(200).json(courses[index]);
+    if (isMongoConnected) {
+      let doc = await CourseModel.findById(id);
+      if (!doc) {
+        doc = await CourseModel.findOne({ slug: id });
+      }
+      if (doc) {
+        Object.assign(doc, req.body);
+        await doc.save();
+        updatedCourse = {
+          id: doc._id.toString(),
+          title: doc.title,
+          slug: doc.slug,
+          description: doc.description,
+          thumbnailUrl: doc.thumbnailUrl,
+          tier: doc.tier,
+          category: doc.category,
+          originalPrice: doc.originalPrice,
+          discountPrice: doc.discountPrice,
+          duration: doc.duration,
+          level: doc.level,
+          batch: doc.batch,
+          published: doc.published,
+          chapters: doc.chapters,
+          createdAt: doc.createdAt
+        };
+      }
+    }
+
+    // Keep JSON file in sync
+    let courses: any[] = [];
+    try {
+      if (fs.existsSync(COURSES_FILE)) {
+        courses = JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8"));
+      }
+    } catch (e) {}
+    const index = courses.findIndex((c: any) => c.id === id || c.slug === id);
+    if (index !== -1) {
+      courses[index] = { ...courses[index], ...req.body };
+      fs.writeFileSync(COURSES_FILE, JSON.stringify(courses, null, 2));
+      if (!updatedCourse) updatedCourse = courses[index];
+    }
+
+    if (!updatedCourse) return res.status(404).json({ error: "Course not found" });
+    return res.status(200).json(updatedCourse);
   } catch (err) {
+    console.error("[Pehlakadam API] Error updating course:", err);
     return res.status(500).json({ error: "Failed to update course." });
   }
 });
 
 app.delete("/api/courses/:id", verifyAdmin, async (req, res) => {
   try {
-    let courses = fs.existsSync(COURSES_FILE) ? JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8")) : [];
-    courses = courses.filter((c: any) => c.id !== req.params.id);
+    const { id } = req.params;
+    if (isMongoConnected) {
+      await CourseModel.findByIdAndDelete(id);
+    }
+
+    let courses: any[] = [];
+    try {
+      if (fs.existsSync(COURSES_FILE)) {
+        courses = JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8"));
+      }
+    } catch (e) {}
+    courses = courses.filter((c: any) => c.id !== id);
     fs.writeFileSync(COURSES_FILE, JSON.stringify(courses, null, 2));
+
     return res.status(200).json({ success: true });
   } catch (err) {
+    console.error("[Pehlakadam API] Error deleting course:", err);
     return res.status(500).json({ error: "Failed to delete course." });
   }
 });
@@ -3748,8 +3903,26 @@ app.delete("/api/courses/:id", verifyAdmin, async (req, res) => {
 // PROMO COUPONS ENDPOINTS
 app.get("/api/coupons", verifyAdmin, async (req, res) => {
   try {
-    const coupons = fs.existsSync(COUPONS_FILE) ? JSON.parse(fs.readFileSync(COUPONS_FILE, "utf-8")) : [];
-    return res.status(200).json(coupons);
+    if (isMongoConnected) {
+      let docs = await CouponModel.find().sort({ createdAt: -1 });
+      if (docs.length === 0) {
+        const seeded = await CouponModel.insertMany(defaultCoupons);
+        docs = seeded as any[];
+      }
+      const formatted = docs.map((d: any) => ({
+        id: d._id ? d._id.toString() : d.id,
+        code: d.code,
+        discountType: d.discountType,
+        discountValue: d.discountValue,
+        minOrderAmount: d.minOrderAmount,
+        active: d.active,
+        createdAt: d.createdAt ? (d.createdAt.toISOString ? d.createdAt.toISOString() : d.createdAt) : new Date().toISOString()
+      }));
+      return res.status(200).json(formatted);
+    } else {
+      const coupons = fs.existsSync(COUPONS_FILE) ? JSON.parse(fs.readFileSync(COUPONS_FILE, "utf-8")) : defaultCoupons;
+      return res.status(200).json(coupons);
+    }
   } catch (err) {
     return res.status(500).json({ error: "Failed to fetch coupons." });
   }
@@ -3757,39 +3930,85 @@ app.get("/api/coupons", verifyAdmin, async (req, res) => {
 
 app.post("/api/coupons", verifyAdmin, async (req, res) => {
   try {
-    const coupons = fs.existsSync(COUPONS_FILE) ? JSON.parse(fs.readFileSync(COUPONS_FILE, "utf-8")) : [];
     const code = (req.body.code || "").trim().toUpperCase();
     if (!code) return res.status(400).json({ error: "Code required" });
-    if (coupons.some((c: any) => c.code === code)) {
+
+    if (isMongoConnected) {
+      const existing = await CouponModel.findOne({ code });
+      if (existing) return res.status(400).json({ error: "Coupon code already exists." });
+    }
+    const localCoupons = fs.existsSync(COUPONS_FILE) ? JSON.parse(fs.readFileSync(COUPONS_FILE, "utf-8")) : [];
+    if (localCoupons.some((c: any) => c.code === code)) {
       return res.status(400).json({ error: "Coupon code already exists." });
     }
 
-    const newCoupon = {
-      id: "coup-" + Date.now(),
+    const couponData = {
       code,
       discountType: req.body.discountType || "percentage",
       discountValue: Number(req.body.discountValue) || 20,
       minOrderAmount: Number(req.body.minOrderAmount) || 0,
-      active: req.body.active ?? true,
-      createdAt: new Date().toISOString()
+      active: req.body.active ?? true
     };
-    coupons.push(newCoupon);
-    fs.writeFileSync(COUPONS_FILE, JSON.stringify(coupons, null, 2));
+
+    let newCoupon: any = null;
+
+    if (isMongoConnected) {
+      const created = new CouponModel(couponData);
+      await created.save();
+      newCoupon = {
+        id: created._id.toString(),
+        ...couponData,
+        createdAt: created.createdAt.toISOString()
+      };
+    } else {
+      newCoupon = {
+        id: "coup-" + Date.now(),
+        ...couponData,
+        createdAt: new Date().toISOString()
+      };
+    }
+
+    localCoupons.push(newCoupon);
+    fs.writeFileSync(COUPONS_FILE, JSON.stringify(localCoupons, null, 2));
     return res.status(201).json(newCoupon);
   } catch (err) {
+    console.error("[Pehlakadam API] Error creating coupon:", err);
     return res.status(500).json({ error: "Failed to create coupon." });
   }
 });
 
 app.put("/api/coupons/:id", verifyAdmin, async (req, res) => {
   try {
-    const coupons = fs.existsSync(COUPONS_FILE) ? JSON.parse(fs.readFileSync(COUPONS_FILE, "utf-8")) : [];
-    const index = coupons.findIndex((c: any) => c.id === req.params.id);
-    if (index === -1) return res.status(404).json({ error: "Coupon not found" });
+    const { id } = req.params;
+    let updated: any = null;
 
-    coupons[index] = { ...coupons[index], ...req.body };
-    fs.writeFileSync(COUPONS_FILE, JSON.stringify(coupons, null, 2));
-    return res.status(200).json(coupons[index]);
+    if (isMongoConnected) {
+      const doc = await CouponModel.findById(id);
+      if (doc) {
+        Object.assign(doc, req.body);
+        await doc.save();
+        updated = {
+          id: doc._id.toString(),
+          code: doc.code,
+          discountType: doc.discountType,
+          discountValue: doc.discountValue,
+          minOrderAmount: doc.minOrderAmount,
+          active: doc.active,
+          createdAt: doc.createdAt
+        };
+      }
+    }
+
+    const coupons = fs.existsSync(COUPONS_FILE) ? JSON.parse(fs.readFileSync(COUPONS_FILE, "utf-8")) : [];
+    const index = coupons.findIndex((c: any) => c.id === id);
+    if (index !== -1) {
+      coupons[index] = { ...coupons[index], ...req.body };
+      fs.writeFileSync(COUPONS_FILE, JSON.stringify(coupons, null, 2));
+      if (!updated) updated = coupons[index];
+    }
+
+    if (!updated) return res.status(404).json({ error: "Coupon not found" });
+    return res.status(200).json(updated);
   } catch (err) {
     return res.status(500).json({ error: "Failed to update coupon." });
   }
@@ -3797,8 +4016,12 @@ app.put("/api/coupons/:id", verifyAdmin, async (req, res) => {
 
 app.delete("/api/coupons/:id", verifyAdmin, async (req, res) => {
   try {
+    const { id } = req.params;
+    if (isMongoConnected) {
+      await CouponModel.findByIdAndDelete(id);
+    }
     let coupons = fs.existsSync(COUPONS_FILE) ? JSON.parse(fs.readFileSync(COUPONS_FILE, "utf-8")) : [];
-    coupons = coupons.filter((c: any) => c.id !== req.params.id);
+    coupons = coupons.filter((c: any) => c.id !== id);
     fs.writeFileSync(COUPONS_FILE, JSON.stringify(coupons, null, 2));
     return res.status(200).json({ success: true });
   } catch (err) {
@@ -3811,44 +4034,87 @@ app.delete("/api/coupons/:id", verifyAdmin, async (req, res) => {
 // =========================================================================================
 app.post("/api/coupons/validate", async (req, res) => {
   try {
-    const { code } = req.body;
-    if (!code) {
-      return res.status(400).json({ error: "Coupon code is required." });
+    const { code, originalPrice, amount } = req.body;
+    if (!code || typeof code !== "string" || !code.trim()) {
+      return res.status(400).json({ valid: false, success: false, message: "Coupon code is required." });
     }
 
     const normalizedCode = code.trim().toUpperCase();
-    const coupons = fs.existsSync(COUPONS_FILE) ? JSON.parse(fs.readFileSync(COUPONS_FILE, "utf-8")) : [];
-    const found = coupons.find((c: any) => c.code === normalizedCode && c.active);
+    const price = Number(originalPrice || amount || 0);
 
-    if (found) {
-      return res.status(200).json({
-        success: true,
-        coupon: found
-      });
+    let foundCoupon: any = null;
+
+    if (isMongoConnected) {
+      const doc = await CouponModel.findOne({ code: normalizedCode, active: true });
+      if (doc) {
+        foundCoupon = {
+          code: doc.code,
+          discountType: doc.discountType,
+          discountValue: doc.discountValue,
+          minOrderAmount: doc.minOrderAmount
+        };
+      }
+    }
+
+    if (!foundCoupon) {
+      const coupons = fs.existsSync(COUPONS_FILE) ? JSON.parse(fs.readFileSync(COUPONS_FILE, "utf-8")) : [];
+      const localFound = coupons.find((c: any) => c.code === normalizedCode && (c.active !== false));
+      if (localFound) {
+        foundCoupon = localFound;
+      }
     }
 
     // Fallback static map
-    const validCoupons: Record<string, { code: string; discountType: "percentage" | "fixed"; discountValue: number }> = {
-      FESTIVE100: { code: "FESTIVE100", discountType: "percentage", discountValue: 100 },
-      PEHLA50: { code: "PEHLA50", discountType: "percentage", discountValue: 50 },
-      WELCOME20: { code: "WELCOME20", discountType: "percentage", discountValue: 20 },
-      BKPILANI100: { code: "BKPILANI100", discountType: "percentage", discountValue: 100 },
-      FREE100: { code: "FREE100", discountType: "percentage", discountValue: 100 },
-      PRO100: { code: "PRO100", discountType: "percentage", discountValue: 100 },
-    };
-
-    const coupon = validCoupons[normalizedCode];
-    if (coupon) {
-      return res.status(200).json({
-        success: true,
-        coupon
-      });
-    } else {
-      return res.status(400).json({ error: "Invalid, expired, or inactive coupon code." });
+    if (!foundCoupon) {
+      const validCoupons: Record<string, { code: string; discountType: "percentage" | "fixed"; discountValue: number; minOrderAmount?: number }> = {
+        FESTIVE100: { code: "FESTIVE100", discountType: "percentage", discountValue: 100 },
+        PEHLA50: { code: "PEHLA50", discountType: "percentage", discountValue: 50 },
+        WELCOME20: { code: "WELCOME20", discountType: "percentage", discountValue: 20 },
+        BKPILANI100: { code: "BKPILANI100", discountType: "percentage", discountValue: 100 },
+        FREE100: { code: "FREE100", discountType: "percentage", discountValue: 100 },
+        PRO100: { code: "PRO100", discountType: "percentage", discountValue: 100 },
+      };
+      if (validCoupons[normalizedCode]) {
+        foundCoupon = validCoupons[normalizedCode];
+      }
     }
+
+    if (!foundCoupon) {
+      return res.status(400).json({ valid: false, success: false, message: "Invalid, expired, or inactive coupon code." });
+    }
+
+    const minAmount = Number(foundCoupon.minOrderAmount || 0);
+    if (minAmount > 0 && price > 0 && price < minAmount) {
+      return res.status(400).json({
+        valid: false,
+        success: false,
+        message: `Minimum order amount for coupon "${foundCoupon.code}" is ₹${minAmount.toLocaleString("en-IN")}.`
+      });
+    }
+
+    let discountAmount = 0;
+    if (foundCoupon.discountType === "percentage") {
+      discountAmount = Math.round((price * Number(foundCoupon.discountValue)) / 100);
+    } else {
+      discountAmount = Math.min(price, Number(foundCoupon.discountValue));
+    }
+
+    const finalPrice = Math.max(0, price - discountAmount);
+
+    return res.status(200).json({
+      valid: true,
+      success: true,
+      code: foundCoupon.code,
+      discountType: foundCoupon.discountType,
+      discountValue: foundCoupon.discountValue,
+      discountAmount,
+      finalPrice,
+      message: `Coupon "${foundCoupon.code}" applied! You saved ₹${discountAmount.toLocaleString("en-IN")}.`,
+      coupon: foundCoupon
+    });
   } catch (error) {
     console.error("[Pehlakadam API] Error validating coupon:", error);
-    return res.status(500).json({ error: "Internal server error validating coupon." });
+    return res.status(500).json({ valid: false, success: false, message: "Failed to validate coupon code." });
   }
 });
 
