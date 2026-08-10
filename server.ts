@@ -34,6 +34,8 @@ const SYSTEM_STATS_FILE = path.join(process.cwd(), "system_stats.json");
 const CAREER_TIPS_SUBSCRIBERS_FILE = path.join(process.cwd(), "career_tips_subscribers.json");
 const WAITLIST_FILE = path.join(process.cwd(), "waitlist.json");
 const TESTIMONIALS_FILE = path.join(process.cwd(), "testimonials.json");
+const COURSES_FILE = path.join(process.cwd(), "courses.json");
+const COUPONS_FILE = path.join(process.cwd(), "coupons.json");
 const UPLOADS_DIR = path.join(process.cwd(), "uploads");
 
 // Middleware
@@ -102,6 +104,90 @@ const defaultTestimonials = [
 
 if (!fs.existsSync(TESTIMONIALS_FILE)) {
   fs.writeFileSync(TESTIMONIALS_FILE, JSON.stringify(defaultTestimonials, null, 2));
+}
+
+const defaultCourses = [
+  {
+    id: "course-1",
+    title: "Master Psychometric & Career Stream Blueprint",
+    slug: "master-psychometric-career-stream-blueprint",
+    description: "Comprehensive step-by-step masterclass covering MBTI, DISC, Holland Code, and multi-disciplinary career mapping for Grade 8-12 students.",
+    thumbnailUrl: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=800",
+    tier: "advance",
+    category: "8-10 Grade",
+    originalPrice: 4999,
+    discountPrice: 1999,
+    duration: "10 Hours",
+    level: "All Levels",
+    published: true,
+    createdAt: new Date().toISOString(),
+    chapters: [
+      {
+        id: "ch-1",
+        title: "Chapter 1: Foundations of Cognitive & Behavioral Diagnostics",
+        lessons: [
+          {
+            id: "les-1",
+            title: "Lesson 1: Introduction to Psychometric Profiling",
+            duration: "12:30",
+            videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            summary: "Learn how personality traits dictate academic endurance and stream alignment.",
+            isFreePreview: true,
+            attachments: [
+              { id: "att-1", title: "Psychometric Worksheet.pdf", type: "pdf", fileUrl: "#" }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: "course-2",
+    title: "Pro Mentorship: Modern Tech & Management Placement Masterclass",
+    slug: "pro-mentorship-modern-tech-management-placement",
+    description: "1:1 coaching roadmap, LinkedIn positioning, resume profiling, and high-impact corporate placement guidance.",
+    thumbnailUrl: "https://images.unsplash.com/photo-1531482615713-2afd69097998?q=80&w=800",
+    tier: "pro",
+    category: "UG/Graduate/PG",
+    originalPrice: 9999,
+    discountPrice: 3999,
+    duration: "18 Hours",
+    level: "Advanced",
+    published: true,
+    createdAt: new Date().toISOString(),
+    chapters: [
+      {
+        id: "ch-21",
+        title: "Chapter 1: Corporate Resume & LinkedIn Optimization",
+        lessons: [
+          {
+            id: "les-21",
+            title: "Lesson 1: Executive Resume Architecture",
+            duration: "20:00",
+            videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            summary: "How to format your achievements for top HR screening software.",
+            isFreePreview: false,
+            attachments: []
+          }
+        ]
+      }
+    ]
+  }
+];
+
+if (!fs.existsSync(COURSES_FILE)) {
+  fs.writeFileSync(COURSES_FILE, JSON.stringify(defaultCourses, null, 2));
+}
+
+const defaultCoupons = [
+  { id: "coup-1", code: "PEHLA50", discountType: "percentage", discountValue: 50, minOrderAmount: 0, active: true, createdAt: new Date().toISOString() },
+  { id: "coup-2", code: "FESTIVE100", discountType: "percentage", discountValue: 100, minOrderAmount: 0, active: true, createdAt: new Date().toISOString() },
+  { id: "coup-3", code: "WELCOME20", discountType: "percentage", discountValue: 20, minOrderAmount: 0, active: true, createdAt: new Date().toISOString() },
+  { id: "coup-4", code: "PRO100", discountType: "percentage", discountValue: 100, minOrderAmount: 0, active: true, createdAt: new Date().toISOString() }
+];
+
+if (!fs.existsSync(COUPONS_FILE)) {
+  fs.writeFileSync(COUPONS_FILE, JSON.stringify(defaultCoupons, null, 2));
 }
 
 if (!fs.existsSync(PROGRAMS_CONFIG_FILE)) {
@@ -3423,18 +3509,21 @@ app.post("/api/authorized-numbers", verifyAdmin, async (req, res) => {
         return res.status(400).json({ error: "This phone number is already authorized." });
       }
 
-      const newDoc = new AuthorizedNumberModel({ number: cleanedNum });
+      const tier = req.body.tier || "pro";
+      const newDoc = new AuthorizedNumberModel({ number: cleanedNum, tier });
       await newDoc.save();
-      return res.status(200).json({ success: true, item: { id: newDoc._id.toString(), number: cleanedNum, createdAt: newDoc.createdAt } });
+      return res.status(200).json({ success: true, item: { id: newDoc._id.toString(), number: cleanedNum, tier, createdAt: newDoc.createdAt } });
     } else {
       const list = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
       if (list.some((item: any) => cleanPhoneDigits(item.number) === cleanedNum)) {
         return res.status(400).json({ error: "This phone number is already authorized." });
       }
 
+      const tier = req.body.tier || "pro";
       const newItem = {
         id: Date.now().toString(),
         number: cleanedNum,
+        tier,
         createdAt: new Date().toISOString()
       };
       list.push(newItem);
@@ -3491,15 +3580,168 @@ app.post("/api/check-access", async (req, res) => {
 
     if (isMongoConnected) {
       const doc = await AuthorizedNumberModel.findOne({ number: cleanedNum });
-      return res.status(200).json({ authorized: !!doc });
+      return res.status(200).json({ authorized: !!doc, tier: doc?.tier || "pro" });
     } else {
       const list = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
-      const isFound = list.some((item: any) => cleanPhoneDigits(item.number) === cleanedNum);
-      return res.status(200).json({ authorized: isFound });
+      const found = list.find((item: any) => cleanPhoneDigits(item.number) === cleanedNum);
+      return res.status(200).json({ authorized: !!found, tier: found?.tier || "pro" });
     }
   } catch (error) {
     console.error("[Pehlakadam API] Error checking premium access:", error);
     return res.status(500).json({ error: "Failed to check premium access." });
+  }
+});
+
+// CHECK PREMIUM ACCESS WITH TIER
+app.post("/api/check-premium-access", async (req, res) => {
+  try {
+    const { number } = req.body;
+    if (!number) {
+      return res.status(200).json({ authorized: false });
+    }
+    const cleanedNum = cleanPhoneDigits(number);
+    if (!cleanedNum) {
+      return res.status(200).json({ authorized: false });
+    }
+
+    const list = fs.existsSync(AUTHORIZED_NUMBERS_FILE) ? JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8")) : [];
+    const found = list.find((item: any) => cleanPhoneDigits(item.number) === cleanedNum);
+    if (found) {
+      return res.status(200).json({ authorized: true, tier: found.tier || "pro" });
+    }
+    const payments = fs.existsSync(PAYMENTS_FILE) ? JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8")) : [];
+    const paid = payments.find((p: any) => cleanPhoneDigits(p.phone) === cleanedNum);
+    if (paid) {
+      return res.status(200).json({ authorized: true, tier: paid.tier || "pro" });
+    }
+
+    return res.status(200).json({ authorized: false });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error checking premium access with tier:", error);
+    return res.status(500).json({ error: "Failed to check premium access." });
+  }
+});
+
+// LMS COURSES ENDPOINTS
+app.get("/api/courses", async (req, res) => {
+  try {
+    const courses = fs.existsSync(COURSES_FILE) ? JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8")) : [];
+    return res.status(200).json(courses);
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to fetch courses." });
+  }
+});
+
+app.post("/api/courses", verifyAdmin, async (req, res) => {
+  try {
+    const courses = fs.existsSync(COURSES_FILE) ? JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8")) : [];
+    const newCourse = {
+      id: "course-" + Date.now(),
+      title: req.body.title || "Untitled Course",
+      slug: req.body.slug || "course-" + Date.now(),
+      description: req.body.description || "",
+      thumbnailUrl: req.body.thumbnailUrl || "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=800",
+      tier: req.body.tier || "pro",
+      category: req.body.category || "Primary Kudos",
+      originalPrice: Number(req.body.originalPrice) || 4999,
+      discountPrice: Number(req.body.discountPrice) || 1999,
+      duration: req.body.duration || "10 Hours",
+      level: req.body.level || "All Levels",
+      published: req.body.published ?? true,
+      chapters: req.body.chapters || [],
+      createdAt: new Date().toISOString()
+    };
+    courses.push(newCourse);
+    fs.writeFileSync(COURSES_FILE, JSON.stringify(courses, null, 2));
+    return res.status(201).json(newCourse);
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to create course." });
+  }
+});
+
+app.put("/api/courses/:id", verifyAdmin, async (req, res) => {
+  try {
+    const courses = fs.existsSync(COURSES_FILE) ? JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8")) : [];
+    const index = courses.findIndex((c: any) => c.id === req.params.id);
+    if (index === -1) return res.status(404).json({ error: "Course not found" });
+
+    courses[index] = { ...courses[index], ...req.body };
+    fs.writeFileSync(COURSES_FILE, JSON.stringify(courses, null, 2));
+    return res.status(200).json(courses[index]);
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to update course." });
+  }
+});
+
+app.delete("/api/courses/:id", verifyAdmin, async (req, res) => {
+  try {
+    let courses = fs.existsSync(COURSES_FILE) ? JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8")) : [];
+    courses = courses.filter((c: any) => c.id !== req.params.id);
+    fs.writeFileSync(COURSES_FILE, JSON.stringify(courses, null, 2));
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to delete course." });
+  }
+});
+
+// PROMO COUPONS ENDPOINTS
+app.get("/api/coupons", verifyAdmin, async (req, res) => {
+  try {
+    const coupons = fs.existsSync(COUPONS_FILE) ? JSON.parse(fs.readFileSync(COUPONS_FILE, "utf-8")) : [];
+    return res.status(200).json(coupons);
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to fetch coupons." });
+  }
+});
+
+app.post("/api/coupons", verifyAdmin, async (req, res) => {
+  try {
+    const coupons = fs.existsSync(COUPONS_FILE) ? JSON.parse(fs.readFileSync(COUPONS_FILE, "utf-8")) : [];
+    const code = (req.body.code || "").trim().toUpperCase();
+    if (!code) return res.status(400).json({ error: "Code required" });
+    if (coupons.some((c: any) => c.code === code)) {
+      return res.status(400).json({ error: "Coupon code already exists." });
+    }
+
+    const newCoupon = {
+      id: "coup-" + Date.now(),
+      code,
+      discountType: req.body.discountType || "percentage",
+      discountValue: Number(req.body.discountValue) || 20,
+      minOrderAmount: Number(req.body.minOrderAmount) || 0,
+      active: req.body.active ?? true,
+      createdAt: new Date().toISOString()
+    };
+    coupons.push(newCoupon);
+    fs.writeFileSync(COUPONS_FILE, JSON.stringify(coupons, null, 2));
+    return res.status(201).json(newCoupon);
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to create coupon." });
+  }
+});
+
+app.put("/api/coupons/:id", verifyAdmin, async (req, res) => {
+  try {
+    const coupons = fs.existsSync(COUPONS_FILE) ? JSON.parse(fs.readFileSync(COUPONS_FILE, "utf-8")) : [];
+    const index = coupons.findIndex((c: any) => c.id === req.params.id);
+    if (index === -1) return res.status(404).json({ error: "Coupon not found" });
+
+    coupons[index] = { ...coupons[index], ...req.body };
+    fs.writeFileSync(COUPONS_FILE, JSON.stringify(coupons, null, 2));
+    return res.status(200).json(coupons[index]);
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to update coupon." });
+  }
+});
+
+app.delete("/api/coupons/:id", verifyAdmin, async (req, res) => {
+  try {
+    let coupons = fs.existsSync(COUPONS_FILE) ? JSON.parse(fs.readFileSync(COUPONS_FILE, "utf-8")) : [];
+    coupons = coupons.filter((c: any) => c.id !== req.params.id);
+    fs.writeFileSync(COUPONS_FILE, JSON.stringify(coupons, null, 2));
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to delete coupon." });
   }
 });
 
@@ -3514,12 +3756,24 @@ app.post("/api/coupons/validate", async (req, res) => {
     }
 
     const normalizedCode = code.trim().toUpperCase();
+    const coupons = fs.existsSync(COUPONS_FILE) ? JSON.parse(fs.readFileSync(COUPONS_FILE, "utf-8")) : [];
+    const found = coupons.find((c: any) => c.code === normalizedCode && c.active);
+
+    if (found) {
+      return res.status(200).json({
+        success: true,
+        coupon: found
+      });
+    }
+
+    // Fallback static map
     const validCoupons: Record<string, { code: string; discountType: "percentage" | "fixed"; discountValue: number }> = {
       FESTIVE100: { code: "FESTIVE100", discountType: "percentage", discountValue: 100 },
       PEHLA50: { code: "PEHLA50", discountType: "percentage", discountValue: 50 },
       WELCOME20: { code: "WELCOME20", discountType: "percentage", discountValue: 20 },
       BKPILANI100: { code: "BKPILANI100", discountType: "percentage", discountValue: 100 },
       FREE100: { code: "FREE100", discountType: "percentage", discountValue: 100 },
+      PRO100: { code: "PRO100", discountType: "percentage", discountValue: 100 },
     };
 
     const coupon = validCoupons[normalizedCode];

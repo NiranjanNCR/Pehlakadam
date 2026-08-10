@@ -8,6 +8,7 @@ import Contact from "./components/page/Contact";
 import Programs from "./components/page/Programs";
 import AdminSubmissions from "./components/page/AdminSubmissions";
 import Diagnostics from "./components/page/Diagnostics";
+import Courses from "./components/page/Courses";
 import AnnouncementBanner from "./components/AnnouncementBanner";
 
 export default function App() {
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="/about" element={<About />} />
           <Route path="/explore" element={<Explore />} />
           <Route path="/resources" element={<Resources />} />
+          <Route path="/courses" element={<Courses />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/programs/*" element={<Programs />} />
           <Route path="/diagnostics" element={<Diagnostics />} />

@@ -73,3 +73,65 @@ export interface Testimonial {
   fileData?: string;
   createdAt?: string;
 }
+
+export type UserTier = "basic" | "advance" | "pro";
+
+export interface AuthorizedUser {
+  id: string;
+  number: string;
+  tier: UserTier;
+  studentName?: string;
+  createdAt?: string;
+}
+
+export interface Coupon {
+  id: string;
+  code: string;
+  discountType: "percentage" | "fixed";
+  discountValue: number;
+  minOrderAmount?: number;
+  active: boolean;
+  createdAt?: string;
+}
+
+export interface LessonAttachment {
+  id: string;
+  title: string;
+  fileUrl?: string;
+  fileData?: string;
+  type?: "pdf" | "link" | "document";
+}
+
+export interface Lesson {
+  id: string;
+  title: string;
+  duration: string;
+  videoUrl: string;
+  summary: string;
+  attachments?: LessonAttachment[];
+  isFreePreview?: boolean;
+}
+
+export interface Chapter {
+  id: string;
+  title: string;
+  lessons: Lesson[];
+}
+
+export interface Course {
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  thumbnailUrl: string;
+  tier: UserTier;
+  category: string;
+  originalPrice: number;
+  discountPrice: number;
+  duration: string;
+  level: string;
+  chapters: Chapter[];
+  published: boolean;
+  createdAt?: string;
+}
+

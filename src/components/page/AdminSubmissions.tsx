@@ -3,6 +3,8 @@ import NavigationBar from "../NavigationBar";
 import Footer from "../Footer";
 import AdminProgramsConfig from "../AdminProgramsConfig";
 import AdminDiagnostics from "../AdminDiagnostics";
+import AdminCourses from "../AdminCourses";
+import AdminCoupons from "../AdminCoupons";
 import {
   Search,
   Mail,
@@ -36,7 +38,9 @@ import {
   Video,
   ExternalLink,
   X,
-  CheckCircle2
+  CheckCircle2,
+  BookOpen,
+  Tag
 } from "lucide-react";
 import { Submission, ResourceMaterial, SessionUpdate, Testimonial } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
@@ -44,7 +48,7 @@ import { motion, AnimatePresence } from "motion/react";
 // =========================================================================================
 // 👑 ADMIN DASHBOARD SUB-SYSTEM ROUTING DEFINITION
 // =========================================================================================
-type AdminTab = "leads" | "payments" | "resources" | "broadcast" | "paid-access" | "programs-config" | "diagnostics" | "system-stats" | "subscribers" | "testimonials";
+type AdminTab = "leads" | "payments" | "resources" | "lms-courses" | "coupons" | "broadcast" | "paid-access" | "programs-config" | "diagnostics" | "system-stats" | "subscribers" | "testimonials";
 
 export default function AdminSubmissions() {
   const [activeTab, setActiveTab] = useState<AdminTab>("leads");
@@ -1163,6 +1167,26 @@ export default function AdminSubmissions() {
               <FileText className="h-4 w-4" /> Resource Manager ({resources.length})
             </button>
             <button
+              onClick={() => setActiveTab("lms-courses")}
+              className={`py-4 px-6 text-xs uppercase tracking-wider font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === "lms-courses"
+                  ? "border-emerald-600 text-emerald-700 bg-emerald-50/20"
+                  : "border-transparent text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50"
+              }`}
+            >
+              <BookOpen className="h-4 w-4" /> LMS Courses
+            </button>
+            <button
+              onClick={() => setActiveTab("coupons")}
+              className={`py-4 px-6 text-xs uppercase tracking-wider font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === "coupons"
+                  ? "border-emerald-600 text-emerald-700 bg-emerald-50/20"
+                  : "border-transparent text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50"
+              }`}
+            >
+              <Tag className="h-4 w-4" /> Coupon Manager
+            </button>
+            <button
               onClick={() => setActiveTab("broadcast")}
               className={`py-4 px-6 text-xs uppercase tracking-wider font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
                 activeTab === "broadcast"
@@ -1259,6 +1283,28 @@ export default function AdminSubmissions() {
             <AnimatePresence mode="wait">
               
               {/* TAB 1: CONSULTATION LEADS */}
+              {activeTab === "lms-courses" && (
+                <motion.div
+                  key="lms-courses-tab"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                >
+                  <AdminCourses />
+                </motion.div>
+              )}
+
+              {activeTab === "coupons" && (
+                <motion.div
+                  key="coupons-tab"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                >
+                  <AdminCoupons />
+                </motion.div>
+              )}
+
               {activeTab === "leads" && (
                 <motion.div
                   key="leads-tab"

@@ -77,6 +77,17 @@ export default function PaymentModal({
   const [upiId, setUpiId] = useState("nrjstudywrk@okicici");
   const [merchantName, setMerchantName] = useState("Niranjan Singh (Pehlakadam)");
 
+  // Coupon Code State
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    discountAmount: number;
+    finalPrice: number;
+    message: string;
+  } | null>(null);
+  const [couponError, setCouponError] = useState("");
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+
   useEffect(() => {
     fetch("/api/system-stats")
       .then((res) => {
@@ -97,8 +108,48 @@ export default function PaymentModal({
   const currentPriceStr = planPrice || (formData.role ? (PROGRAM_PRICES[formData.role]?.displayPrice || "₹18,500") : "₹18,500");
   const numericAmount = parseInt(currentPriceStr.replace(/[^0-9]/g, "")) || 18500;
 
+  // Calculate discounted price
+  const effectiveAmount = appliedCoupon ? appliedCoupon.finalPrice : numericAmount;
+  const effectivePriceStr = "₹" + effectiveAmount.toLocaleString("en-IN");
+
+  const handleApplyCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!couponInput.trim()) return;
+    setIsValidatingCoupon(true);
+    setCouponError("");
+    try {
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: couponInput.trim(), originalPrice: numericAmount })
+      });
+      const data = await res.json();
+      if (res.ok && data.valid) {
+        setAppliedCoupon({
+          code: data.code,
+          discountAmount: data.discountAmount,
+          finalPrice: data.finalPrice,
+          message: data.message
+        });
+      } else {
+        setAppliedCoupon(null);
+        setCouponError(data.message || "Invalid coupon code.");
+      }
+    } catch (err) {
+      setCouponError("Failed to validate coupon code.");
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponInput("");
+    setCouponError("");
+  };
+
   // Generate standard UPI payload string
-  const upiUri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(merchantName)}&am=${numericAmount}&cu=INR&tn=${encodeURIComponent(`Pehlakadam Enrollment ${currentPlanName}`)}`;
+  const upiUri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(merchantName)}&am=${effectiveAmount}&cu=INR&tn=${encodeURIComponent(`Pehlakadam Enrollment ${currentPlanName}`)}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(upiUri)}`;
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -482,6 +533,50 @@ export default function PaymentModal({
                           </motion.div>
                         </div>
 
+                        {/* 🎟️ COUPON CODE DISCOUNT SECTION */}
+                        <div className="bg-zinc-850/80 p-3.5 rounded-2xl border border-zinc-700/80 space-y-2">
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-emerald-400 text-left">
+                            Have a Coupon Code?
+                          </label>
+
+                          {appliedCoupon ? (
+                            <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs">
+                              <div>
+                                <span className="font-extrabold uppercase text-white font-mono">{appliedCoupon.code}</span>
+                                <p className="text-[10px] text-emerald-200">{appliedCoupon.message}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={handleRemoveCoupon}
+                                className="text-[10px] font-bold text-red-400 hover:text-red-300 bg-red-950/40 px-2 py-1 rounded-lg border border-red-500/30"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={couponInput}
+                                onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                                placeholder="Enter Code e.g. PEHLA50"
+                                className="flex-1 rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono tracking-wider uppercase"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleApplyCoupon}
+                                disabled={isValidatingCoupon || !couponInput.trim()}
+                                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all disabled:opacity-50 shrink-0 cursor-pointer"
+                              >
+                                {isValidatingCoupon ? "Checking..." : "Apply"}
+                              </button>
+                            </div>
+                          )}
+                          {couponError && (
+                            <p className="text-[10px] text-red-400 font-semibold text-left">{couponError}</p>
+                          )}
+                        </div>
+
                         {/* Screenshot drag and drop upload zone */}
                         <motion.div animate={shakeFields.screenshot ? "shake" : "default"} variants={shakeVariants}>
                           <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5 text-left">
@@ -557,7 +652,14 @@ export default function PaymentModal({
                         </span>
 
                         <p className="text-xs text-zinc-400">Total Enrollment Fee</p>
-                        <h3 className="text-3xl font-black text-white font-sans mt-0.5 mb-1 tracking-tight">{currentPriceStr}</h3>
+                        {appliedCoupon ? (
+                          <div className="mt-0.5 mb-1">
+                            <span className="text-sm font-semibold text-zinc-500 line-through mr-2">{currentPriceStr}</span>
+                            <span className="text-3xl font-black text-emerald-400 font-sans tracking-tight">{effectivePriceStr}</span>
+                          </div>
+                        ) : (
+                          <h3 className="text-3xl font-black text-white font-sans mt-0.5 mb-1 tracking-tight">{currentPriceStr}</h3>
+                        )}
                         <p className="text-[10px] text-emerald-500 font-medium mb-4">Payee: {currentPlanName}</p>
 
                         {/* Interactive QR Code scan area */}

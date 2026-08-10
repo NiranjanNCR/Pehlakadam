@@ -331,7 +331,7 @@ export default function CartCourse() {
             </div>
           </motion.div>
 
-          {/* Card 3: Elite */}
+          {/* Card 3: Pro */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -341,7 +341,7 @@ export default function CartCourse() {
           >
             <div className="p-8 border-b border-zinc-100">
               <div className="flex items-center justify-between mb-4">
-                <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Premium Elite</span>
+                <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Premium Pro</span>
                 <ShieldCheck className="h-5 w-5 text-emerald-600" />
               </div>
               <h4 className="text-xl font-bold text-zinc-900 font-sans">{premiumCard.title}</h4>

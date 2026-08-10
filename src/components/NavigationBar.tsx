@@ -134,6 +134,16 @@ export default function NavigationBar() {
           </div>
 
           <Link
+            to="/courses"
+            className={`text-sm font-semibold transition-colors duration-200 flex items-center gap-1 ${
+              isActive("/courses") ? "text-emerald-600" : "text-zinc-600 hover:text-emerald-600"
+            }`}
+          >
+            Courses
+            <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase">LMS</span>
+          </Link>
+
+          <Link
             to="/resources"
             className={`text-sm font-semibold transition-colors duration-200 ${
               isActive("/resources") ? "text-emerald-600" : "text-zinc-600 hover:text-emerald-600"
@@ -226,6 +236,17 @@ export default function NavigationBar() {
                   ))}
                 </div>
               </div>
+
+              <Link
+                to="/courses"
+                onClick={toggleMenu}
+                className={`text-base font-semibold py-1.5 flex items-center justify-between ${
+                  isActive("/courses") ? "text-emerald-600" : "text-zinc-700"
+                }`}
+              >
+                <span>Courses</span>
+                <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-extrabold uppercase">LMS Academy</span>
+              </Link>
 
               <Link
                 to="/resources"
