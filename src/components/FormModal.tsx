@@ -162,7 +162,7 @@ export default function FormModal() {
                     >
                       <CheckCircle className="h-20 w-20 text-emerald-500 mb-6" />
                     </motion.div>
-                    <h3 className="text-2xl font-bold font-sans tracking-tight mb-2">Thank you!</h3>
+                    <h3 className="text-2xl font-bold font-sans tracking-tight text-white mb-2">Thank you!</h3>
                     <p className="text-zinc-400 max-w-xs mb-6">
                       Your request has been received. Our expert advisor will reach out to you shortly.
                     </p>

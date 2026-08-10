@@ -171,7 +171,7 @@ export default function CartCourse() {
             <span className="inline-flex items-center gap-1.5 text-xs font-semibold bg-emerald-500/20 text-emerald-300 px-3 py-1 rounded-full mb-4">
               <Sparkles className="h-3.5 w-3.5" /> Special Limited Offer
             </span>
-            <h3 className="text-2xl md:text-3xl font-bold font-sans tracking-tight mb-3">
+            <h3 className="text-2xl md:text-3xl font-bold font-sans tracking-tight text-white mb-3 drop-shadow-sm">
               Book a 30-min Consultation With Our Expert
             </h3>
             <p className="text-emerald-100/80 leading-relaxed text-sm md:text-base">

@@ -40,16 +40,18 @@ The architecture guarantees high availability and resilient persistence:
 *   **Endpoints**: `GET /api/coupons`, `POST /api/coupons`, `PUT /api/coupons/:id`, `DELETE /api/coupons/:id`, `POST /api/coupons/validate`
 *   **Pathways**:
     1. Admins create custom promo codes (Percentage % or Flat ₹ Off, min cart requirements, active/inactive toggles).
-    2. During course enrollment checkout, students enter promo codes (e.g., `PEHLA50`, `PRO100`, `FESTIVE100`).
-    3. The checkout engine validates the code against server-side active coupons and applies discounts in real-time.
+    2. During course enrollment checkout or payment modal interaction, students enter promo codes (e.g., `PEHLA50`, `PRO100`, `FESTIVE100`, `WELCOME20`).
+    3. The checkout engine dispatches `POST /api/coupons/validate` to validate the code against MongoDB/JSON stored coupons and static fallback maps.
+    4. The server returns the applied discount value, minimum order check status, and computed `finalPrice`.
+    5. **UPI Payload Synchronization**: The payment QR code (`upi://pay?pa={upiId}&pn={merchantName}&am={finalPrice}&cu=INR&tn={planName}`) and deep links for GPay, PhonePe, and Paytm instantly recalculate to reflect the discounted amount.
 
 ### 💳 Course Enrollment & Program Selection System
 *   **Flow**:
     1. Students click "Enroll Now" or "Unlock Premium" on any course card across the platform.
     2. The checkout modal opens with a fully interactive program selection dropdown, pre-filling or allowing the user to select their exact grade or track ("Primary Kudos", "6-8 Grade", "8-10 Grade", "11-12 Grade", "UG/Graduate/PG", "Generalist to Specialist").
-    3. Students apply discount coupons (`PRO100`, `PEHLA50`, etc.) to reduce final cart prices.
+    3. Students apply discount coupons (`PRO100`, `PEHLA50`, etc.) to reduce final cart prices, triggering server-side validation.
     4. The platform dynamically queries `GET /api/system-stats` to retrieve the current payee account details (**UPI Address** and **Merchant Registered Name**).
-    5. A dynamic UPI payload string is generated: `upi://pay?pa={upiId}&pn={merchantName}&am={price}&cu=INR&tn={planName}`.
+    5. A dynamic UPI payload string is generated: `upi://pay?pa={upiId}&pn={merchantName}&am={finalPrice}&cu=INR&tn={planName}`.
     6. A scannable custom QR code is rendered instantly using this payload alongside deep-linking buttons for GPay, PhonePe, and Paytm.
     7. Students upload their transaction screenshot and submit proof.
     8. Admin verifies the transaction under **Payment Proofs** and clicks **Approve & Whitelist** to grant immediate access.
@@ -214,5 +216,5 @@ Pehlakadam implements a dynamic SEO injection system:
 *   **Fluid Layouts**: Tailwind configurations with `w-full max-w-7xl mx-auto px-6` prevent ultra-wide stretching.
 *   **Touch Targets**: Input buttons and links maintain touch target sizes (`min-h-[44px]`) for mobile accessibility.
 *   **Card Containers**: Cards utilize clean, high-contrast borders (`border border-zinc-200 shadow-sm hover:shadow-md transition-all rounded-3xl`).
-*   **Theme Continuity**: Dark and light elements use accessible, high-contrast color palettes (`emerald-600`, `zinc-900`, `zinc-950`).
+*   **Theme Continuity & High Contrast Typography**: Dark banners and cards enforce explicit high-contrast text styling (`text-white`, `drop-shadow-sm`, `text-emerald-100`) to guarantee high readability across dark background overlays, cards, and modal headings. Accent headings reset appropriately without forced dark color overrides on dark backgrounds.
 
