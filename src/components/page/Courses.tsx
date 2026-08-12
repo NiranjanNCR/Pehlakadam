@@ -21,6 +21,7 @@ export default function Courses() {
   // Student Auth State
   const [studentPhone, setStudentPhone] = useState("");
   const [inputPhone, setInputPhone] = useState("");
+  const [studentSessionId, setStudentSessionId] = useState<string>("");
   const [authStatus, setAuthStatus] = useState<{
     checked: boolean;
     authorized: boolean;
@@ -45,13 +46,51 @@ export default function Courses() {
   // Check saved student phone on mount
   useEffect(() => {
     const savedPhone = localStorage.getItem("pehlakadam_student_phone");
+    const savedSession = localStorage.getItem("pehlakadam_student_session_id");
+    if (savedSession) setStudentSessionId(savedSession);
     if (savedPhone) {
       setStudentPhone(savedPhone);
       setInputPhone(savedPhone);
-      verifyStudentAccess(savedPhone);
+      verifyStudentAccess(savedPhone, false, savedSession || undefined);
     }
     fetchCourses();
   }, []);
+
+  // Heartbeat polling to enforce single-device session restriction in real time
+  useEffect(() => {
+    if (!authStatus.authorized || !studentPhone || !studentSessionId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/verify-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ number: studentPhone, sessionId: studentSessionId })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (!data.valid && data.sessionConflict) {
+            console.warn("[Courses] Session conflict detected! Logging out.");
+            setAuthStatus({
+              checked: true,
+              authorized: false,
+              tier: null,
+              message: "⚠️ Account Logged Out: Your phone number was accessed on another device or tab. Parallel viewing on multiple devices is restricted to 1 active user at a time."
+            });
+            setStudentPhone("");
+            setStudentSessionId("");
+            setActiveCourse(null);
+            localStorage.removeItem("pehlakadam_student_phone");
+            localStorage.removeItem("pehlakadam_student_session_id");
+          }
+        }
+      } catch (err) {
+        console.error("[Courses] Session heartbeat check failed:", err);
+      }
+    }, 6000); // Check every 6 seconds
+
+    return () => clearInterval(interval);
+  }, [authStatus.authorized, studentPhone, studentSessionId]);
 
   const fetchCourses = async () => {
     setLoading(true);
@@ -68,21 +107,28 @@ export default function Courses() {
     }
   };
 
-  const verifyStudentAccess = async (phoneToVerify: string) => {
+  const verifyStudentAccess = async (phoneToVerify: string, isExplicitLogin = false, existingSessionId?: string) => {
     if (!phoneToVerify.trim()) return;
     setIsVerifying(true);
     try {
       const rawDigits = phoneToVerify.replace(/[^0-9]/g, "");
       const cleanNum = rawDigits.length > 10 ? rawDigits.slice(-10) : rawDigits;
+      const sessId = existingSessionId || studentSessionId || localStorage.getItem("pehlakadam_student_session_id") || undefined;
+
       const res = await fetch("/api/check-premium-access", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ number: cleanNum })
+        body: JSON.stringify({
+          number: cleanNum,
+          sessionId: sessId,
+          action: isExplicitLogin ? "login" : "verify"
+        })
       });
       if (res.ok) {
         const data = await res.json();
         if (data.authorized) {
           const userTier: UserTier = data.tier || "pro";
+          const newSessId = data.sessionId || sessId || "";
           setAuthStatus({
             checked: true,
             authorized: true,
@@ -90,7 +136,22 @@ export default function Courses() {
             message: `🎉 Phone ${cleanNum} authorized! ${userTier.toUpperCase()} Tier active.`
           });
           setStudentPhone(cleanNum);
+          setStudentSessionId(newSessId);
           localStorage.setItem("pehlakadam_student_phone", cleanNum);
+          if (newSessId) {
+            localStorage.setItem("pehlakadam_student_session_id", newSessId);
+          }
+        } else if (data.sessionConflict) {
+          setAuthStatus({
+            checked: true,
+            authorized: false,
+            tier: null,
+            message: data.message || "⚠️ Session Conflict: Your phone number is logged in on another device. Parallel access on multiple devices is restricted to 1 active device at a time."
+          });
+          setStudentPhone("");
+          setStudentSessionId("");
+          localStorage.removeItem("pehlakadam_student_phone");
+          localStorage.removeItem("pehlakadam_student_session_id");
         } else {
           setAuthStatus({
             checked: true,
@@ -115,13 +176,22 @@ export default function Courses() {
 
   const handlePhoneSubmit = (e: FormEvent) => {
     e.preventDefault();
-    verifyStudentAccess(inputPhone);
+    verifyStudentAccess(inputPhone, true);
   };
 
   const handleLogoutStudent = () => {
+    if (studentPhone) {
+      fetch("/api/logout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ number: studentPhone, sessionId: studentSessionId })
+      }).catch(() => {});
+    }
     localStorage.removeItem("pehlakadam_student_phone");
+    localStorage.removeItem("pehlakadam_student_session_id");
     setStudentPhone("");
     setInputPhone("");
+    setStudentSessionId("");
     setAuthStatus({
       checked: false,
       authorized: false,

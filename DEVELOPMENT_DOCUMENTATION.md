@@ -45,6 +45,17 @@ The architecture guarantees high availability and resilient persistence:
     4. The server returns the applied discount value, minimum order check status, and computed `finalPrice`.
     5. **UPI Payload Synchronization**: The payment QR code (`upi://pay?pa={upiId}&pn={merchantName}&am={finalPrice}&cu=INR&tn={planName}`) and deep links for GPay, PhonePe, and Paytm instantly recalculate to reflect the discounted amount.
 
+### 🛡️ Single-Device Parallel Access Concurrency Control System
+*   **Endpoints**: `POST /api/check-access`, `POST /api/check-premium-access`, `POST /api/verify-session`, `POST /api/logout-session`
+*   **Mechanism**:
+    1. Enforces strict **1 active device / browser session per phone number** for paid LMS courses (`/courses`) and paid resources (`/resources`).
+    2. When a student verifies their phone number on Device A, a unique session ID (`sess_{phone}_{timestamp}_{rand}`) is issued by the server and registered in `activeDeviceSessions`.
+    3. If the same phone number is entered or accessed on Device B, Device B is granted access and receives a new session ID, immediately overwriting the active session on the server.
+    4. Active clients maintain a background heartbeat interval (`useEffect` every 6 seconds) invoking `POST /api/verify-session`.
+    5. When Device A sends its next heartbeat, the server detects that Device A's session ID no longer matches the current active session ID for that phone number.
+    6. Device A receives `{ valid: false, sessionConflict: true }`, automatically revokes local session tokens (`pehlakadam_student_phone`, `pehlakadam_premium_phone`), locks paid course/video/PDF content, and displays a prominent warning:
+       `"⚠️ Session Conflict: Account active on another device. Simultaneous access on multiple devices is restricted to 1 active device at a time."`
+
 ### 💳 Course Enrollment & Program Selection System
 *   **Flow**:
     1. Students click "Enroll Now" or "Unlock Premium" on any course card across the platform.

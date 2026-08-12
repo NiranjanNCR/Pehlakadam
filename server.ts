@@ -3523,6 +3523,56 @@ const cleanPhoneDigits = (num: string) => {
   return digits;
 };
 
+// 🔒 SINGLE-DEVICE CONCURRENCY CONTROL SESSION STORE
+// Enforces 1 active device session per phone number for viewing paid courses & paid resources
+interface StudentDeviceSession {
+  sessionId: string;
+  deviceIp: string;
+  userAgent: string;
+  createdAt: number;
+  lastHeartbeat: number;
+}
+
+const activeDeviceSessions = new Map<string, StudentDeviceSession>();
+
+function handleStudentSession(
+  cleanedNum: string,
+  clientSessionId?: string,
+  action?: string,
+  req?: any
+): { sessionId: string; valid: boolean; sessionConflict?: boolean } {
+  const currentSession = activeDeviceSessions.get(cleanedNum);
+  const now = Date.now();
+  const deviceIp = req?.headers?.["x-forwarded-for"] || req?.socket?.remoteAddress || "unknown";
+  const userAgent = req?.headers?.["user-agent"] || "unknown";
+
+  // If action is explicit 'login' OR client passed no sessionId OR no active session exists:
+  if (action === "login" || !clientSessionId || !currentSession) {
+    const newSessionId = `sess_${cleanedNum}_${now}_${Math.random().toString(36).substring(2, 8)}`;
+    activeDeviceSessions.set(cleanedNum, {
+      sessionId: newSessionId,
+      deviceIp: String(deviceIp),
+      userAgent: String(userAgent),
+      createdAt: now,
+      lastHeartbeat: now,
+    });
+    return { sessionId: newSessionId, valid: true };
+  }
+
+  // If client provided a sessionId and an active session exists:
+  if (currentSession.sessionId === clientSessionId) {
+    currentSession.lastHeartbeat = now;
+    return { sessionId: clientSessionId, valid: true };
+  } else {
+    // Session conflict! This phone number was logged in on a different device or browser tab.
+    return {
+      sessionId: clientSessionId,
+      valid: false,
+      sessionConflict: true,
+    };
+  }
+}
+
 // 1. GET ALL AUTHORIZED PREMIUM NUMBERS
 app.get("/api/authorized-numbers", verifyAdmin, async (req, res) => {
   try {
@@ -3621,10 +3671,10 @@ app.delete("/api/authorized-numbers/:number", verifyAdmin, async (req, res) => {
   }
 });
 
-// 4. CHECK ACCESS FOR STUDENT PHONE NUMBER
+// 4. CHECK ACCESS FOR STUDENT PHONE NUMBER (WITH SINGLE-DEVICE RESTRICTION)
 app.post("/api/check-access", async (req, res) => {
   try {
-    const { number } = req.body;
+    const { number, sessionId, action } = req.body;
     if (!number) {
       return res.status(200).json({ authorized: false });
     }
@@ -3634,6 +3684,9 @@ app.post("/api/check-access", async (req, res) => {
       return res.status(200).json({ authorized: false });
     }
 
+    let authorized = false;
+    let tier = "pro";
+
     if (isMongoConnected) {
       const doc = await AuthorizedNumberModel.findOne({
         $or: [
@@ -3641,12 +3694,39 @@ app.post("/api/check-access", async (req, res) => {
           { number: { $regex: cleanedNum + "$" } }
         ]
       });
-      if (doc) return res.status(200).json({ authorized: true, tier: (doc as any).tier || "pro" });
+      if (doc) {
+        authorized = true;
+        tier = (doc as any).tier || "pro";
+      }
     }
 
-    const list = fs.existsSync(AUTHORIZED_NUMBERS_FILE) ? JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8")) : [];
-    const found = list.find((item: any) => cleanPhoneDigits(item.number) === cleanedNum);
-    return res.status(200).json({ authorized: !!found, tier: found?.tier || "pro" });
+    if (!authorized) {
+      const list = fs.existsSync(AUTHORIZED_NUMBERS_FILE) ? JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8")) : [];
+      const found = list.find((item: any) => cleanPhoneDigits(item.number) === cleanedNum);
+      if (found) {
+        authorized = true;
+        tier = found.tier || "pro";
+      }
+    }
+
+    if (!authorized) {
+      return res.status(200).json({ authorized: false });
+    }
+
+    const sessionResult = handleStudentSession(cleanedNum, sessionId, action, req);
+    if (!sessionResult.valid && sessionResult.sessionConflict) {
+      return res.status(200).json({
+        authorized: false,
+        sessionConflict: true,
+        message: "⚠️ Session Conflict: This phone number was logged in on another device or tab. Simultaneous access is restricted to 1 active device at a time."
+      });
+    }
+
+    return res.status(200).json({
+      authorized: true,
+      tier,
+      sessionId: sessionResult.sessionId
+    });
   } catch (error) {
     console.error("[Pehlakadam API] Error checking premium access:", error);
     return res.status(500).json({ error: "Failed to check premium access." });
@@ -3656,7 +3736,7 @@ app.post("/api/check-access", async (req, res) => {
 // CHECK PREMIUM ACCESS WITH TIER (Comprehensive Mongo + JSON across Authorized Numbers, Payments, and Submissions)
 app.post("/api/check-premium-access", async (req, res) => {
   try {
-    const { number } = req.body;
+    const { number, sessionId, action } = req.body;
     if (!number) {
       return res.status(200).json({ authorized: false });
     }
@@ -3664,6 +3744,9 @@ app.post("/api/check-premium-access", async (req, res) => {
     if (!cleanedNum) {
       return res.status(200).json({ authorized: false });
     }
+
+    let authorized = false;
+    let tier = "pro";
 
     // 1. Check Mongo Authorized Numbers if connected
     if (isMongoConnected) {
@@ -3674,60 +3757,151 @@ app.post("/api/check-premium-access", async (req, res) => {
         ]
       });
       if (authDoc) {
-        return res.status(200).json({ authorized: true, tier: (authDoc as any).tier || "pro" });
+        authorized = true;
+        tier = (authDoc as any).tier || "pro";
       }
 
-      const paidDoc = await PaymentModel.findOne({
-        $or: [
-          { number: cleanedNum },
-          { number: { $regex: cleanedNum + "$" } }
-        ]
-      });
-      if (paidDoc) {
-        return res.status(200).json({ authorized: true, tier: (paidDoc as any).tier || "pro" });
+      if (!authorized) {
+        const paidDoc = await PaymentModel.findOne({
+          $or: [
+            { number: cleanedNum },
+            { number: { $regex: cleanedNum + "$" } }
+          ]
+        });
+        if (paidDoc) {
+          authorized = true;
+          tier = (paidDoc as any).tier || "pro";
+        }
       }
 
-      const subDoc = await SubmissionModel.findOne({
-        $and: [
-          {
-            $or: [
-              { number: cleanedNum },
-              { number: { $regex: cleanedNum + "$" } }
-            ]
-          },
-          {
-            $or: [{ isPaid: true }, { hasPaidAccess: true }]
-          }
-        ]
-      });
-      if (subDoc) {
-        return res.status(200).json({ authorized: true, tier: (subDoc as any).tier || "pro" });
+      if (!authorized) {
+        const subDoc = await SubmissionModel.findOne({
+          $and: [
+            {
+              $or: [
+                { number: cleanedNum },
+                { number: { $regex: cleanedNum + "$" } }
+              ]
+            },
+            {
+              $or: [{ isPaid: true }, { hasPaidAccess: true }]
+            }
+          ]
+        });
+        if (subDoc) {
+          authorized = true;
+          tier = (subDoc as any).tier || "pro";
+        }
       }
     }
 
     // 2. Check JSON Flat Files Fallback
-    const authorizedList = fs.existsSync(AUTHORIZED_NUMBERS_FILE) ? JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8")) : [];
-    const foundAuth = authorizedList.find((item: any) => cleanPhoneDigits(item.number) === cleanedNum);
-    if (foundAuth) {
-      return res.status(200).json({ authorized: true, tier: foundAuth.tier || "pro" });
+    if (!authorized) {
+      const authorizedList = fs.existsSync(AUTHORIZED_NUMBERS_FILE) ? JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8")) : [];
+      const foundAuth = authorizedList.find((item: any) => cleanPhoneDigits(item.number) === cleanedNum);
+      if (foundAuth) {
+        authorized = true;
+        tier = foundAuth.tier || "pro";
+      }
     }
 
-    const payments = fs.existsSync(PAYMENTS_FILE) ? JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8")) : [];
-    const foundPayment = payments.find((p: any) => cleanPhoneDigits(p.number || p.phone) === cleanedNum);
-    if (foundPayment) {
-      return res.status(200).json({ authorized: true, tier: foundPayment.tier || "pro" });
+    if (!authorized) {
+      const payments = fs.existsSync(PAYMENTS_FILE) ? JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8")) : [];
+      const foundPayment = payments.find((p: any) => cleanPhoneDigits(p.number || p.phone) === cleanedNum);
+      if (foundPayment) {
+        authorized = true;
+        tier = foundPayment.tier || "pro";
+      }
     }
 
-    const submissions = fs.existsSync(SUBMISSIONS_FILE) ? JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, "utf-8")) : [];
-    const foundSub = submissions.find((s: any) => cleanPhoneDigits(s.number) === cleanedNum && (s.isPaid || s.hasPaidAccess));
-    if (foundSub) {
-      return res.status(200).json({ authorized: true, tier: foundSub.tier || "pro" });
+    if (!authorized) {
+      const submissions = fs.existsSync(SUBMISSIONS_FILE) ? JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, "utf-8")) : [];
+      const foundSub = submissions.find((s: any) => cleanPhoneDigits(s.number) === cleanedNum && (s.isPaid || s.hasPaidAccess));
+      if (foundSub) {
+        authorized = true;
+        tier = foundSub.tier || "pro";
+      }
     }
 
-    return res.status(200).json({ authorized: false });
+    if (!authorized) {
+      return res.status(200).json({ authorized: false });
+    }
+
+    const sessionResult = handleStudentSession(cleanedNum, sessionId, action, req);
+    if (!sessionResult.valid && sessionResult.sessionConflict) {
+      return res.status(200).json({
+        authorized: false,
+        sessionConflict: true,
+        message: "⚠️ Session Conflict: This phone number was logged in on another device or tab. Simultaneous access is restricted to 1 active device at a time."
+      });
+    }
+
+    return res.status(200).json({
+      authorized: true,
+      tier,
+      sessionId: sessionResult.sessionId
+    });
   } catch (error) {
     console.error("[Pehlakadam API] Error checking premium access with tier:", error);
     return res.status(500).json({ error: "Failed to check premium access." });
+  }
+});
+
+// 🔒 DEVICE SESSION HEARTBEAT VERIFICATION
+app.post("/api/verify-session", async (req, res) => {
+  try {
+    const { number, sessionId } = req.body;
+    if (!number || !sessionId) {
+      return res.status(200).json({ valid: false, sessionConflict: false });
+    }
+    const cleanedNum = cleanPhoneDigits(number);
+    if (!cleanedNum) {
+      return res.status(200).json({ valid: false, sessionConflict: false });
+    }
+
+    const active = activeDeviceSessions.get(cleanedNum);
+    if (!active) {
+      // Re-register active session for this device
+      activeDeviceSessions.set(cleanedNum, {
+        sessionId,
+        deviceIp: String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown"),
+        userAgent: String(req.headers["user-agent"] || "unknown"),
+        createdAt: Date.now(),
+        lastHeartbeat: Date.now()
+      });
+      return res.status(200).json({ valid: true, activeDevicesCount: 1 });
+    }
+
+    if (active.sessionId === sessionId) {
+      active.lastHeartbeat = Date.now();
+      return res.status(200).json({ valid: true, activeDevicesCount: 1 });
+    } else {
+      return res.status(200).json({
+        valid: false,
+        sessionConflict: true,
+        message: "⚠️ Session Conflict: Your phone number was accessed on another device. Simultaneous access on multiple devices is restricted to 1 active device at a time."
+      });
+    }
+  } catch (err) {
+    console.error("[Pehlakadam API] Error verifying session:", err);
+    return res.status(500).json({ valid: false, error: "Failed to verify session." });
+  }
+});
+
+// 🔒 SESSION LOGOUT ENDPOINT
+app.post("/api/logout-session", async (req, res) => {
+  try {
+    const { number, sessionId } = req.body;
+    if (number) {
+      const cleanedNum = cleanPhoneDigits(number);
+      const active = activeDeviceSessions.get(cleanedNum);
+      if (active && (!sessionId || active.sessionId === sessionId)) {
+        activeDeviceSessions.delete(cleanedNum);
+      }
+    }
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: "Logout failed" });
   }
 });
 

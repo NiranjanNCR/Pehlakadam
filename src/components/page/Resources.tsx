@@ -27,6 +27,7 @@ export default function Resources() {
   const [isPremiumUnlocked, setIsPremiumUnlocked] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [unlockedPhone, setUnlockedPhone] = useState("");
+  const [premiumSessionId, setPremiumSessionId] = useState<string>("");
   const [verifyingPhone, setVerifyingPhone] = useState(false);
   const [verificationFeedback, setVerificationFeedback] = useState("");
 
@@ -53,25 +54,42 @@ export default function Resources() {
     }
   };
 
-  const verifyPremiumAccess = async (phoneNumber: string, isAutoCheck = false) => {
+  const verifyPremiumAccess = async (phoneNumber: string, isAutoCheck = false, existingSessionId?: string) => {
     if (!phoneNumber) return;
     setVerifyingPhone(true);
     setVerificationFeedback("");
     try {
+      const sessId = existingSessionId || premiumSessionId || localStorage.getItem("pehlakadam_premium_session_id") || undefined;
       const response = await fetch("/api/check-access", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ number: phoneNumber })
+        body: JSON.stringify({
+          number: phoneNumber,
+          sessionId: sessId,
+          action: isAutoCheck ? "verify" : "login"
+        })
       });
       if (response.ok) {
         const data = await response.json();
         if (data.authorized) {
+          const newSessId = data.sessionId || sessId || "";
           setIsPremiumUnlocked(true);
           setUnlockedPhone(phoneNumber);
+          setPremiumSessionId(newSessId);
           localStorage.setItem("pehlakadam_premium_phone", phoneNumber);
+          if (newSessId) {
+            localStorage.setItem("pehlakadam_premium_session_id", newSessId);
+          }
           if (!isAutoCheck) {
             setVerificationFeedback("✅ Premium Access Granted! Resources unlocked.");
           }
+        } else if (data.sessionConflict) {
+          setIsPremiumUnlocked(false);
+          setUnlockedPhone("");
+          setPremiumSessionId("");
+          localStorage.removeItem("pehlakadam_premium_phone");
+          localStorage.removeItem("pehlakadam_premium_session_id");
+          setVerificationFeedback(data.message || "⚠️ Session Conflict: Account accessed on another device. Simultaneous access on multiple devices is restricted to 1 active user at a time.");
         } else {
           setIsPremiumUnlocked(false);
           if (!isAutoCheck) {
@@ -94,11 +112,20 @@ export default function Resources() {
   };
 
   const handleLockPremium = () => {
+    if (unlockedPhone) {
+      fetch("/api/logout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ number: unlockedPhone, sessionId: premiumSessionId })
+      }).catch(() => {});
+    }
     setIsPremiumUnlocked(false);
     setUnlockedPhone("");
+    setPremiumSessionId("");
     setPhoneInput("");
     setVerificationFeedback("");
     localStorage.removeItem("pehlakadam_premium_phone");
+    localStorage.removeItem("pehlakadam_premium_session_id");
   };
 
   useEffect(() => {
@@ -110,12 +137,45 @@ export default function Resources() {
     
     // Auto restore active premium phone lock if stored
     const savedPhone = localStorage.getItem("pehlakadam_premium_phone");
+    const savedSession = localStorage.getItem("pehlakadam_premium_session_id");
+    if (savedSession) setPremiumSessionId(savedSession);
     if (savedPhone) {
       setUnlockedPhone(savedPhone);
       setPhoneInput(savedPhone);
-      verifyPremiumAccess(savedPhone, true);
+      verifyPremiumAccess(savedPhone, true, savedSession || undefined);
     }
   }, []);
+
+  // Real-time session heartbeat listener to enforce single-device active restriction
+  useEffect(() => {
+    if (!isPremiumUnlocked || !unlockedPhone || !premiumSessionId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/verify-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ number: unlockedPhone, sessionId: premiumSessionId })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (!data.valid && data.sessionConflict) {
+            console.warn("[Resources] Session conflict detected! Locking resources.");
+            setIsPremiumUnlocked(false);
+            setUnlockedPhone("");
+            setPremiumSessionId("");
+            setVerificationFeedback("⚠️ Session Conflict: Your phone number was accessed on another device or browser tab. Simultaneous access on multiple devices is restricted to 1 active user at a time.");
+            localStorage.removeItem("pehlakadam_premium_phone");
+            localStorage.removeItem("pehlakadam_premium_session_id");
+          }
+        }
+      } catch (err) {
+        console.error("[Resources] Heartbeat verification failed:", err);
+      }
+    }, 6000);
+
+    return () => clearInterval(interval);
+  }, [isPremiumUnlocked, unlockedPhone, premiumSessionId]);
 
   const handleViewPdf = (res: ResourceMaterial) => {
     setSelectedPdf({
