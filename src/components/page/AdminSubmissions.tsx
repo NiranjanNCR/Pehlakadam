@@ -5,6 +5,7 @@ import AdminProgramsConfig from "../AdminProgramsConfig";
 import AdminDiagnostics from "../AdminDiagnostics";
 import AdminCourses from "../AdminCourses";
 import AdminCoupons from "../AdminCoupons";
+import PdfViewerModal from "../PdfViewerModal";
 import {
   Search,
   Mail,
@@ -40,7 +41,8 @@ import {
   X,
   CheckCircle2,
   BookOpen,
-  Tag
+  Tag,
+  Eye
 } from "lucide-react";
 import { Submission, ResourceMaterial, SessionUpdate, Testimonial } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
@@ -75,6 +77,17 @@ export default function AdminSubmissions() {
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [sendingNotifyChannel, setSendingNotifyChannel] = useState<"email" | "whatsapp" | "sms" | null>(null);
   const [notifyResultMsg, setNotifyResultMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [previewPdf, setPreviewPdf] = useState<{
+    isOpen: boolean;
+    title: string;
+    category: string;
+    pdfUrl?: string;
+    fileData?: string;
+  }>({
+    isOpen: false,
+    title: "",
+    category: ""
+  });
   
   // 📝 NEW TESTIMONIAL FORM STATES
   const [testiStudentName, setTestiStudentName] = useState("");
@@ -1729,13 +1742,32 @@ export default function AdminSubmissions() {
 
                           <div className="flex items-center gap-2 sm:self-center">
                             {res.type === "pdf" && (
-                              <a
-                                href={`/api/resources/download/${res.id}`}
-                                className="p-2.5 rounded-xl border border-zinc-200 hover:border-emerald-400 hover:bg-emerald-50/50 text-zinc-600 hover:text-emerald-700 transition-all"
-                                title="Download"
-                              >
-                                <Upload className="h-4 w-4 rotate-180" />
-                              </a>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPreviewPdf({
+                                      isOpen: true,
+                                      title: res.title,
+                                      category: res.category,
+                                      pdfUrl: `/api/resources/view/${res.id}`,
+                                      fileData: res.fileData
+                                    });
+                                  }}
+                                  className="p-2.5 rounded-xl border border-zinc-200 hover:border-emerald-400 hover:bg-emerald-50 text-zinc-700 hover:text-emerald-700 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold"
+                                  title="Read in Document Viewer"
+                                >
+                                  <Eye className="h-4 w-4 text-emerald-600" />
+                                  <span className="hidden sm:inline">Preview</span>
+                                </button>
+                                <a
+                                  href={`/api/resources/download/${res.id}`}
+                                  className="p-2.5 rounded-xl border border-zinc-200 hover:border-emerald-400 hover:bg-emerald-50/50 text-zinc-600 hover:text-emerald-700 transition-all"
+                                  title="Download"
+                                >
+                                  <Upload className="h-4 w-4 rotate-180" />
+                                </a>
+                              </>
                             )}
                             <button
                               onClick={() => handleDeleteResource(res.id)}
@@ -2751,12 +2783,12 @@ export default function AdminSubmissions() {
       {/* 🎯 INDIVIDUAL COUNSELING SCHEDULING & NOTIFICATION MODAL */}
       <AnimatePresence>
         {selectedLeadForCounselling && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 pt-16 pb-6 sm:p-6 bg-black/60 backdrop-blur-sm overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl border border-zinc-200 shadow-2xl max-w-2xl w-full p-6 sm:p-8 relative my-8"
+              className="bg-white rounded-3xl border border-zinc-200 shadow-2xl max-w-2xl w-full p-6 sm:p-8 relative my-auto"
             >
               <button
                 onClick={() => setSelectedLeadForCounselling(null)}
@@ -2947,6 +2979,16 @@ export default function AdminSubmissions() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Admin Instant PDF Preview Modal */}
+      <PdfViewerModal
+        isOpen={previewPdf.isOpen}
+        onClose={() => setPreviewPdf(prev => ({ ...prev, isOpen: false }))}
+        title={previewPdf.title}
+        category={previewPdf.category}
+        pdfUrl={previewPdf.pdfUrl}
+        fileData={previewPdf.fileData}
+      />
 
       <Footer />
     </motion.div>

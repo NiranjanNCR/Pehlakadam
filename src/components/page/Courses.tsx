@@ -1,4 +1,5 @@
 import { useState, useEffect, FormEvent } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { 
   PlayCircle, CheckCircle, Lock, ShieldCheck, FileText, Download, 
@@ -579,30 +580,31 @@ export default function Courses() {
       </main>
 
       {/* 🎥 UDEMY-STYLE LMS INTERACTIVE VIDEO LEARNING PLAYER MODAL */}
-      {activeCourse && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-2 md:p-6 overflow-hidden">
-          <div className="relative flex flex-col h-full w-full max-w-7xl bg-zinc-950 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl">
+      {activeCourse && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 backdrop-blur-md p-2 pt-14 pb-3 md:p-6 overflow-hidden">
+          <div className="relative flex flex-col h-[calc(100dvh-4.5rem)] md:h-full w-full max-w-7xl bg-zinc-950 border border-zinc-800 rounded-2xl md:rounded-3xl overflow-hidden shadow-2xl">
             {/* Player Header */}
-            <header className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/90 px-6 py-3.5">
-              <div className="flex items-center gap-3">
+            <header className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/90 px-3 md:px-6 py-2.5 md:py-3.5 shrink-0">
+              <div className="flex items-center gap-2.5 md:gap-3 min-w-0">
                 <button
                   onClick={() => setActiveCourse(null)}
-                  className="rounded-xl border border-zinc-700 bg-zinc-800 p-2 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-all cursor-pointer"
+                  className="rounded-xl border border-zinc-700 bg-zinc-800 p-1.5 md:p-2 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-all cursor-pointer shrink-0"
+                  aria-label="Close Course Player"
                 >
                   <X className="h-4 w-4" />
                 </button>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase border border-emerald-500/30">
-                      {activeCourse.tier} Tier Course
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 md:gap-2 mb-0.5">
+                    <span className="px-1.5 md:px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[9px] md:text-[10px] font-bold uppercase border border-emerald-500/30">
+                      {activeCourse.tier} Tier
                     </span>
-                    <span className="text-xs text-zinc-400 font-medium">{activeCourse.category}</span>
+                    <span className="text-[10px] md:text-xs text-zinc-400 font-medium truncate">{activeCourse.category}</span>
                   </div>
-                  <h2 className="text-sm md:text-base font-bold text-white">{activeCourse.title}</h2>
+                  <h2 className="text-xs md:text-base font-bold text-white truncate leading-tight">{activeCourse.title}</h2>
                 </div>
               </div>
 
-              <div className="hidden md:flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-2 shrink-0">
                 <span className="text-xs text-zinc-400 font-medium">Logged in student:</span>
                 <span className="text-xs font-mono font-bold text-emerald-400 bg-zinc-800 px-2.5 py-1 rounded-lg border border-zinc-700">
                   {studentPhone || "Admin Preview Mode"}
@@ -816,7 +818,8 @@ export default function Courses() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <Footer />

@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -8,7 +9,9 @@ interface YouTubeModalProps {
 }
 
 export default function YouTubeModal({ videoUrl, isOpen, onClose }: YouTubeModalProps) {
-  return (
+  if (!isOpen || typeof document === "undefined") return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -17,26 +20,26 @@ export default function YouTubeModal({ videoUrl, isOpen, onClose }: YouTubeModal
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/85 p-3 pt-14 pb-4 sm:p-6 backdrop-blur-sm"
         >
           <motion.div
             id="youtube-modal-content"
-            initial={{ scale: 0.95, y: 20 }}
+            initial={{ scale: 0.95, y: 15 }}
             animate={{ scale: 1, y: 0 }}
-            exit={{ scale: 0.95, y: 20 }}
+            exit={{ scale: 0.95, y: 15 }}
             transition={{ type: "spring", duration: 0.4 }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-zinc-950 shadow-2xl border border-zinc-800"
+            className="relative w-full max-w-4xl overflow-hidden rounded-2xl sm:rounded-3xl bg-zinc-950 shadow-2xl border border-zinc-800"
           >
             {/* Header / Close button */}
-            <div className="absolute right-4 top-4 z-10">
+            <div className="absolute right-3 top-3 sm:right-4 sm:top-4 z-10">
               <button
                 id="close-youtube-modal"
                 onClick={onClose}
-                className="rounded-full bg-black/60 p-2 text-zinc-400 hover:bg-black/80 hover:text-white transition-colors duration-200"
+                className="rounded-full bg-black/60 p-2 sm:p-2.5 text-zinc-400 hover:bg-black/80 hover:text-white transition-colors duration-200 cursor-pointer"
                 aria-label="Close modal"
               >
-                <X className="h-6 w-6" />
+                <X className="h-5 w-5 sm:h-6 sm:w-6" />
               </button>
             </div>
 
@@ -54,6 +57,8 @@ export default function YouTubeModal({ videoUrl, isOpen, onClose }: YouTubeModal
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
+

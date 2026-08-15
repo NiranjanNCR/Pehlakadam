@@ -1,5 +1,6 @@
 import { useState, ChangeEvent } from "react";
-import { FileText, Play, Upload, Save, CheckCircle, RefreshCw, AlertCircle, HelpCircle } from "lucide-react";
+import { FileText, Play, Upload, Save, CheckCircle, RefreshCw, AlertCircle, HelpCircle, Eye } from "lucide-react";
+import PdfViewerModal from "./PdfViewerModal";
 
 interface ProgramConfig {
   programKey: string;
@@ -37,6 +38,17 @@ export default function AdminProgramsConfig({ configs, onRefresh }: AdminProgram
   const [savingStates, setSavingStates] = useState<Record<string, boolean>>({});
   const [successStates, setSuccessStates] = useState<Record<string, boolean>>({});
   const [localConfigs, setLocalConfigs] = useState<Record<string, ProgramConfig>>({});
+  const [previewPdf, setPreviewPdf] = useState<{
+    isOpen: boolean;
+    title: string;
+    category: string;
+    pdfUrl?: string;
+    fileData?: string;
+  }>({
+    isOpen: false,
+    title: "",
+    category: ""
+  });
 
   // Ensure every program has local state initialized
   const getLocalConfig = (programKey: string, dbConfig?: ProgramConfig): ProgramConfig => {
@@ -324,7 +336,7 @@ export default function AdminProgramsConfig({ configs, onRefresh }: AdminProgram
                         <label className="block text-[11px] font-semibold text-zinc-600">
                           Upload Brochure File directly:
                         </label>
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
                           <label className="flex items-center gap-2 bg-white hover:bg-zinc-100 border border-zinc-200 px-4 py-2.5 rounded-xl text-xs font-bold cursor-pointer text-zinc-800 transition-all hover:border-zinc-300">
                             <Upload className="h-3.5 w-3.5 text-zinc-500" />
                             <span>Choose PDF File</span>
@@ -338,6 +350,22 @@ export default function AdminProgramsConfig({ configs, onRefresh }: AdminProgram
                           <span className="text-xs text-zinc-500 truncate max-w-[150px]">
                             {current.brochureFileName || "No file uploaded yet"}
                           </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreviewPdf({
+                                isOpen: true,
+                                title: `${PROGRAM_KEY_TO_NAME[key] || key} - Official Program Guide`,
+                                category: `Grade ${key} Syllabus`,
+                                pdfUrl: current.brochureUrl || `/api/programs/brochure/view/${key}`,
+                                fileData: current.brochureFileData
+                              });
+                            }}
+                            className="flex items-center gap-1.5 bg-zinc-900 hover:bg-emerald-600 text-white px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm ml-auto"
+                          >
+                            <Eye className="h-3.5 w-3.5 text-emerald-400" />
+                            <span>Preview Brochure</span>
+                          </button>
                         </div>
 
                         {/* Or Manual URL Option */}
@@ -409,6 +437,16 @@ export default function AdminProgramsConfig({ configs, onRefresh }: AdminProgram
           );
         })}
       </div>
+
+      {/* Brochure PDF Viewer Modal for Admin instant testing */}
+      <PdfViewerModal
+        isOpen={previewPdf.isOpen}
+        onClose={() => setPreviewPdf(prev => ({ ...prev, isOpen: false }))}
+        title={previewPdf.title}
+        category={previewPdf.category}
+        pdfUrl={previewPdf.pdfUrl}
+        fileData={previewPdf.fileData}
+      />
     </div>
   );
 }

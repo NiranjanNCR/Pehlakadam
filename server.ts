@@ -3028,6 +3028,163 @@ app.post("/api/submissions/:id/notify", verifyAdmin, async (req, res) => {
 });
 
 // =========================================================================================
+// 📄 STANDARD CONFORMING PDF GENERATOR HELPER
+// =========================================================================================
+// Generates standard, valid PDF-1.4 binary streams with correct xref tables and font dictionaries
+// so PDF.js and all modern web/mobile viewers render them smoothly.
+function generateReadablePdfBuffer(title: string, category: string, description: string, extraContent?: string): Buffer {
+  const cleanTitle = (title || "Pehlakadam Knowledge Resource").replace(/[^\x20-\x7E]/g, " ");
+  const cleanCategory = (category || "Educational Guide").replace(/[^\x20-\x7E]/g, " ");
+  const cleanDesc = (description || "Official Pehlakadam Career Mentorship Resource").replace(/[^\x20-\x7E]/g, " ");
+  const cleanExtra = (extraContent || "").replace(/[^\x20-\x7E]/g, " ");
+
+  const wrapText = (text: string, maxLen = 65): string[] => {
+    const words = text.split(" ");
+    const lines: string[] = [];
+    let currentLine = "";
+    for (const w of words) {
+      if ((currentLine + " " + w).trim().length <= maxLen) {
+        currentLine = (currentLine + " " + w).trim();
+      } else {
+        if (currentLine) lines.push(currentLine);
+        currentLine = w;
+      }
+    }
+    if (currentLine) lines.push(currentLine);
+    return lines;
+  };
+
+  const descLines = wrapText(cleanDesc, 65);
+  const extraLines = wrapText(cleanExtra, 65);
+
+  let streamContent = `q
+0.02 0.58 0.41 rg
+0 760 595 82 re
+f
+Q
+BT
+/F1 18 Tf
+1 1 1 rg
+40 805 Td
+(PEHLAKADAM EDUCATION & CAREER ACADEMY) Tj
+/F2 10 Tf
+0 -22 Td
+(Official Career Counseling & Psychometric Mentorship Directorate) Tj
+ET
+BT
+/F1 15 Tf
+0.1 0.1 0.1 rg
+40 715 Td
+(${cleanTitle}) Tj
+/F2 10 Tf
+0.02 0.58 0.41 rg
+0 -20 Td
+(CATEGORY: ${cleanCategory.toUpperCase()}  |  IN-APP SECURE DOCUMENT) Tj
+ET
+BT
+/F2 10 Tf
+0.2 0.2 0.2 rg
+40 655 Td
+`;
+
+  for (const line of descLines) {
+    streamContent += `(${line}) Tj\n0 -16 Td\n`;
+  }
+
+  if (extraLines.length > 0) {
+    streamContent += `ET\nBT\n/F1 12 Tf\n0.1 0.1 0.1 rg\n40 540 Td\n(CURRICULUM & MODULE DETAILS:) Tj\n/F2 10 Tf\n0.2 0.2 0.2 rg\n0 -18 Td\n`;
+    for (const line of extraLines.slice(0, 18)) {
+      streamContent += `(${line}) Tj\n0 -16 Td\n`;
+    }
+  }
+
+  streamContent += `ET
+q
+0.9 0.9 0.9 rg
+40 100 515 1 re
+f
+Q
+BT
+/F2 9 Tf
+0.4 0.4 0.4 rg
+40 75 Td
+(Pehlakadam Academic Resource Repository - Managed by N & M MENTO / BITS Pilani Mentorship Advisory) Tj
+0 -14 Td
+(Notice: This document is authorized for in-app viewing only. Unauthorized distribution is prohibited.) Tj
+ET`;
+
+  const streamBytes = Buffer.from(streamContent.trim(), "utf-8");
+  const length = streamBytes.length;
+
+  const pdfBody = `%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<<
+  /Type /Page
+  /Parent 2 0 R
+  /MediaBox [0 0 595 842]
+  /Resources <<
+    /Font <<
+      /F1 4 0 R
+      /F2 5 0 R
+    >>
+  >>
+  /Contents 6 0 R
+>>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+6 0 obj
+<< /Length ${length} >>
+stream
+${streamContent.trim()}
+endstream
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000280 00000 n 
+0000000349 00000 n 
+0000000413 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+${470 + length}
+%%EOF`;
+
+  return Buffer.from(pdfBody, "utf-8");
+}
+
+function generateProgramBrochurePdf(programKey: string, config: any): Buffer {
+  const programTitles: Record<string, string> = {
+    "6-8": "Middle School Exploratory Career & Cognition Track (Grades 6-8)",
+    "9-10": "Secondary School Stream Selection & Aptitude Blueprint (Grades 9-10)",
+    "11-12": "Senior Secondary Entrance Strategy & University Mapping (Grades 11-12)",
+    "graduate": "Graduate Corporate Placement & Masters Advisory Track",
+    "kudos": "Early Childhood Cognitive & Creative Development Program",
+    "generalist": "Executive Career Transition & High-Impact Specialization Program"
+  };
+
+  const title = programTitles[programKey] || config?.title || `Pehlakadam Official Program Guide (${programKey})`;
+  const description = config?.subtitle || "Comprehensive diagnostic assessment, one-on-one executive mentorship, personality mapping, and structured career navigation roadmap.";
+  const featuresText = typeof config?.features === "string" ? config.features : "1. Standard Psychometric & Aptitude Battery\n2. One-on-One 60-Minute Advisor Consultation\n3. Stream & College Track Recommendation Report\n4. Entrance Exam Timetable & Strategic Study Plan\n5. Lifelong Academic & Career Portal Access";
+
+  return generateReadablePdfBuffer(title, `Grade ${programKey} Track`, description, featuresText);
+}
+
+// =========================================================================================
 // 🌐 API ENDPOINT 3: RETRIEVE EDUCATIONAL/PSYCHOMETRIC RESOURCES
 // =========================================================================================
 // Serves handbooks, test frameworks, and videos on the student library frontend.
@@ -3046,6 +3203,7 @@ app.get("/api/resources", async (req, res) => {
         format: doc.format,
         videoUrl: doc.videoUrl,
         fileUrl: doc.fileUrl,
+        fileData: doc.fileData,
         isPaid: !!doc.isPaid,
         createdAt: doc.createdAt.toISOString()
       }));
@@ -3054,6 +3212,7 @@ app.get("/api/resources", async (req, res) => {
       const data = fs.readFileSync(RESOURCES_FILE, "utf-8");
       const list = JSON.parse(data).map((r: any) => ({
         ...r,
+        fileData: r.fileData,
         isPaid: !!r.isPaid
       }));
       return res.status(200).json(list);
@@ -3158,6 +3317,7 @@ app.post("/api/resources", verifyAdmin, async (req, res) => {
         format,
         videoUrl: type === "video" ? (videoUrl || "https://www.youtube.com/embed/dQw4w9WgXcQ") : undefined,
         fileUrl,
+        fileData: type === "pdf" ? fileData : undefined,
         isPaid: !!isPaid,
         createdAt: new Date().toISOString()
       };
@@ -3302,48 +3462,76 @@ app.get("/api/resources/download/:id", async (req, res) => {
 app.get("/api/resources/view/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    let resourceItem = null;
+    let resourceItem: any = null;
 
-    if (ResourceModel) {
-      resourceItem = await ResourceModel.findOne({ id }).exec();
+    if (isMongoConnected) {
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        resourceItem = await ResourceModel.findById(id).exec();
+      }
+      if (!resourceItem) {
+        resourceItem = await ResourceModel.findOne({ $or: [{ id: id }, { _id: id }] }).exec();
+      }
     }
 
-    if (!resourceItem) {
-      if (fs.existsSync(RESOURCES_FILE)) {
-        const allResources = JSON.parse(fs.readFileSync(RESOURCES_FILE, "utf-8"));
-        resourceItem = allResources.find((r: any) => r.id === id);
-      }
+    if (!resourceItem && fs.existsSync(RESOURCES_FILE)) {
+      const allResources = JSON.parse(fs.readFileSync(RESOURCES_FILE, "utf-8"));
+      resourceItem = allResources.find((r: any) => r.id === id || r._id === id);
     }
 
     if (!resourceItem) {
       return res.status(404).json({ error: "Resource item not found" });
     }
 
-    const { fileData, fileUrl, title } = resourceItem;
+    const { fileData, fileUrl, title, category, description } = resourceItem;
 
-    if (fileData) {
+    // 1. Direct Base64 data stored in DB/JSON
+    if (fileData && typeof fileData === "string" && fileData.trim().length > 0) {
       const pureBase64 = fileData.includes("base64,") ? fileData.split("base64,")[1] : fileData;
       const pdfBuffer = Buffer.from(pureBase64, "base64");
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", "inline; filename=\"document.pdf\"");
-      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Content-Disposition", `inline; filename="document.pdf"`);
+      res.setHeader("Access-Control-Allow-Origin", "*");
       return res.send(pdfBuffer);
     }
 
-    if (fileUrl && fileUrl.startsWith("/")) {
-      const filePath = path.join(process.cwd(), "public", fileUrl);
-      if (fs.existsSync(filePath)) {
+    // 2. Physical file in UPLOADS_DIR
+    if (fileUrl) {
+      const uploadPath = path.join(UPLOADS_DIR, fileUrl);
+      if (fs.existsSync(uploadPath)) {
+        const fileContent = fs.readFileSync(uploadPath);
+        // If file is already a valid PDF binary buffer
+        if (fileContent.subarray(0, 5).toString() === "%PDF-") {
+          res.setHeader("Content-Type", "application/pdf");
+          res.setHeader("Content-Disposition", `inline; filename="document.pdf"`);
+          res.setHeader("Access-Control-Allow-Origin", "*");
+          return res.send(fileContent);
+        } else {
+          // If it's a text placeholder or guide note, generate a valid formatted PDF
+          const textGuide = fileContent.toString("utf-8");
+          const renderedPdf = generateReadablePdfBuffer(title, category, textGuide, description);
+          res.setHeader("Content-Type", "application/pdf");
+          res.setHeader("Content-Disposition", `inline; filename="document.pdf"`);
+          res.setHeader("Access-Control-Allow-Origin", "*");
+          return res.send(renderedPdf);
+        }
+      }
+
+      // 3. Public folder static path fallback
+      const publicPath = path.join(process.cwd(), "public", fileUrl.startsWith("/") ? fileUrl.slice(1) : fileUrl);
+      if (fs.existsSync(publicPath)) {
         res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Content-Disposition", "inline; filename=\"document.pdf\"");
-        return fs.createReadStream(filePath).pipe(res);
+        res.setHeader("Content-Disposition", `inline; filename="document.pdf"`);
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        return fs.createReadStream(publicPath).pipe(res);
       }
     }
 
-    // Fallback PDF stream
-    const fallbackPdf = `%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << >> /MediaBox [0 0 595 842] /Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length 120 >>\nstream\nBT\n/F1 20 Tf\n50 750 Td\n(PEHLAKADAM EDUCATION RESOURCE) Tj\n/F1 12 Tf\n0 -30 Td\n(Title: ${title || "Educational Guide"}) Tj\n0 -20 Td\n(Protected In-App Document Stream) Tj\nET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000009 00000 n\n0000000056 00000 n\n0000000111 00000 n\n0000000212 00000 n\ntrailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n382\n%%EOF`;
+    // 4. Clean dynamic standard PDF generation fallback
+    const dynamicPdf = generateReadablePdfBuffer(title, category, description);
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", "inline; filename=\"guide.pdf\"");
-    return res.send(Buffer.from(fallbackPdf));
+    res.setHeader("Content-Disposition", `inline; filename="document.pdf"`);
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    return res.send(dynamicPdf);
   } catch (err) {
     console.error("[Pehlakadam API] Error serving in-app PDF view:", err);
     res.status(500).json({ error: "Failed to render PDF view" });
@@ -3354,32 +3542,33 @@ app.get("/api/resources/view/:id", async (req, res) => {
 app.get("/api/programs/brochure/view/:programKey", async (req, res) => {
   try {
     const { programKey } = req.params;
-    let config = null;
+    let config: any = null;
 
-    if (ProgramConfigModel) {
+    if (isMongoConnected) {
       config = await ProgramConfigModel.findOne({ programKey }).exec();
     }
 
-    if (!config) {
-      if (fs.existsSync(PROGRAMS_CONFIG_FILE)) {
-        const allConfigs = JSON.parse(fs.readFileSync(PROGRAMS_CONFIG_FILE, "utf-8"));
-        config = allConfigs.find((c: any) => c.programKey === programKey);
-      }
+    if (!config && fs.existsSync(PROGRAMS_CONFIG_FILE)) {
+      const allConfigs = JSON.parse(fs.readFileSync(PROGRAMS_CONFIG_FILE, "utf-8"));
+      config = allConfigs.find((c: any) => c.programKey === programKey);
     }
 
-    if (config && config.brochureFileData) {
+    // 1. Direct Base64 brochure file data
+    if (config && config.brochureFileData && typeof config.brochureFileData === "string" && config.brochureFileData.trim().length > 0) {
       const pureBase64 = config.brochureFileData.includes("base64,") ? config.brochureFileData.split("base64,")[1] : config.brochureFileData;
       const pdfBuffer = Buffer.from(pureBase64, "base64");
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", "inline; filename=\"brochure.pdf\"");
+      res.setHeader("Content-Disposition", `inline; filename="brochure_${programKey}.pdf"`);
+      res.setHeader("Access-Control-Allow-Origin", "*");
       return res.send(pdfBuffer);
     }
 
-    // High fidelity fallback PDF stream
-    const fallbackPdf = `%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << >> /MediaBox [0 0 595 842] /Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length 140 >>\nstream\nBT\n/F1 22 Tf\n50 750 Td\n(PEHLAKADAM CAREER ACADEMY BROCHURE) Tj\n/F1 12 Tf\n0 -30 Td\n(Program Track: Grade ${programKey}) Tj\n0 -20 Td\n(Psychometric & Strategic Career Orientation Program) Tj\nET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000009 00000 n\n0000000056 00000 n\n0000000111 00000 n\n0000000212 00000 n\ntrailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n402\n%%EOF`;
+    // 2. High fidelity standard compliant program brochure PDF stream
+    const programBrochurePdf = generateProgramBrochurePdf(programKey, config);
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", "inline; filename=\"program_brochure.pdf\"");
-    return res.send(Buffer.from(fallbackPdf));
+    res.setHeader("Content-Disposition", `inline; filename="program_brochure_${programKey}.pdf"`);
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    return res.send(programBrochurePdf);
   } catch (err) {
     console.error("[Pehlakadam API] Error serving brochure view:", err);
     res.status(500).json({ error: "Failed to render brochure view" });

@@ -794,8 +794,8 @@ export default function AdminCourses() {
 
       {/* ✏️ EDIT LAUNCH COURSE MODAL */}
       {editingCourse && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <form onSubmit={handleUpdateCourse} className="relative w-full max-w-2xl bg-zinc-950 border border-amber-500/40 rounded-3xl p-6 space-y-4 shadow-2xl animate-scale-up my-8">
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 pt-16 pb-6 sm:p-6 overflow-y-auto">
+          <form onSubmit={handleUpdateCourse} className="relative w-full max-w-2xl bg-zinc-950 border border-amber-500/40 rounded-3xl p-6 space-y-4 shadow-2xl animate-scale-up my-auto">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <Edit3 className="h-4 w-4 text-amber-400" />

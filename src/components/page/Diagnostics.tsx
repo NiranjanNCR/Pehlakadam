@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import NavigationBar from "../NavigationBar";
 import Footer from "../Footer";
 import { DEFAULT_DIAGNOSTICS } from "../DEFAULT_DIAGNOSTICS";
@@ -876,27 +877,28 @@ export default function Diagnostics() {
       </div>
 
       {/* SIGNUP / LOGIN RECONCILED ENTRY MODAL */}
-      <AnimatePresence>
-        {signupOpen && pendingTest && (
-          <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-zinc-950/65 backdrop-blur-sm"
-              onClick={() => {
-                setSignupOpen(false);
-                setPendingTest(null);
-              }}
-            />
-            
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="bg-white rounded-3xl shadow-xl overflow-hidden max-w-md w-full border border-zinc-200 relative z-10"
-            >
-              <div className="p-6 sm:p-8 space-y-6">
+      {typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
+          {signupOpen && pendingTest && (
+            <div className="fixed inset-0 z-[99999] overflow-y-auto flex items-center justify-center p-3 pt-16 pb-6 sm:p-6">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-zinc-950/65 backdrop-blur-sm"
+                onClick={() => {
+                  setSignupOpen(false);
+                  setPendingTest(null);
+                }}
+              />
+              
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                className="bg-white rounded-3xl shadow-xl overflow-hidden max-w-md w-full border border-zinc-200 relative z-10 my-auto"
+              >
+                <div className="p-6 sm:p-8 space-y-6">
                 
                 <div className="space-y-1">
                   <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest font-mono">
@@ -1079,7 +1081,9 @@ export default function Diagnostics() {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+    )}
 
       <Footer />
     </div>
