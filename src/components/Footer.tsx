@@ -193,7 +193,7 @@ export default function Footer() {
             <h3 className="text-sm font-bold uppercase tracking-wider text-white">
               Quick Navigation
             </h3>
-            <ul className="space-y-3 text-sm">
+            <ul className="space-y-2.5 text-sm">
               <li>
                 <Link to="/" className="text-zinc-500 hover:text-emerald-400 transition-colors">
                   Home Page
@@ -212,6 +212,21 @@ export default function Footer() {
               <li>
                 <Link to="/resources" className="text-zinc-500 hover:text-emerald-400 transition-colors">
                   Resources Library
+                </Link>
+              </li>
+              <li>
+                <Link to="/terms" className="text-zinc-500 hover:text-emerald-400 transition-colors">
+                  Terms & Conditions
+                </Link>
+              </li>
+              <li>
+                <Link to="/privacy" className="text-zinc-500 hover:text-emerald-400 transition-colors">
+                  Privacy Policy
+                </Link>
+              </li>
+              <li>
+                <Link to="/refund-policy" className="text-zinc-500 hover:text-emerald-400 transition-colors">
+                  Refund & Cancellations
                 </Link>
               </li>
               <li>
@@ -296,11 +311,30 @@ export default function Footer() {
         </div>
 
         {/* Divider */}
-        <div className="border-t border-zinc-900 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-zinc-600 font-mono">
+        <div className="border-t border-zinc-900 pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs">
+          <p className="text-zinc-500 font-mono">
             &copy; {currentYear} PEHLAKADAM. All rights reserved.
           </p>
-          <p className="text-xs text-zinc-500 font-sans italic">
+
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-zinc-400 font-medium">
+            <Link to="/terms" className="hover:text-emerald-400 transition-colors">
+              Terms & Conditions
+            </Link>
+            <span className="text-zinc-800 hidden sm:inline">&bull;</span>
+            <Link to="/privacy" className="hover:text-emerald-400 transition-colors">
+              Privacy Policy
+            </Link>
+            <span className="text-zinc-800 hidden sm:inline">&bull;</span>
+            <Link to="/refund-policy" className="hover:text-emerald-400 transition-colors">
+              Refund Policy
+            </Link>
+            <span className="text-zinc-800 hidden sm:inline">&bull;</span>
+            <Link to="/legal" className="hover:text-emerald-400 transition-colors">
+              Advisory Disclaimer
+            </Link>
+          </div>
+
+          <p className="text-zinc-500 font-sans italic">
             Choose best Get best
           </p>
         </div>

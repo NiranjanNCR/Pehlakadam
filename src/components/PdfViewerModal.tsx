@@ -53,7 +53,12 @@ export default function PdfViewerModal({
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [scale, setScale] = useState<number>(1.2);
+  const [scale, setScale] = useState<number>(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 640) {
+      return 0.85;
+    }
+    return 1.15;
+  });
   const [rotation, setRotation] = useState<number>(0);
   const [viewMode, setViewMode] = useState<"continuous" | "single">("continuous");
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -186,16 +191,23 @@ export default function PdfViewerModal({
 
     try {
       const page = await pdfDoc.getPage(pageNum);
-      const dpr = window.devicePixelRatio || 1.5;
+      // Use higher DPR for Retina/Super AMOLED phone screens to eliminate all blur
+      const dpr = Math.max(window.devicePixelRatio || 1, 2);
       const viewport = page.getViewport({ scale: scale * dpr, rotation });
       
       canvas.width = viewport.width;
       canvas.height = viewport.height;
       canvas.style.width = `${viewport.width / dpr}px`;
       canvas.style.height = `${viewport.height / dpr}px`;
+      canvas.style.maxWidth = "100%";
+      canvas.style.objectFit = "contain";
 
-      const ctx = canvas.getContext("2d");
+      const ctx = canvas.getContext("2d", { alpha: false });
       if (!ctx) return;
+
+      // Enable high-quality image smoothing
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
 
       const renderContext = {
         canvasContext: ctx,

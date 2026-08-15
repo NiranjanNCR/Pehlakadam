@@ -222,10 +222,39 @@ Pehlakadam implements a dynamic SEO injection system:
 
 ---
 
-## 6. Responsiveness & Styling Reference
+## 6. Legal & Governance Framework
+*   **Routes**: `/terms`, `/privacy`, `/refund-policy`, `/legal`
+*   **Architecture**:
+    *   Unified, tabbed interactive legal viewer (`TermsAndPolicies.tsx`) supporting direct URL routing and dynamic switching between **Terms & Conditions**, **Privacy Policy**, **Cancellation & Refund Policy**, and **Advisory Disclaimer**.
+    *   **In-App Document Printing**: Direct print/save-as-PDF action for parent and student record-keeping.
+    *   **Footer Integration**: Dedicated legal policy section and bottom-row copyright hyperlinks.
+    *   **Payment Checkout Consent**: Mandatory legal agreement notice embedded in `PaymentModal.tsx` prior to verification proof upload.
+
+---
+
+## 7. In-App PDF & Handbook Viewer System
+*   **Component**: `src/components/PdfViewerModal.tsx`
+*   **Cross-Device Optimization Features**:
+    *   **HiDPI / Retina Sharp Rendering**: Configures high Device Pixel Ratio (`dpr = Math.max(window.devicePixelRatio, 2)`) with `ctx.imageSmoothingQuality = "high"` to eliminate blur, fuzzy edges, and pixelation on high-density phone and tablet displays.
+    *   **Aspect-Ratio Protection**: Strict `max-w-full` and `object-contain` scaling prevents image/page stretching or distortion across all display resolutions.
+    *   **Smart Device-Responsive Zoom**: Mobile devices (<640px) default to an initial 85% width-fit to avoid horizontal clipping, while desktops default to 115% reading zoom.
+    *   **Reading Tools**: In-app Zoom in/out (50%–300%), Page Rotation (90°), Continuous Scroll, and Single-Page pagination modes.
+
+---
+
+## 8. Navigation & Scroll Management
+*   **Component**: `src/components/ScrollToTop.tsx`
+*   **Behavior**:
+    *   Mounted at root router level in `App.tsx`.
+    *   Automatically resets window and document scroll position (`window.scrollTo(0, 0)`) to the top on every route transition (e.g. `/resources`, `/about`, `/portal`, `/courses`), preventing pages from loading scrolled at the footer.
+
+---
+
+## 9. Responsiveness & Styling Reference
 
 *   **Fluid Layouts**: Tailwind configurations with `w-full max-w-7xl mx-auto px-6` prevent ultra-wide stretching.
 *   **Touch Targets**: Input buttons and links maintain touch target sizes (`min-h-[44px]`) for mobile accessibility.
 *   **Card Containers**: Cards utilize clean, high-contrast borders (`border border-zinc-200 shadow-sm hover:shadow-md transition-all rounded-3xl`).
 *   **Theme Continuity & High Contrast Typography**: Dark banners and cards enforce explicit high-contrast text styling (`text-white`, `drop-shadow-sm`, `text-emerald-100`) to guarantee high readability across dark background overlays, cards, and modal headings. Accent headings reset appropriately without forced dark color overrides on dark backgrounds.
+
 
