@@ -63,10 +63,18 @@ export default function PdfViewerModal({
   const [viewMode, setViewMode] = useState<"continuous" | "single">("continuous");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [rawTextFallback, setRawTextFallback] = useState<string | null>(null);
+  const [pageInput, setPageInput] = useState<string>("1");
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const pageCardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const renderTasksRef = useRef<Map<number, any>>(new Map());
+  const isScrollingProgrammatically = useRef(false);
+
+  // Sync page input with currentPage
+  useEffect(() => {
+    setPageInput(String(currentPage));
+  }, [currentPage]);
 
   // 1. Fetch & Load Document
   useEffect(() => {
@@ -246,52 +254,91 @@ export default function PdfViewerModal({
     }
   }, [pdfDoc, scale, rotation, viewMode, currentPage, numPages, loading, renderPage]);
 
-  // Scroll listener for continuous mode to update page indicator
-  const handleScroll = () => {
-    if (viewMode !== "continuous" || !containerRef.current) return;
+  // Scroll listener for continuous mode to update page indicator accurately
+  const handleScroll = useCallback(() => {
+    if (viewMode !== "continuous" || !containerRef.current || isScrollingProgrammatically.current) return;
     const container = containerRef.current;
-    const scrollTop = container.scrollTop;
+    const containerRect = container.getBoundingClientRect();
+    
+    // Viewport target line: 60px below top bar
+    const targetY = containerRect.top + 70;
     
     let activePage = 1;
-    canvasRefs.current.forEach((canvas, pageNum) => {
-      if (canvas) {
-        const offsetTop = canvas.offsetTop - container.offsetTop;
-        if (scrollTop >= offsetTop - 120) {
+    let closestDist = Infinity;
+
+    pageCardRefs.current.forEach((cardEl, pageNum) => {
+      if (cardEl) {
+        const rect = cardEl.getBoundingClientRect();
+        // If the card is currently visible crossing the target view line
+        if (rect.top <= targetY && rect.bottom >= containerRect.top + 40) {
           activePage = pageNum;
+        } else {
+          const dist = Math.abs(rect.top - targetY);
+          if (dist < closestDist && rect.bottom >= containerRect.top) {
+            closestDist = dist;
+            activePage = pageNum;
+          }
         }
       }
     });
-    setCurrentPage(activePage);
-  };
+
+    setCurrentPage(prev => (prev !== activePage ? activePage : prev));
+  }, [viewMode]);
 
   const handleZoomIn = () => setScale(prev => Math.min(prev + 0.25, 3.0));
   const handleZoomOut = () => setScale(prev => Math.max(prev - 0.25, 0.5));
-  const handleResetZoom = () => setScale(1.2);
+  const handleResetZoom = () => setScale(1.15);
   const handleRotate = () => setRotation(prev => (prev + 90) % 360);
+
+  const scrollToPage = (targetPage: number) => {
+    const pageNum = Math.max(1, Math.min(numPages || 1, targetPage));
+    setCurrentPage(pageNum);
+
+    if (viewMode === "continuous") {
+      const targetCard = pageCardRefs.current.get(pageNum);
+      if (targetCard && containerRef.current) {
+        isScrollingProgrammatically.current = true;
+        const container = containerRef.current;
+        const containerRect = container.getBoundingClientRect();
+        const cardRect = targetCard.getBoundingClientRect();
+        const targetScrollTop = container.scrollTop + (cardRect.top - containerRect.top) - 12;
+        container.scrollTo({ top: Math.max(0, targetScrollTop), behavior: "smooth" });
+        setTimeout(() => {
+          isScrollingProgrammatically.current = false;
+        }, 500);
+      }
+    }
+  };
 
   const handlePrevPage = () => {
     if (currentPage > 1) {
-      const nextP = currentPage - 1;
-      setCurrentPage(nextP);
-      if (viewMode === "continuous") {
-        const canvas = canvasRefs.current.get(nextP);
-        if (canvas && containerRef.current) {
-          canvas.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
-      }
+      scrollToPage(currentPage - 1);
     }
   };
 
   const handleNextPage = () => {
     if (currentPage < numPages) {
-      const nextP = currentPage + 1;
-      setCurrentPage(nextP);
-      if (viewMode === "continuous") {
-        const canvas = canvasRefs.current.get(nextP);
-        if (canvas && containerRef.current) {
-          canvas.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
-      }
+      scrollToPage(currentPage + 1);
+    }
+  };
+
+  const handlePageInputSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const parsed = parseInt(pageInput, 10);
+    if (!isNaN(parsed) && parsed >= 1 && parsed <= numPages) {
+      scrollToPage(parsed);
+    } else {
+      setPageInput(String(currentPage));
+    }
+  };
+
+  const handleToggleViewMode = () => {
+    const nextMode = viewMode === "continuous" ? "single" : "continuous";
+    setViewMode(nextMode);
+    if (nextMode === "continuous") {
+      setTimeout(() => {
+        scrollToPage(currentPage);
+      }, 100);
     }
   };
 
@@ -357,8 +404,9 @@ export default function PdfViewerModal({
             {/* 2. Interactive Reader Toolbar */}
             <div className="bg-zinc-900 border-b border-zinc-800 px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-300 shrink-0">
               {/* Pagination Controls */}
-              <div className="flex items-center gap-1 sm:gap-1.5">
+              <form onSubmit={handlePageInputSubmit} className="flex items-center gap-1 sm:gap-1.5">
                 <button
+                  type="button"
                   onClick={handlePrevPage}
                   disabled={currentPage <= 1 || loading}
                   className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:pointer-events-none text-white transition-all cursor-pointer"
@@ -366,10 +414,31 @@ export default function PdfViewerModal({
                 >
                   <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </button>
-                <span className="font-mono text-[11px] sm:text-xs text-zinc-300 font-semibold px-2">
-                  Page <strong className="text-emerald-400">{currentPage}</strong> of <strong className="text-zinc-400">{numPages || 1}</strong>
-                </span>
+                
+                <div className="flex items-center gap-1 font-mono text-[11px] sm:text-xs text-zinc-300 font-semibold px-1">
+                  <span>Page</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={pageInput}
+                    onChange={(e) => setPageInput(e.target.value)}
+                    onBlur={() => {
+                      const parsed = parseInt(pageInput, 10);
+                      if (!isNaN(parsed) && parsed >= 1 && parsed <= numPages) {
+                        scrollToPage(parsed);
+                      } else {
+                        setPageInput(String(currentPage));
+                      }
+                    }}
+                    className="w-10 sm:w-12 text-center py-0.5 px-1 bg-zinc-800 border border-zinc-700 focus:border-emerald-500 focus:bg-zinc-750 rounded text-emerald-400 font-bold outline-none transition-colors"
+                    title="Type page number and press Enter"
+                  />
+                  <span>of <strong className="text-zinc-400">{numPages || 1}</strong></span>
+                </div>
+
                 <button
+                  type="button"
                   onClick={handleNextPage}
                   disabled={currentPage >= numPages || loading}
                   className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:pointer-events-none text-white transition-all cursor-pointer"
@@ -377,13 +446,14 @@ export default function PdfViewerModal({
                 >
                   <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </button>
-              </div>
+              </form>
 
               {/* View & Zoom Controls */}
               <div className="flex items-center gap-1 sm:gap-2">
                 {/* View Mode Toggle */}
                 <button
-                  onClick={() => setViewMode(prev => prev === "continuous" ? "single" : "continuous")}
+                  type="button"
+                  onClick={handleToggleViewMode}
                   className={`px-2.5 py-1 rounded-lg border text-[10px] sm:text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
                     viewMode === "continuous" 
                       ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300" 
@@ -495,10 +565,14 @@ export default function PdfViewerModal({
                 </div>
               ) : (
                 // PDF Canvas Pages
-                <div className="space-y-6 flex flex-col items-center w-full my-auto">
+                <div className={`space-y-6 flex flex-col items-center w-full py-4 ${numPages <= 1 ? "my-auto" : ""}`}>
                   {viewMode === "single" ? (
                     <div 
                       key={`page-${currentPage}`}
+                      ref={(el) => {
+                        if (el) pageCardRefs.current.set(currentPage, el);
+                        else pageCardRefs.current.delete(currentPage);
+                      }}
                       className="relative bg-white rounded-lg shadow-2xl overflow-hidden border border-zinc-800"
                     >
                       <canvas 
@@ -516,7 +590,13 @@ export default function PdfViewerModal({
                     Array.from({ length: numPages }, (_, idx) => idx + 1).map((pageNum) => (
                       <div 
                         key={`page-${pageNum}`}
-                        className="relative bg-white rounded-lg shadow-2xl overflow-hidden border border-zinc-800 transition-transform duration-200"
+                        ref={(el) => {
+                          if (el) pageCardRefs.current.set(pageNum, el);
+                          else pageCardRefs.current.delete(pageNum);
+                        }}
+                        className={`relative bg-white rounded-lg shadow-2xl overflow-hidden border transition-all duration-200 ${
+                          currentPage === pageNum ? "border-emerald-500/80 ring-2 ring-emerald-500/20" : "border-zinc-800"
+                        }`}
                       >
                         <canvas 
                           ref={(el) => {

@@ -550,6 +550,10 @@ const SystemStatsSchema = new mongoose.Schema({
   seoDescription: { type: String, default: "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips." },
   seoKeywords: { type: String, default: "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam" },
   seoAuthor: { type: String, default: "Pehlakadam" },
+  termsContent: { type: String, default: "" },
+  privacyContent: { type: String, default: "" },
+  refundContent: { type: String, default: "" },
+  disclaimerContent: { type: String, default: "" },
   updatedAt: { type: Date, default: Date.now }
 });
 
@@ -4590,7 +4594,11 @@ app.get("/api/system-stats", async (req, res) => {
         seoTitle: stats.seoTitle || "Pehlakadam - Best Career Counselling & Personality Development",
         seoDescription: stats.seoDescription || "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.",
         seoKeywords: stats.seoKeywords || "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam",
-        seoAuthor: stats.seoAuthor || "Pehlakadam"
+        seoAuthor: stats.seoAuthor || "Pehlakadam",
+        termsContent: stats.termsContent || "",
+        privacyContent: stats.privacyContent || "",
+        refundContent: stats.refundContent || "",
+        disclaimerContent: stats.disclaimerContent || ""
       });
     } else {
       let stats: any = {};
@@ -4612,7 +4620,11 @@ app.get("/api/system-stats", async (req, res) => {
           seoTitle: "Pehlakadam - Best Career Counselling & Personality Development",
           seoDescription: "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.",
           seoKeywords: "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam",
-          seoAuthor: "Pehlakadam"
+          seoAuthor: "Pehlakadam",
+          termsContent: "",
+          privacyContent: "",
+          refundContent: "",
+          disclaimerContent: ""
         };
       }
       return res.status(200).json({
@@ -4629,7 +4641,11 @@ app.get("/api/system-stats", async (req, res) => {
         seoTitle: stats.seoTitle || "Pehlakadam - Best Career Counselling & Personality Development",
         seoDescription: stats.seoDescription || "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.",
         seoKeywords: stats.seoKeywords || "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam",
-        seoAuthor: stats.seoAuthor || "Pehlakadam"
+        seoAuthor: stats.seoAuthor || "Pehlakadam",
+        termsContent: stats.termsContent || "",
+        privacyContent: stats.privacyContent || "",
+        refundContent: stats.refundContent || "",
+        disclaimerContent: stats.disclaimerContent || ""
       });
     }
   } catch (error) {
@@ -4648,7 +4664,11 @@ app.get("/api/system-stats", async (req, res) => {
       seoTitle: "Pehlakadam - Best Career Counselling & Personality Development",
       seoDescription: "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.",
       seoKeywords: "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam",
-      seoAuthor: "Pehlakadam"
+      seoAuthor: "Pehlakadam",
+      termsContent: "",
+      privacyContent: "",
+      refundContent: "",
+      disclaimerContent: ""
     });
   }
 });
@@ -4669,7 +4689,11 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
       seoTitle,
       seoDescription,
       seoKeywords,
-      seoAuthor
+      seoAuthor,
+      termsContent,
+      privacyContent,
+      refundContent,
+      disclaimerContent
     } = req.body;
 
     if (!studentsCount || !expertsCount || !successRate) {
@@ -4687,6 +4711,10 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
     const finalSeoDescription = seoDescription || "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.";
     const finalSeoKeywords = seoKeywords || "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam";
     const finalSeoAuthor = seoAuthor || "Pehlakadam";
+    const finalTermsContent = termsContent !== undefined ? termsContent : "";
+    const finalPrivacyContent = privacyContent !== undefined ? privacyContent : "";
+    const finalRefundContent = refundContent !== undefined ? refundContent : "";
+    const finalDisclaimerContent = disclaimerContent !== undefined ? disclaimerContent : "";
 
     if (isMongoConnected) {
       let stats = await SystemStatsModel.findOne();
@@ -4707,6 +4735,10 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
       stats.seoDescription = finalSeoDescription;
       stats.seoKeywords = finalSeoKeywords;
       stats.seoAuthor = finalSeoAuthor;
+      stats.termsContent = finalTermsContent;
+      stats.privacyContent = finalPrivacyContent;
+      stats.refundContent = finalRefundContent;
+      stats.disclaimerContent = finalDisclaimerContent;
       stats.updatedAt = new Date();
       await stats.save();
     }
@@ -4726,11 +4758,15 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
       seoTitle: finalSeoTitle,
       seoDescription: finalSeoDescription,
       seoKeywords: finalSeoKeywords,
-      seoAuthor: finalSeoAuthor
+      seoAuthor: finalSeoAuthor,
+      termsContent: finalTermsContent,
+      privacyContent: finalPrivacyContent,
+      refundContent: finalRefundContent,
+      disclaimerContent: finalDisclaimerContent
     }, null, 2));
 
     return res.status(200).json({
-      message: "System stats and payment/social/SEO config updated successfully.",
+      message: "System stats and payment/social/SEO/policies config updated successfully.",
       stats: {
         studentsCount,
         expertsCount,
@@ -4745,12 +4781,103 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
         seoTitle: finalSeoTitle,
         seoDescription: finalSeoDescription,
         seoKeywords: finalSeoKeywords,
-        seoAuthor: finalSeoAuthor
+        seoAuthor: finalSeoAuthor,
+        termsContent: finalTermsContent,
+        privacyContent: finalPrivacyContent,
+        refundContent: finalRefundContent,
+        disclaimerContent: finalDisclaimerContent
       }
     });
   } catch (error) {
     console.error("[Pehlakadam API] Error updating system stats:", error);
     return res.status(500).json({ error: "Failed to update system stats." });
+  }
+});
+
+// =========================================================================================
+// 📜 LEGAL POLICIES API (TERMS, PRIVACY, REFUND, DISCLAIMER)
+// =========================================================================================
+app.get("/api/policies", async (req, res) => {
+  try {
+    let stats: any = {};
+    if (isMongoConnected) {
+      stats = await SystemStatsModel.findOne() || {};
+    } else {
+      try {
+        const fileData = fs.readFileSync(SYSTEM_STATS_FILE, "utf-8");
+        stats = JSON.parse(fileData);
+      } catch (e) {
+        stats = {};
+      }
+    }
+    return res.status(200).json({
+      termsContent: stats.termsContent || "",
+      privacyContent: stats.privacyContent || "",
+      refundContent: stats.refundContent || "",
+      disclaimerContent: stats.disclaimerContent || "",
+      updatedAt: stats.updatedAt || new Date().toISOString().split("T")[0]
+    });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error reading policies:", error);
+    return res.status(200).json({
+      termsContent: "",
+      privacyContent: "",
+      refundContent: "",
+      disclaimerContent: "",
+      updatedAt: new Date().toISOString().split("T")[0]
+    });
+  }
+});
+
+app.post("/api/policies", verifyAdmin, async (req, res) => {
+  try {
+    const { termsContent, privacyContent, refundContent, disclaimerContent } = req.body;
+    const finalTerms = termsContent !== undefined ? termsContent : "";
+    const finalPrivacy = privacyContent !== undefined ? privacyContent : "";
+    const finalRefund = refundContent !== undefined ? refundContent : "";
+    const finalDisclaimer = disclaimerContent !== undefined ? disclaimerContent : "";
+
+    if (isMongoConnected) {
+      let stats = await SystemStatsModel.findOne();
+      if (!stats) {
+        stats = new SystemStatsModel();
+      }
+      stats.termsContent = finalTerms;
+      stats.privacyContent = finalPrivacy;
+      stats.refundContent = finalRefund;
+      stats.disclaimerContent = finalDisclaimer;
+      stats.updatedAt = new Date();
+      await stats.save();
+    }
+
+    let existingFileStats: any = {};
+    try {
+      if (fs.existsSync(SYSTEM_STATS_FILE)) {
+        existingFileStats = JSON.parse(fs.readFileSync(SYSTEM_STATS_FILE, "utf-8"));
+      }
+    } catch (e) {}
+
+    existingFileStats.termsContent = finalTerms;
+    existingFileStats.privacyContent = finalPrivacy;
+    existingFileStats.refundContent = finalRefund;
+    existingFileStats.disclaimerContent = finalDisclaimer;
+    existingFileStats.updatedAt = new Date();
+
+    fs.writeFileSync(SYSTEM_STATS_FILE, JSON.stringify(existingFileStats, null, 2));
+
+    return res.status(200).json({
+      success: true,
+      message: "Legal policies updated successfully.",
+      policies: {
+        termsContent: finalTerms,
+        privacyContent: finalPrivacy,
+        refundContent: finalRefund,
+        disclaimerContent: finalDisclaimer
+      }
+    });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error saving policies:", error);
+    return res.status(500).json({ error: "Failed to save policies." });
   }
 });
 

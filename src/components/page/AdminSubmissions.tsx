@@ -113,7 +113,11 @@ export default function AdminSubmissions() {
     seoTitle: "Pehlakadam - Best Career Counselling & Personality Development",
     seoDescription: "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.",
     seoKeywords: "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam",
-    seoAuthor: "Pehlakadam"
+    seoAuthor: "Pehlakadam",
+    termsContent: "",
+    privacyContent: "",
+    refundContent: "",
+    disclaimerContent: ""
   });
   const [updatingStats, setUpdatingStats] = useState(false);
   const [updateStatsSuccess, setUpdateStatsSuccess] = useState(false);
@@ -2446,6 +2450,94 @@ export default function AdminSubmissions() {
                             <p className="text-[10px] text-zinc-400 mt-1.5">
                               Comma-separated tags representing core page topics to assist indexing crawlers.
                             </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-zinc-100 pt-6 mt-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                          <div>
+                            <h3 className="text-sm font-bold text-zinc-900 flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-emerald-600" />
+                              Legal Policies & Terms & Conditions Editor
+                            </h3>
+                            <p className="text-xs text-zinc-500 mt-0.5">
+                              Upload or edit custom legal text for Terms & Conditions, Privacy Policy, Refund Policy, and Advisory Disclaimer. (Supports text and Markdown; leave empty to use built-in comprehensive default policies).
+                            </p>
+                          </div>
+                          <a
+                            href="/terms"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-semibold underline underline-offset-2 shrink-0"
+                          >
+                            Open Live Policies Page <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-5">
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-700">
+                                1. Terms & Conditions Custom Content
+                              </label>
+                              <span className="text-[11px] text-zinc-400 font-mono">Applies to /terms</span>
+                            </div>
+                            <textarea
+                              rows={4}
+                              value={adminStats.termsContent || ""}
+                              onChange={(e) => setAdminStats({ ...adminStats, termsContent: e.target.value })}
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-xs font-mono text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all resize-y"
+                              placeholder="Paste or write custom Terms & Conditions text/markdown here... (Leave blank to use default policy content)"
+                            />
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-700">
+                                2. Privacy Policy Custom Content
+                              </label>
+                              <span className="text-[11px] text-zinc-400 font-mono">Applies to /privacy</span>
+                            </div>
+                            <textarea
+                              rows={4}
+                              value={adminStats.privacyContent || ""}
+                              onChange={(e) => setAdminStats({ ...adminStats, privacyContent: e.target.value })}
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-xs font-mono text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all resize-y"
+                              placeholder="Paste or write custom Privacy Policy text/markdown here... (Leave blank to use default)"
+                            />
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-700">
+                                3. Cancellation & Refund Policy Custom Content
+                              </label>
+                              <span className="text-[11px] text-zinc-400 font-mono">Applies to /refund-policy</span>
+                            </div>
+                            <textarea
+                              rows={4}
+                              value={adminStats.refundContent || ""}
+                              onChange={(e) => setAdminStats({ ...adminStats, refundContent: e.target.value })}
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-xs font-mono text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all resize-y"
+                              placeholder="Paste or write custom Refund & Cancellation rules here... (Leave blank to use default)"
+                            />
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-700">
+                                4. Advisory Disclaimer Custom Content
+                              </label>
+                              <span className="text-[11px] text-zinc-400 font-mono">Applies to /legal</span>
+                            </div>
+                            <textarea
+                              rows={4}
+                              value={adminStats.disclaimerContent || ""}
+                              onChange={(e) => setAdminStats({ ...adminStats, disclaimerContent: e.target.value })}
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-xs font-mono text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all resize-y"
+                              placeholder="Paste or write custom Career Counseling & Psychometric Disclaimers here... (Leave blank to use default)"
+                            />
                           </div>
                         </div>
                       </div>

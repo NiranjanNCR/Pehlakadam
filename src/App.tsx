@@ -9,6 +9,7 @@ import Programs from "./components/page/Programs";
 import AdminSubmissions from "./components/page/AdminSubmissions";
 import Diagnostics from "./components/page/Diagnostics";
 import Courses from "./components/page/Courses";
+import TermsAndPolicies from "./components/page/TermsAndPolicies";
 import AnnouncementBanner from "./components/AnnouncementBanner";
 
 export default function App() {
@@ -64,6 +65,10 @@ export default function App() {
           <Route path="/contact" element={<Contact />} />
           <Route path="/programs/*" element={<Programs />} />
           <Route path="/diagnostics" element={<Diagnostics />} />
+          <Route path="/terms" element={<TermsAndPolicies />} />
+          <Route path="/privacy" element={<TermsAndPolicies />} />
+          <Route path="/refund-policy" element={<TermsAndPolicies />} />
+          <Route path="/legal" element={<TermsAndPolicies />} />
           <Route path="/admin" element={<AdminSubmissions />} />
           <Route path="/resources/admin" element={<AdminSubmissions />} />
         </Routes>
