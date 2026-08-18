@@ -9,6 +9,7 @@ import Programs from "./components/page/Programs";
 import AdminSubmissions from "./components/page/AdminSubmissions";
 import Diagnostics from "./components/page/Diagnostics";
 import Courses from "./components/page/Courses";
+import StudentDashboard from "./components/page/StudentDashboard";
 import TermsAndPolicies from "./components/page/TermsAndPolicies";
 import AnnouncementBanner from "./components/AnnouncementBanner";
 
@@ -62,6 +63,9 @@ export default function App() {
           <Route path="/explore" element={<Explore />} />
           <Route path="/resources" element={<Resources />} />
           <Route path="/courses" element={<Courses />} />
+          <Route path="/dashboard" element={<StudentDashboard />} />
+          <Route path="/student-dashboard" element={<StudentDashboard />} />
+          <Route path="/my-learning" element={<StudentDashboard />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/programs/*" element={<Programs />} />
           <Route path="/diagnostics" element={<Diagnostics />} />
@@ -76,3 +80,4 @@ export default function App() {
     </BrowserRouter>
   );
 }
+

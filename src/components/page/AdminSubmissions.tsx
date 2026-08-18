@@ -42,7 +42,9 @@ import {
   CheckCircle2,
   BookOpen,
   Tag,
-  Eye
+  Eye,
+  Zap,
+  Check
 } from "lucide-react";
 import { Submission, ResourceMaterial, SessionUpdate, Testimonial } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
@@ -64,6 +66,12 @@ export default function AdminSubmissions() {
   const [programsConfigs, setProgramsConfigs] = useState<any[]>([]);
   const [subscribers, setSubscribers] = useState<{ id: string; email: string; phone?: string; createdAt: string }[]>([]);
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
+
+  // ⚡ AUTO-APPROVAL & PAYMENT FILTERS
+  const [autoApprovalEnabled, setAutoApprovalEnabled] = useState<boolean>(true);
+  const [togglingAutoApproval, setTogglingAutoApproval] = useState<boolean>(false);
+  const [paymentSearch, setPaymentSearch] = useState<string>("");
+  const [paymentFilter, setPaymentFilter] = useState<"all" | "auto_approved" | "pending" | "approved" | "revoked">("all");
 
   // 🎯 COUNSELING SCHEDULING & INDIVIDUAL NOTIFICATION STATES
   const [selectedLeadForCounselling, setSelectedLeadForCounselling] = useState<Submission | null>(null);
@@ -431,6 +439,19 @@ export default function AdminSubmissions() {
       }
     } catch (err) {
       console.error("Error loading testimonials:", err);
+    }
+
+    // 10. Fetch Auto-Approval Status
+    try {
+      const resAuto = await fetch("/api/admin/auto-approval-status", { headers: authHeaders });
+      if (resAuto.ok) {
+        const autoData = await resAuto.json();
+        if (typeof autoData.autoApprovalEnabled === "boolean") {
+          setAutoApprovalEnabled(autoData.autoApprovalEnabled);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading auto-approval status:", err);
     }
 
     setLoading(false);
@@ -908,38 +929,144 @@ export default function AdminSubmissions() {
   /**
    * 🌟 APPROVE & DIRECTLY WHITELIST STUDENT FROM PAYMENT RECORD
    */
-  const handleDirectWhitelist = async (number: string) => {
+  const handleDirectWhitelist = async (paymentId: string | undefined, number: string, name?: string, tier: string = "pro") => {
     if (!number) return;
     const cleanNum = number.replace(/[^0-9]/g, "");
-    if (!confirm(`Are you sure you want to approve this student and instantly whitelist +${cleanNum} for premium courses?`)) return;
+    if (!confirm(`Are you sure you want to approve ${name ? `"${name}"` : `contact +${cleanNum}`} and grant instant access for paid resources and courses?`)) return;
 
     try {
       const token = localStorage.getItem("pehlakadam_admin_token");
-      const res = await fetch("/api/authorized-numbers", {
+      const res = await fetch("/api/admin/payments/approve", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ number: cleanNum })
+        body: JSON.stringify({ paymentId, number: cleanNum, name, tier })
       });
       if (res.ok) {
-        alert(`Successfully whitelisted and approved student contact: +${cleanNum}`);
-        // Refresh local authorized list
-        const resAuth = await fetch("/api/authorized-numbers", {
-          headers: { "Authorization": `Bearer ${token}` }
-        });
-        if (resAuth.ok) {
-          const authData = await resAuth.json();
-          setAuthorizedNumbers(authData);
-        }
+        alert(`Successfully approved and granted access for student: ${name || `+${cleanNum}`}`);
+        fetchAllData();
       } else {
         const errData = await res.json();
-        alert(errData.error || "Failed to whitelist phone number.");
+        alert(errData.error || "Failed to approve payment.");
       }
     } catch (err) {
-      console.error("Error direct whitelisting:", err);
-      alert("Error saving whitelist number.");
+      console.error("Error approving payment:", err);
+      alert("Error approving payment.");
+    }
+  };
+
+  /**
+   * 🔒 REVOKE PAID ACCESS FOR A STUDENT / PAYMENT PROOF RECORD
+   */
+  const handleRevokePaymentAccess = async (paymentId: string | undefined, number: string, name?: string) => {
+    if (!number) return;
+    const cleanNum = number.replace(/[^0-9]/g, "");
+    if (!confirm(`Are you sure you want to REVOKE paid resources and course access for ${name || `+${cleanNum}`}?`)) {
+      return;
+    }
+    try {
+      const token = localStorage.getItem("pehlakadam_admin_token");
+      const res = await fetch("/api/admin/payments/revoke", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ paymentId, number: cleanNum })
+      });
+      if (res.ok) {
+        alert(`Paid access revoked successfully for ${name || `+${cleanNum}`}.`);
+        fetchAllData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Failed to revoke access.");
+      }
+    } catch (err) {
+      console.error("Error revoking access:", err);
+      alert("Network error while revoking access.");
+    }
+  };
+
+  /**
+   * ⚡ TOGGLE AUTO-APPROVAL ENGINE (UTR / INSTANT ENROLLMENT)
+   */
+  const handleToggleAutoApproval = async () => {
+    try {
+      setTogglingAutoApproval(true);
+      const token = localStorage.getItem("pehlakadam_admin_token");
+      const nextState = !autoApprovalEnabled;
+      const res = await fetch("/api/admin/toggle-auto-approval", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ enabled: nextState })
+      });
+      if (res.ok) {
+        setAutoApprovalEnabled(nextState);
+      } else {
+        const err = await res.json();
+        alert(err.error || "Failed to toggle auto approval.");
+      }
+    } catch (err) {
+      console.error("Error toggling auto-approval:", err);
+    } finally {
+      setTogglingAutoApproval(false);
+    }
+  };
+
+  /**
+   * 🗑️ DELETE A CONSULTATION LEAD (PERMANENT REMOVAL)
+   */
+  const handleDeleteLead = async (id: string, name?: string) => {
+    if (!confirm(`Are you sure you want to permanently delete lead record "${name || id}"? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      const token = localStorage.getItem("pehlakadam_admin_token");
+      const res = await fetch(`/api/submissions/${id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setSubmissions(prev => prev.filter(s => s.id !== id));
+        alert(`Consultation lead "${name || id}" has been deleted.`);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Failed to delete lead.");
+      }
+    } catch (err) {
+      console.error("Error deleting lead:", err);
+      alert("Network error while deleting lead.");
+    }
+  };
+
+  /**
+   * 🗑️ DELETE A PAYMENT PROOF SUBMISSION (PERMANENT REMOVAL)
+   */
+  const handleDeletePayment = async (id: string, name?: string) => {
+    if (!confirm(`Are you sure you want to permanently delete the payment proof submission for "${name || id}"? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      const token = localStorage.getItem("pehlakadam_admin_token");
+      const res = await fetch(`/api/payments/${id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setPayments(prev => prev.filter(p => p.id !== id));
+        alert(`Payment submission for "${name || id}" has been deleted.`);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "Failed to delete payment proof.");
+      }
+    } catch (err) {
+      console.error("Error deleting payment proof:", err);
+      alert("Network error while deleting payment proof.");
     }
   };
 
@@ -1353,19 +1480,42 @@ export default function AdminSubmissions() {
                           key={sub.id}
                           className="bg-white rounded-2xl border border-zinc-200 p-6 shadow-sm hover:shadow-md transition-shadow relative"
                         >
-                          <div className="flex items-center gap-3.5 mb-4">
-                            <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold font-sans">
-                              {sub.firstName[0]}
-                              {sub.lastName[0]}
+                          <div className="flex items-center justify-between gap-3 mb-4">
+                            <div className="flex items-center gap-3.5">
+                              <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold font-sans">
+                                {sub.firstName[0]}
+                                {sub.lastName[0]}
+                              </div>
+                              <div>
+                                <h3 className="text-sm font-bold text-zinc-950 font-sans">
+                                  {sub.firstName} {sub.lastName}
+                                </h3>
+                                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wider block w-fit">
+                                    {sub.role}
+                                  </span>
+                                  {sub.plan && (
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider block w-fit border ${
+                                      sub.plan === "Premium Pro"
+                                        ? "bg-amber-50 text-amber-700 border-amber-200"
+                                        : sub.plan === "Standard"
+                                        ? "bg-blue-50 text-blue-700 border-blue-200"
+                                        : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    }`}>
+                                      {sub.plan}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                            <div>
-                              <h3 className="text-sm font-bold text-zinc-950 font-sans">
-                                {sub.firstName} {sub.lastName}
-                              </h3>
-                              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wider block w-fit mt-0.5">
-                                {sub.role}
-                              </span>
-                            </div>
+                            <button
+                              id={`delete-lead-btn-${sub.id}`}
+                              onClick={() => handleDeleteLead(sub.id, `${sub.firstName} ${sub.lastName}`)}
+                              title="Delete Lead Record"
+                              className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-200 cursor-pointer shrink-0"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           </div>
 
                           <div className="space-y-2 pt-4 border-t border-zinc-100 text-xs text-zinc-500">
@@ -1918,126 +2068,408 @@ export default function AdminSubmissions() {
                   exit={{ opacity: 0, y: -10 }}
                   className="space-y-6"
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  {/* Top Bar: Title & Auto-Approval Engine Controller */}
+                  <div className="bg-white rounded-3xl border border-zinc-200 p-6 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                     <div>
-                      <h2 className="text-xl font-bold font-sans text-zinc-950">
-                        Payment Proof Submissions ({payments.length})
-                      </h2>
-                      <p className="text-zinc-500 text-xs mt-0.5">
-                        Verify screenshots, cross-check Transaction IDs, and grant course access instantly.
-                      </p>
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-10 w-10 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center font-bold">
+                          <CreditCard className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-extrabold font-sans text-zinc-950 flex items-center gap-2">
+                            Payment & Transaction Verification
+                            <span className="text-xs bg-zinc-100 text-zinc-700 px-2.5 py-0.5 rounded-full font-bold">
+                              {payments.length} Submissions
+                            </span>
+                          </h2>
+                          <p className="text-zinc-500 text-xs mt-0.5">
+                            Automated UTR verification & manual admin review workflow for course & resource access.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Auto-Approval Mode Switcher */}
+                    <div className="flex items-center gap-4 bg-zinc-50 border border-zinc-200/80 p-3.5 rounded-2xl">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`p-2 rounded-xl ${autoApprovalEnabled ? "bg-emerald-500 text-white" : "bg-zinc-300 text-zinc-700"}`}>
+                          <Zap className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-zinc-900">Auto-Approval Mode:</span>
+                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                              autoApprovalEnabled
+                                ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                : "bg-amber-100 text-amber-800 border border-amber-200"
+                            }`}>
+                              {autoApprovalEnabled ? "⚡ AUTOMATED (Instant Access)" : "⏳ MANUAL REVIEW ONLY"}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-zinc-500">
+                            {autoApprovalEnabled
+                              ? "Valid UTRs automatically grant instant access with duplicate check."
+                              : "Submissions will require manual approval by admin before access is granted."}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={handleToggleAutoApproval}
+                        disabled={togglingAutoApproval}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm ${
+                          autoApprovalEnabled
+                            ? "bg-zinc-800 hover:bg-zinc-900 text-white"
+                            : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                        }`}
+                      >
+                        {togglingAutoApproval ? "Updating..." : autoApprovalEnabled ? "Switch to Manual Mode" : "Enable Auto-Approval"}
+                      </button>
                     </div>
                   </div>
 
-                  {payments.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {payments.map((pay) => {
-                        const isWhitelisted = authorizedNumbers.some(
-                          (auth) => auth.number.replace(/[^0-9]/g, "") === pay.number.replace(/[^0-9]/g, "")
-                        );
+                  {/* Summary Metric Cards */}
+                  {(() => {
+                    const autoApprovedCount = payments.filter((p) => p.status === "auto_approved" || p.autoVerified).length;
+                    const manualApprovedCount = payments.filter((p) => p.status === "approved").length;
+                    const pendingCount = payments.filter((p) => {
+                      const isWhitelisted = authorizedNumbers.some(
+                        (auth) => auth.number.replace(/[^0-9]/g, "") === p.number?.replace(/[^0-9]/g, "")
+                      );
+                      return !isWhitelisted && p.status !== "revoked";
+                    }).length;
+                    const totalRevenue = payments.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
 
+                    return (
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="bg-white rounded-2xl border border-zinc-200 p-4 shadow-sm">
+                          <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">Total Submissions</p>
+                          <h3 className="text-2xl font-black text-zinc-900 mt-1 font-sans">{payments.length}</h3>
+                          <span className="text-[11px] text-zinc-500 font-medium">All course & resource transactions</span>
+                        </div>
+                        <div className="bg-white rounded-2xl border border-emerald-200 bg-emerald-50/20 p-4 shadow-sm">
+                          <p className="text-xs font-bold uppercase tracking-wider text-emerald-600 flex items-center gap-1">
+                            <Zap className="h-3 w-3" /> Auto-Verified
+                          </p>
+                          <h3 className="text-2xl font-black text-emerald-800 mt-1 font-sans">{autoApprovedCount}</h3>
+                          <span className="text-[11px] text-emerald-700 font-medium">Instant UTR OCR validated</span>
+                        </div>
+                        <div className="bg-white rounded-2xl border border-amber-200 bg-amber-50/20 p-4 shadow-sm">
+                          <p className="text-xs font-bold uppercase tracking-wider text-amber-600 flex items-center gap-1">
+                            <Clock className="h-3 w-3" /> Pending Review
+                          </p>
+                          <h3 className="text-2xl font-black text-amber-800 mt-1 font-sans">{pendingCount}</h3>
+                          <span className="text-[11px] text-amber-700 font-medium">Awaiting manual approval</span>
+                        </div>
+                        <div className="bg-white rounded-2xl border border-blue-200 bg-blue-50/20 p-4 shadow-sm">
+                          <p className="text-xs font-bold uppercase tracking-wider text-blue-600">Total Revenue</p>
+                          <h3 className="text-2xl font-black text-blue-800 mt-1 font-sans">₹{totalRevenue.toLocaleString("en-IN")}</h3>
+                          <span className="text-[11px] text-blue-700 font-medium">Gross collection recorded</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Search and Filters */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-zinc-200 shadow-sm">
+                    <div className="flex items-center gap-2 w-full sm:w-80 bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2">
+                      <Search className="h-4 w-4 text-zinc-400 shrink-0" />
+                      <input
+                        type="text"
+                        placeholder="Search student, phone, UTR, email..."
+                        value={paymentSearch}
+                        onChange={(e) => setPaymentSearch(e.target.value)}
+                        className="bg-transparent text-xs text-zinc-900 w-full focus:outline-none placeholder-zinc-400 font-sans"
+                      />
+                      {paymentSearch && (
+                        <button onClick={() => setPaymentSearch("")} className="text-zinc-400 hover:text-zinc-600">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
+                      {(["all", "auto_approved", "pending", "approved", "revoked"] as const).map((filterKey) => (
+                        <button
+                          key={filterKey}
+                          onClick={() => setPaymentFilter(filterKey)}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-colors whitespace-nowrap cursor-pointer ${
+                            paymentFilter === filterKey
+                              ? "bg-zinc-900 text-white"
+                              : "bg-zinc-100 hover:bg-zinc-200 text-zinc-600"
+                          }`}
+                        >
+                          {filterKey === "all"
+                            ? `All (${payments.length})`
+                            : filterKey === "auto_approved"
+                            ? "⚡ Auto-Approved"
+                            : filterKey === "pending"
+                            ? "⏳ Pending Review"
+                            : filterKey === "approved"
+                            ? "👑 Approved"
+                            : "🚫 Revoked"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Payment Grid */}
+                  {(() => {
+                    const filteredPayments = payments.filter((pay) => {
+                      const isWhitelisted = authorizedNumbers.some(
+                        (auth) => auth.number.replace(/[^0-9]/g, "") === pay.number?.replace(/[^0-9]/g, "")
+                      );
+
+                      // Status filter
+                      if (paymentFilter === "auto_approved" && pay.status !== "auto_approved" && !pay.autoVerified) {
+                        return false;
+                      }
+                      if (paymentFilter === "approved" && (pay.status !== "approved" && !isWhitelisted)) {
+                        return false;
+                      }
+                      if (paymentFilter === "pending" && (isWhitelisted || pay.status === "revoked")) {
+                        return false;
+                      }
+                      if (paymentFilter === "revoked" && pay.status !== "revoked") {
+                        return false;
+                      }
+
+                      // Search query
+                      if (paymentSearch.trim()) {
+                        const q = paymentSearch.toLowerCase();
+                        const fullName = `${pay.firstName || ""} ${pay.lastName || ""}`.toLowerCase();
+                        const phone = String(pay.number || "").toLowerCase();
+                        const email = String(pay.email || "").toLowerCase();
+                        const utr = String(pay.transactionId || "").toLowerCase();
+                        const role = String(pay.role || "").toLowerCase();
                         return (
-                          <div
-                            key={pay.id}
-                            className={`bg-white rounded-2xl border p-6 shadow-sm hover:shadow-md transition-shadow relative flex flex-col justify-between ${
-                              isWhitelisted ? "border-emerald-200 bg-emerald-50/5" : "border-zinc-200"
-                            }`}
-                          >
-                            <div>
-                              <div className="flex items-center justify-between gap-2 mb-4">
-                                <div className="flex items-center gap-3">
-                                  <div className="h-10 w-10 rounded-xl bg-zinc-100 text-zinc-700 flex items-center justify-center font-bold font-sans text-sm">
-                                    {pay.firstName[0]}
-                                    {pay.lastName[0]}
+                          fullName.includes(q) ||
+                          phone.includes(q) ||
+                          email.includes(q) ||
+                          utr.includes(q) ||
+                          role.includes(q)
+                        );
+                      }
+
+                      return true;
+                    });
+
+                    if (filteredPayments.length === 0) {
+                      return (
+                        <div className="text-center py-20 bg-white rounded-3xl border border-zinc-200 shadow-sm p-8">
+                          <CreditCard className="h-12 w-12 text-zinc-300 mx-auto mb-4" />
+                          <h3 className="text-lg font-bold text-zinc-800">No payment submissions found</h3>
+                          <p className="text-zinc-500 text-sm mt-1">
+                            {paymentSearch || paymentFilter !== "all"
+                              ? "Try adjusting your search query or filter."
+                              : "Once students submit payment proofs, they will display here for authorization."}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {filteredPayments.map((pay) => {
+                          const isWhitelisted = authorizedNumbers.some(
+                            (auth) => auth.number.replace(/[^0-9]/g, "") === pay.number?.replace(/[^0-9]/g, "")
+                          );
+                          const isAutoVerified = pay.autoVerified || pay.status === "auto_approved";
+
+                          return (
+                            <div
+                              key={pay.id}
+                              className={`bg-white rounded-2xl border p-6 shadow-sm hover:shadow-md transition-shadow relative flex flex-col justify-between ${
+                                isWhitelisted
+                                  ? "border-emerald-200 bg-emerald-50/5"
+                                  : pay.status === "revoked"
+                                  ? "border-red-200 bg-red-50/5"
+                                  : "border-zinc-200"
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-start justify-between gap-2 mb-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`h-11 w-11 rounded-2xl flex items-center justify-center font-bold font-sans text-sm ${
+                                      isAutoVerified
+                                        ? "bg-emerald-100 text-emerald-800"
+                                        : isWhitelisted
+                                        ? "bg-blue-100 text-blue-800"
+                                        : "bg-zinc-100 text-zinc-700"
+                                    }`}>
+                                      {pay.firstName ? pay.firstName[0] : "S"}
+                                      {pay.lastName ? pay.lastName[0] : "T"}
+                                    </div>
+                                    <div>
+                                      <h3 className="text-sm font-bold text-zinc-950 font-sans">
+                                        {pay.firstName} {pay.lastName}
+                                      </h3>
+                                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                        <span className="text-[9px] font-bold text-zinc-600 bg-zinc-100 px-2 py-0.5 rounded-full uppercase tracking-wider block w-fit">
+                                          {pay.role}
+                                        </span>
+                                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider block w-fit border ${
+                                          pay.plan === "Premium Pro"
+                                            ? "bg-amber-50 text-amber-700 border-amber-200"
+                                            : pay.plan === "Standard"
+                                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                        }`}>
+                                          {pay.plan || "Basic"}
+                                        </span>
+                                        {pay.amount ? (
+                                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100/60 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                            ₹{Number(pay.amount).toLocaleString("en-IN")}
+                                          </span>
+                                        ) : null}
+                                        {pay.couponCode && (
+                                          <span className="text-[9px] font-bold text-purple-700 bg-purple-100/60 border border-purple-200 px-2 py-0.5 rounded-full">
+                                            🎟️ {pay.couponCode}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <h3 className="text-sm font-bold text-zinc-950 font-sans">
-                                      {pay.firstName} {pay.lastName}
-                                    </h3>
-                                    <span className="text-[9px] font-bold text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-full uppercase tracking-wider block w-fit mt-0.5">
-                                      {pay.role}
+
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      id={`delete-payment-btn-${pay.id}`}
+                                      onClick={() => handleDeletePayment(pay.id, `${pay.firstName} ${pay.lastName}`)}
+                                      title="Delete Payment Record"
+                                      className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all border border-transparent hover:border-red-200 cursor-pointer"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Verification Status Pill */}
+                                <div className="mb-4">
+                                  {isAutoVerified ? (
+                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-100/80 border border-emerald-300 px-3 py-1.5 rounded-xl">
+                                      <Zap className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                      <span>⚡ Auto-Verified & Granted Instant Access</span>
+                                    </div>
+                                  ) : isWhitelisted ? (
+                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-800 bg-blue-100/80 border border-blue-300 px-3 py-1.5 rounded-xl">
+                                      <ShieldCheck className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                                      <span>👑 Approved & Whitelisted by Admin</span>
+                                    </div>
+                                  ) : pay.status === "revoked" ? (
+                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-red-800 bg-red-100/80 border border-red-300 px-3 py-1.5 rounded-xl">
+                                      <Lock className="h-3.5 w-3.5 text-red-600 shrink-0" />
+                                      <span>🚫 Access Revoked</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-800 bg-amber-100/80 border border-amber-300 px-3 py-1.5 rounded-xl">
+                                      <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                                      <span>⏳ Pending Manual Admin Review</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="space-y-2 pt-3 border-t border-zinc-100 text-xs text-zinc-500">
+                                  <div className="flex items-center justify-between bg-zinc-50 p-2.5 rounded-xl border border-zinc-100 font-sans">
+                                    <span className="font-semibold text-zinc-600">Transaction ID / UTR:</span>
+                                    <span className="font-bold text-zinc-900 font-mono select-all bg-white px-2 py-0.5 rounded border border-zinc-200 text-[11px]">
+                                      {pay.transactionId}
                                     </span>
                                   </div>
-                                </div>
 
-                                {isWhitelisted ? (
-                                  <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100/60 border border-emerald-100 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                                    Approved
-                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <Mail className="h-3.5 w-3.5 text-zinc-400" />
+                                    <a href={`mailto:${pay.email}`} className="hover:text-emerald-600 transition-colors font-medium">
+                                      {pay.email}
+                                    </a>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <Phone className="h-3.5 w-3.5 text-zinc-400" />
+                                      <a href={`tel:${pay.number}`} className="hover:text-emerald-600 transition-colors font-medium">
+                                        {pay.number}
+                                      </a>
+                                    </div>
+                                    <a
+                                      href={`https://api.whatsapp.com/send?phone=91${pay.number?.replace(/[^0-9]/g, "").slice(-10)}&text=${encodeURIComponent(
+                                        `Hello ${pay.firstName}! Your Pehlakadam course enrollment & payment receipt (UTR: ${pay.transactionId}) has been verified successfully.`
+                                      )}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+                                    >
+                                      <MessageSquare className="h-3 w-3" /> WhatsApp
+                                    </a>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Calendar className="h-3.5 w-3.5 text-zinc-400" />
+                                    <span>{new Date(pay.createdAt).toLocaleString()}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="mt-5 pt-4 border-t border-zinc-100 space-y-2">
+                                {pay.fileName && (pay.fileData || pay.fileUrl) ? (
+                                  <button
+                                    onClick={() => downloadFile(pay.fileData || pay.fileUrl, pay.fileName)}
+                                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold py-2.5 px-4 text-xs transition-colors cursor-pointer border border-zinc-200"
+                                  >
+                                    <Download className="h-3.5 w-3.5" />
+                                    Download Proof Screenshot
+                                  </button>
                                 ) : (
-                                  <span className="text-[9px] font-bold text-yellow-700 bg-yellow-100/60 border border-yellow-100 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                                    Pending
-                                  </span>
+                                  <div className="text-center p-2 bg-zinc-50 rounded-xl border border-dashed border-zinc-200 text-[11px] text-zinc-400 font-medium">
+                                    No screenshot file attached
+                                  </div>
+                                )}
+
+                                {!isWhitelisted ? (
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => handleDirectWhitelist(pay.id, pay.number, `${pay.firstName} ${pay.lastName}`, pay.plan)}
+                                      className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3 text-xs transition-colors shadow-sm cursor-pointer"
+                                    >
+                                      <CheckCircle className="h-3.5 w-3.5" />
+                                      Approve & Grant Access
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeletePayment(pay.id, `${pay.firstName} ${pay.lastName}`)}
+                                      title="Reject & Delete Payment Proof"
+                                      className="inline-flex items-center justify-center p-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold transition-colors border border-red-200 cursor-pointer"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    <div className="w-full flex items-center justify-center gap-1.5 p-2 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-800 text-[11px] font-bold">
+                                      <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                                      Access Active & Whitelisted
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() => handleRevokePaymentAccess(pay.id, pay.number, `${pay.firstName} ${pay.lastName}`)}
+                                        className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold py-2 px-3 text-[11px] transition-colors border border-amber-200 cursor-pointer"
+                                      >
+                                        <Lock className="h-3 w-3" />
+                                        Revoke Access
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeletePayment(pay.id, `${pay.firstName} ${pay.lastName}`)}
+                                        title="Delete Payment Record"
+                                        className="inline-flex items-center justify-center p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-[11px] font-bold transition-colors border border-red-200 cursor-pointer"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
                                 )}
                               </div>
-
-                              <div className="space-y-2 pt-4 border-t border-zinc-100 text-xs text-zinc-500">
-                                <div className="flex items-center justify-between bg-zinc-50 p-2.5 rounded-xl border border-zinc-100 font-sans">
-                                  <span className="font-semibold text-zinc-600">Transaction ID:</span>
-                                  <span className="font-bold text-zinc-900 font-mono select-all bg-white px-2 py-0.5 rounded border border-zinc-200 text-[11px]">
-                                    {pay.transactionId}
-                                  </span>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  <Mail className="h-3.5 w-3.5 text-zinc-400" />
-                                  <a href={`mailto:${pay.email}`} className="hover:text-emerald-600 transition-colors font-medium">
-                                    {pay.email}
-                                  </a>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Phone className="h-3.5 w-3.5 text-zinc-400" />
-                                  <a href={`tel:${pay.number}`} className="hover:text-emerald-600 transition-colors font-medium">
-                                    {pay.number}
-                                  </a>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Calendar className="h-3.5 w-3.5 text-zinc-400" />
-                                  <span>{new Date(pay.createdAt).toLocaleString()}</span>
-                                </div>
-                              </div>
                             </div>
-
-                            <div className="mt-5 pt-4 border-t border-zinc-100 space-y-2.5">
-                              {pay.fileName && pay.fileData ? (
-                                <button
-                                  onClick={() => downloadFile(pay.fileData, pay.fileName)}
-                                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold py-2.5 px-4 text-xs transition-colors cursor-pointer border border-zinc-200"
-                                >
-                                  <Download className="h-3.5 w-3.5" />
-                                  Download Proof Screenshot
-                                </button>
-                              ) : (
-                                <div className="text-center p-2.5 bg-zinc-50 rounded-xl border border-dashed border-zinc-200 text-[11px] text-zinc-400 font-medium">
-                                  No screenshot uploaded
-                                </div>
-                              )}
-
-                              {!isWhitelisted ? (
-                                <button
-                                  onClick={() => handleDirectWhitelist(pay.number)}
-                                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 text-xs transition-colors shadow-sm cursor-pointer"
-                                >
-                                  <CheckCircle className="h-3.5 w-3.5" />
-                                  Approve & Whitelist
-                                </button>
-                              ) : (
-                                <div className="w-full text-center p-2 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-800 text-[11px] font-bold">
-                                  ✓ Access Granted Successfully
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-center py-20 bg-white rounded-3xl border border-zinc-200 shadow-sm p-8">
-                      <CreditCard className="h-12 w-12 text-zinc-300 mx-auto mb-4" />
-                      <h3 className="text-lg font-bold text-zinc-800">No payment screenshots uploaded</h3>
-                      <p className="text-zinc-500 text-sm mt-1">Once students upload receipt screenshots, they will display here for instant authorization.</p>
-                    </div>
-                  )}
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </motion.div>
               )}
 

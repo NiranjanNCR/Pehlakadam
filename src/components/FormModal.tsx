@@ -282,34 +282,52 @@ export default function FormModal() {
                         </motion.div>
                       </div>
 
-                      <motion.div animate={shakeFields.role ? "shake" : "default"} variants={shakeVariants}>
-                        <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5 text-left">
-                          I want to enroll in
-                        </label>
-                        <select
-                          name="role"
-                          value={formData.role}
-                          onChange={handleChange}
-                          className={`w-full rounded-xl bg-zinc-800 border px-4 py-2.5 text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 ${
-                            errors.role
-                              ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
-                              : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
-                          }`}
-                        >
-                          <option value="" disabled>
-                            Select a program
-                          </option>
-                          <option value="Primary Kudos">Primary Kudos</option>
-                          <option value="6-8 Grade Student">6-8 Grade Student</option>
-                          <option value="8-10 Grade Student">8-10 Grade Student</option>
-                          <option value="11-12 Grade Student">11-12 Grade Student</option>
-                          <option value="UG/Graduate/PG">UG/Graduate/PG</option>
-                          <option value="Generalist to Specialist">Generalist to Specialist</option>
-                        </select>
-                        {errors.role && (
-                          <p className="mt-1 text-[11px] text-red-400 font-medium text-left">{errors.role}</p>
-                        )}
-                      </motion.div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <motion.div animate={shakeFields.role ? "shake" : "default"} variants={shakeVariants}>
+                          <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5 text-left">
+                            Academic Program
+                          </label>
+                          <select
+                            name="role"
+                            value={formData.role}
+                            onChange={handleChange}
+                            className={`w-full rounded-xl bg-zinc-800 border px-4 py-2.5 text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 ${
+                              errors.role
+                                ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
+                                : "border-zinc-700 focus:ring-emerald-500/50 focus:border-emerald-500"
+                            }`}
+                          >
+                            <option value="" disabled>
+                              Select a program
+                            </option>
+                            <option value="Primary Kudos">Primary Kudos</option>
+                            <option value="6-8 Grade Student">6-8 Grade Student</option>
+                            <option value="8-10 Grade Student">8-10 Grade Student</option>
+                            <option value="11-12 Grade Student">11-12 Grade Student</option>
+                            <option value="UG/Graduate/PG">UG/Graduate/PG</option>
+                            <option value="Generalist to Specialist">Generalist to Specialist</option>
+                          </select>
+                          {errors.role && (
+                            <p className="mt-1 text-[11px] text-red-400 font-medium text-left">{errors.role}</p>
+                          )}
+                        </motion.div>
+
+                        <motion.div animate={shakeFields.plan ? "shake" : "default"} variants={shakeVariants}>
+                          <label className="block text-xs font-semibold uppercase tracking-wider text-emerald-400 mb-1.5 text-left">
+                            Plan Tier
+                          </label>
+                          <select
+                            name="plan"
+                            value={formData.plan || "Basic"}
+                            onChange={handleChange}
+                            className="w-full rounded-xl bg-zinc-800 border border-emerald-500/50 px-4 py-2.5 text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 font-medium"
+                          >
+                            <option value="Basic">Basic</option>
+                            <option value="Standard">Standard</option>
+                            <option value="Premium Pro">Premium Pro</option>
+                          </select>
+                        </motion.div>
+                      </div>
 
                       <motion.div animate={shakeFields.message ? "shake" : "default"} variants={shakeVariants}>
                         <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5 text-left">

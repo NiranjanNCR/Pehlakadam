@@ -48,3 +48,51 @@
 .animate-spin-slow {
   animation: spin-slow 15s linear infinite;
 }
+
+/* ==========================================================================
+   OFFICIAL PEHLAKADAM SCORECARD PRINT STYLING
+   ========================================================================== */
+@media print {
+  /* Hide all regular web UI elements */
+  nav,
+  footer,
+  button,
+  .no-print,
+  #navigation-bar-container,
+  #admin-sidebar,
+  .print\\:hidden {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #09090b !important;
+    font-size: 11pt !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #official-pehlakadam-scorecard-report {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 20px !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+  }
+
+  /* Prevent awkward page breaks inside cards and tables */
+  table, tr, td, th, .break-inside-avoid {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 12mm 15mm;
+  }
+}

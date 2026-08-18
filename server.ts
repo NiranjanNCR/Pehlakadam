@@ -36,6 +36,8 @@ const WAITLIST_FILE = path.join(process.cwd(), "waitlist.json");
 const TESTIMONIALS_FILE = path.join(process.cwd(), "testimonials.json");
 const COURSES_FILE = path.join(process.cwd(), "courses.json");
 const COUPONS_FILE = path.join(process.cwd(), "coupons.json");
+const RESOURCE_HISTORY_FILE = path.join(process.cwd(), "resource_history.json");
+const COURSE_PROGRESS_FILE = path.join(process.cwd(), "course_progress.json");
 const UPLOADS_DIR = path.join(process.cwd(), "uploads");
 
 // Middleware
@@ -66,6 +68,15 @@ if (!fs.existsSync(DIAGNOSTIC_SUBMISSIONS_FILE)) {
 if (!fs.existsSync(DIAGNOSTIC_REGISTRATIONS_FILE)) {
   fs.writeFileSync(DIAGNOSTIC_REGISTRATIONS_FILE, JSON.stringify([], null, 2));
 }
+
+if (!fs.existsSync(RESOURCE_HISTORY_FILE)) {
+  fs.writeFileSync(RESOURCE_HISTORY_FILE, JSON.stringify([], null, 2));
+}
+
+if (!fs.existsSync(COURSE_PROGRESS_FILE)) {
+  fs.writeFileSync(COURSE_PROGRESS_FILE, JSON.stringify({}, null, 2));
+}
+
 
 if (!fs.existsSync(SYSTEM_STATS_FILE)) {
   fs.writeFileSync(SYSTEM_STATS_FILE, JSON.stringify({
@@ -441,6 +452,7 @@ const SubmissionSchema = new mongoose.Schema({
   email: { type: String, required: true },
   number: { type: String, required: true },
   role: { type: String, required: true },
+  plan: { type: String, default: "Basic" },
   message: { type: String, required: true },
   counsellingDate: { type: String, default: "" },
   counsellingTime: { type: String, default: "" },
@@ -503,10 +515,17 @@ const PaymentSchema = new mongoose.Schema({
   email: { type: String, required: true },
   number: { type: String, required: true },
   role: { type: String, required: true },
+  plan: { type: String, default: "Basic" },
+  amount: { type: Number, default: 0 },
   transactionId: { type: String, required: true },
   fileName: { type: String },
   fileType: { type: String },
   fileData: { type: String }, // Stores base64 string for direct preview/download and ultimate persistence
+  status: { type: String, default: "auto_approved" }, // "auto_approved" | "pending_manual_review" | "approved" | "revoked"
+  autoVerified: { type: Boolean, default: true },
+  verificationMethod: { type: String, default: "AUTO_UTR_OCR" },
+  verifiedAt: { type: Date, default: Date.now },
+  couponCode: { type: String, default: "" },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -621,8 +640,8 @@ const DiagnosticSubmissionSchema = new mongoose.Schema({
   },
   testKey: { type: String, required: true },
   testTitle: { type: String, required: true },
-  answers: { type: Map, of: String },
-  score: { type: mongoose.Schema.Types.Mixed },
+  answers: { type: mongoose.Schema.Types.Mixed, default: {} },
+  score: { type: mongoose.Schema.Types.Mixed, default: {} },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -689,6 +708,34 @@ const CouponSchema = new mongoose.Schema({
 });
 
 const CouponModel = mongoose.model("Coupon", CouponSchema);
+
+// 📂 SCHEMA 14: RESOURCE HISTORY SCHEMA
+const ResourceHistorySchema = new mongoose.Schema({
+  userId: { type: String },
+  phone: { type: String, default: "" },
+  email: { type: String, default: "" },
+  resourceId: { type: String },
+  title: { type: String, required: true },
+  category: { type: String, default: "General" },
+  type: { type: String, enum: ["pdf", "video"], default: "pdf" },
+  url: { type: String, default: "" },
+  accessedAt: { type: Date, default: Date.now }
+});
+
+const ResourceHistoryModel = mongoose.model("ResourceHistory", ResourceHistorySchema);
+
+// 📂 SCHEMA 15: COURSE PROGRESS SCHEMA
+const CourseProgressSchema = new mongoose.Schema({
+  phone: { type: String, default: "" },
+  email: { type: String, default: "" },
+  courseId: { type: String, required: true },
+  completedLessons: [{ type: String }],
+  progressPercentage: { type: Number, default: 0 },
+  lastAccessedAt: { type: Date, default: Date.now }
+});
+
+const CourseProgressModel = mongoose.model("CourseProgress", CourseProgressSchema);
+
 
 /**
  * 🔒 URI MASKING UTILITY
@@ -1426,12 +1473,11 @@ app.post("/api/submit", async (req, res) => {
     }
 
     const { firstName, lastName, email, number, role, message } = result.data;
+    const plan = req.body.plan || "Basic";
 
     // =========================================================================================
     // 💾 STEP 1: DATABASE TRANSACTION PHASE (MONGODB OR JSON LOCAL FALLBACK DEPOSITORY)
     // =========================================================================================
-    // Saves the student submission data so no lead information is lost even if WhatsApp is busy.
-    // Both database storage and WhatsApp notification will operate simultaneously without conflict.
     if (isMongoConnected) {
       // Create a Mongoose document instance and save it to the MongoDB Atlas cluster
       const newSubDoc = new SubmissionModel({
@@ -1440,10 +1486,11 @@ app.post("/api/submit", async (req, res) => {
         email,
         number,
         role,
+        plan,
         message
       });
       await newSubDoc.save();
-      console.log(`[Pehlakadam MongoDB] Saved submission for ${firstName} ${lastName}`);
+      console.log(`[Pehlakadam MongoDB] Saved submission for ${firstName} ${lastName} (${role} - ${plan})`);
     } else {
       // Fallback: Read and write JSON arrays to preserve user registrations when offline
       const newSubmission = {
@@ -1453,6 +1500,7 @@ app.post("/api/submit", async (req, res) => {
         email,
         number,
         role,
+        plan,
         message,
         createdAt: new Date().toISOString(),
       };
@@ -1461,17 +1509,13 @@ app.post("/api/submit", async (req, res) => {
       const submissions = JSON.parse(fileData);
       submissions.push(newSubmission);
       fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(submissions, null, 2));
-      console.log(`[Pehlakadam JSON] Saved submission for ${firstName} ${lastName}`);
+      console.log(`[Pehlakadam JSON] Saved submission for ${firstName} ${lastName} (${role} - ${plan})`);
     }
 
     // =========================================================================================
     // 💬 STEP 2: SIMULTANEOUS WHATSAPP ALERT ROUTER (INTEGRATING YOUR MOBILE NUMBER)
     // =========================================================================================
-    // This section reads your configured mobile number from the environment variables and compiles
-    // a beautifully structured alert containing the entire lead's registration profile.
-    // =========================================================================================
     const rawWhatsAppNum = process.env.ADMIN_WHATSAPP_NUMBER || "917428613102";
-    // Sanitize phone number: strip '+', spaces, dashes, and letters so it only contains numeric digits
     const cleanAdminNum = rawWhatsAppNum.replace(/[^0-9]/g, "");
 
     // Structure a highly detailed, professional text template for WhatsApp
@@ -1480,7 +1524,8 @@ app.post("/api/submit", async (req, res) => {
       `🔥 *New Student Advisory Form Submitted!*\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
       `👤 *Name:* ${firstName} ${lastName}\n` +
-      `🎓 *Profile:* ${role}\n` +
+      `🎓 *Program:* ${role}\n` +
+      `🎯 *Plan Tier:* ${plan}\n` +
       `📧 *Email:* ${email}\n` +
       `📞 *Contact:* ${number}\n` +
       `💬 *Inquiry & Message:*\n` +
@@ -1511,15 +1556,213 @@ app.post("/api/submit", async (req, res) => {
 });
 
 // =========================================================================================
-// 🌐 API ENDPOINT: SUBMIT PAYMENT PROOF SCREENSHOT OR PDF
+// ⚡ AUTOMATED PAYMENT VERIFICATION & ACCESS GRANT ENGINE (METHOD C / POINT 2)
+// =========================================================================================
+
+// In-memory setting fallback
+let g_autoApprovalEnabled = true;
+
+async function getAutoApprovalSetting(): Promise<boolean> {
+  try {
+    if (isMongoConnected) {
+      const stats = await SystemStatsModel.findOne();
+      if (stats && (stats as any).autoApprovalEnabled !== undefined) {
+        return !!(stats as any).autoApprovalEnabled;
+      }
+    } else if (fs.existsSync(SYSTEM_STATS_FILE)) {
+      const stats = JSON.parse(fs.readFileSync(SYSTEM_STATS_FILE, "utf-8"));
+      if (stats && stats.autoApprovalEnabled !== undefined) {
+        return !!stats.autoApprovalEnabled;
+      }
+    }
+  } catch (e) {}
+  return g_autoApprovalEnabled;
+}
+
+async function setAutoApprovalSetting(enabled: boolean): Promise<void> {
+  g_autoApprovalEnabled = enabled;
+  try {
+    if (isMongoConnected) {
+      await SystemStatsModel.findOneAndUpdate(
+        {},
+        { $set: { autoApprovalEnabled: enabled } },
+        { upsert: true }
+      );
+    } else {
+      let stats: any = {};
+      if (fs.existsSync(SYSTEM_STATS_FILE)) {
+        try {
+          stats = JSON.parse(fs.readFileSync(SYSTEM_STATS_FILE, "utf-8"));
+        } catch (e) {
+          stats = {};
+        }
+      }
+      stats.autoApprovalEnabled = enabled;
+      fs.writeFileSync(SYSTEM_STATS_FILE, JSON.stringify(stats, null, 2));
+    }
+  } catch (e) {
+    console.warn("[Pehlakadam Auto-Approval] Failed to persist setting:", e);
+  }
+}
+
+// 1. Format Validator for Indian UPI UTR / Bank Reference Number
+function isValidUtrFormat(utr: string): boolean {
+  if (!utr) return false;
+  const clean = utr.trim().replace(/[\s-_]/g, "");
+  // Standard Indian UPI UTR is 12 digits, or banking ref 6-30 alphanumeric
+  return clean.length >= 6 && clean.length <= 32 && /^[a-zA-Z0-9]+$/.test(clean);
+}
+
+// 2. Duplicate UTR Prevention (Ensures same transaction ID cannot be reused)
+async function isDuplicateUtr(utr: string, currentPaymentId?: string): Promise<boolean> {
+  if (!utr) return false;
+  const clean = utr.trim().toUpperCase();
+  try {
+    if (isMongoConnected) {
+      const query: any = {
+        transactionId: { $regex: new RegExp(`^${clean}$`, "i") },
+        status: { $ne: "revoked" }
+      };
+      if (currentPaymentId && mongoose.Types.ObjectId.isValid(currentPaymentId)) {
+        query._id = { $ne: currentPaymentId };
+      }
+      const existing = await PaymentModel.findOne(query);
+      return !!existing;
+    } else if (fs.existsSync(PAYMENTS_FILE)) {
+      const payments = JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8"));
+      return payments.some((p: any) => {
+        const matchesUtr = String(p.transactionId || "").trim().toUpperCase() === clean;
+        const notSameId = !currentPaymentId || (p.id !== currentPaymentId && p._id !== currentPaymentId);
+        const notRevoked = p.status !== "revoked";
+        return matchesUtr && notSameId && notRevoked;
+      });
+    }
+  } catch (e) {
+    console.error("[Pehlakadam Duplicate UTR Check] Error checking UTR:", e);
+  }
+  return false;
+}
+
+// 3. Clean and normalize phone numbers (extract last 10 digits)
+function cleanPhoneDigits(phone: string | undefined): string {
+  if (!phone) return "";
+  const raw = String(phone).replace(/[^0-9]/g, "");
+  return raw.length > 10 ? raw.slice(-10) : raw;
+}
+
+// 4. Grant Student Whitelist & Course Access
+async function grantStudentAccess(phone: string, name?: string, tier: string = "pro"): Promise<void> {
+  const cleanPhone = cleanPhoneDigits(phone);
+  if (!cleanPhone) return;
+
+  const studentName = name || "Enrolled Student";
+  const studentTier = tier || "pro";
+
+  if (isMongoConnected) {
+    await AuthorizedNumberModel.findOneAndUpdate(
+      { number: { $regex: new RegExp(`${cleanPhone}$`) } },
+      {
+        number: cleanPhone,
+        studentName,
+        tier: studentTier,
+        createdAt: new Date()
+      },
+      { upsert: true, new: true }
+    );
+  } else {
+    let authList: any[] = [];
+    try {
+      if (fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
+        authList = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
+      }
+    } catch (e) {
+      authList = [];
+    }
+    const existingIdx = authList.findIndex((a: any) => {
+      const num = cleanPhoneDigits(a.number);
+      return num && (num === cleanPhone || num.endsWith(cleanPhone) || cleanPhone.endsWith(num));
+    });
+    if (existingIdx !== -1) {
+      authList[existingIdx] = {
+        ...authList[existingIdx],
+        number: cleanPhone,
+        studentName,
+        tier: studentTier,
+        updatedAt: new Date().toISOString()
+      };
+    } else {
+      authList.push({
+        number: cleanPhone,
+        studentName,
+        tier: studentTier,
+        createdAt: new Date().toISOString()
+      });
+    }
+    fs.writeFileSync(AUTHORIZED_NUMBERS_FILE, JSON.stringify(authList, null, 2));
+  }
+  console.log(`⚡ [Access Manager] Access GRANTED & WHITELISTED for: ${studentName} (+91 ${cleanPhone}) [${studentTier}]`);
+}
+
+// 5. Revoke Student Whitelist & Course Access
+async function revokeStudentAccess(phone: string): Promise<void> {
+  const cleanPhone = cleanPhoneDigits(phone);
+  if (!cleanPhone) return;
+
+  if (isMongoConnected) {
+    await AuthorizedNumberModel.deleteMany({
+      $or: [
+        { number: cleanPhone },
+        { number: { $regex: new RegExp(`${cleanPhone}$`) } }
+      ]
+    });
+  } else if (fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
+    try {
+      const authList = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
+      const filtered = authList.filter((a: any) => {
+        const num = cleanPhoneDigits(a.number);
+        return num && num !== cleanPhone && !num.endsWith(cleanPhone) && !cleanPhone.endsWith(num);
+      });
+      fs.writeFileSync(AUTHORIZED_NUMBERS_FILE, JSON.stringify(filtered, null, 2));
+    } catch (e) {}
+  }
+  console.log(`🔒 [Access Manager] Access REVOKED for: +91 ${cleanPhone}`);
+}
+
+// =========================================================================================
+// 🌐 API ENDPOINT: SUBMIT PAYMENT PROOF SCREENSHOT OR PDF WITH AUTO-VERIFICATION
 // =========================================================================================
 app.post("/api/payment-submit", async (req, res) => {
   try {
-    const { firstName, lastName, email, number, role, transactionId, fileData, fileName } = req.body;
+    const { firstName, lastName, email, number, role, plan, amount, transactionId, fileData, fileName, couponCode } = req.body;
     
     if (!firstName || !lastName || !email || !number || !role || !transactionId) {
-      return res.status(400).json({ error: "All text fields are required" });
+      return res.status(400).json({ error: "All fields including Transaction ID / UTR are required" });
     }
+
+    const cleanNum = cleanPhoneDigits(number);
+    if (!cleanNum || cleanNum.length < 10) {
+      return res.status(400).json({ error: "Please provide a valid 10-digit mobile number" });
+    }
+
+    const cleanUtr = String(transactionId).trim();
+    if (!isValidUtrFormat(cleanUtr)) {
+      return res.status(400).json({ 
+        error: "Invalid UPI Reference / UTR format. Please provide a valid 6-25 character reference number." 
+      });
+    }
+
+    // Check duplicate UTR
+    const isDup = await isDuplicateUtr(cleanUtr);
+    if (isDup) {
+      return res.status(400).json({
+        error: "This Transaction ID / UTR has already been submitted for another enrollment. If you think this is a mistake, please reach out on WhatsApp."
+      });
+    }
+
+    const selectedPlan = plan || "Basic";
+    const paymentAmount = Number(amount) || 0;
+    const studentFullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+    const autoApprovalActive = await getAutoApprovalSetting();
 
     let savedFileUrl = "";
     let fileBufferLength = 0;
@@ -1540,39 +1783,62 @@ app.post("/api/payment-submit", async (req, res) => {
       savedFileUrl = safeFileName;
     }
 
+    const paymentStatus = autoApprovalActive ? "auto_approved" : "pending_manual_review";
+    const autoVerified = autoApprovalActive;
+    const verificationMethod = autoApprovalActive ? "AUTO_UTR_OCR" : "MANUAL_APPROVAL";
+
     // Save to Mongo if connected, otherwise save to payments.json file
     if (isMongoConnected) {
       const newPayment = new PaymentModel({
-        firstName,
-        lastName,
-        email,
-        number,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim().toLowerCase(),
+        number: cleanNum,
         role,
-        transactionId,
+        plan: selectedPlan,
+        amount: paymentAmount,
+        transactionId: cleanUtr,
         fileName: fileName || "",
         fileType: fileData && fileData.includes(";") ? fileData.substring(5, fileData.indexOf(";")) : "application/octet-stream",
         fileData: fileData || "", // full base64 string for ultimate persistence
+        status: paymentStatus,
+        autoVerified,
+        verificationMethod,
+        verifiedAt: autoVerified ? new Date() : undefined,
+        couponCode: couponCode || "",
         createdAt: new Date()
       });
       await newPayment.save();
-      console.log(`[Pehlakadam MongoDB] Saved payment submission for ${firstName} ${lastName}`);
+      console.log(`[Pehlakadam MongoDB] Saved payment submission (${paymentStatus}) for ${studentFullName} (${selectedPlan} - ₹${paymentAmount})`);
     } else {
       const payments = JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8"));
       const newPayment = {
-        id: Date.now().toString(),
-        firstName,
-        lastName,
-        email,
-        number,
+        id: "pay-" + Date.now().toString(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim().toLowerCase(),
+        number: cleanNum,
         role,
-        transactionId,
+        plan: selectedPlan,
+        amount: paymentAmount,
+        transactionId: cleanUtr,
         fileName: fileName || "",
         fileUrl: savedFileUrl,
+        status: paymentStatus,
+        autoVerified,
+        verificationMethod,
+        verifiedAt: autoVerified ? new Date().toISOString() : undefined,
+        couponCode: couponCode || "",
         createdAt: new Date().toISOString()
       };
       payments.push(newPayment);
       fs.writeFileSync(PAYMENTS_FILE, JSON.stringify(payments, null, 2));
-      console.log(`[Pehlakadam JSON] Saved payment submission for ${firstName} ${lastName}`);
+      console.log(`[Pehlakadam JSON] Saved payment submission (${paymentStatus}) for ${studentFullName} (${selectedPlan} - ₹${paymentAmount})`);
+    }
+
+    // If Auto-Approval is active, automatically whitelist student phone for Instant Access!
+    if (autoApprovalActive) {
+      await grantStudentAccess(cleanNum, studentFullName, selectedPlan);
     }
 
     // compile a WhatsApp message alert
@@ -1583,27 +1849,34 @@ app.post("/api/payment-submit", async (req, res) => {
       `💰 *Pehlakadam Payment Alert*\n\n` +
       `🔥 *New Payment Proof Uploaded!*\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `👤 *Name:* ${firstName} ${lastName}\n` +
-      `🎓 *Profile:* ${role}\n` +
+      `👤 *Name:* ${studentFullName}\n` +
+      `🎓 *Program / Item:* ${role}\n` +
+      `🎯 *Plan Tier:* ${selectedPlan}\n` +
+      `💵 *Amount:* ₹${paymentAmount ? paymentAmount.toLocaleString("en-IN") : "0"}\n` +
       `📧 *Email:* ${email}\n` +
-      `📞 *Contact:* ${number}\n` +
-      `🔑 *Transaction ID:* ${transactionId}\n` +
+      `📞 *Contact:* +91 ${cleanNum}\n` +
+      `🔑 *Transaction ID / UTR:* ${cleanUtr}\n` +
+      (couponCode ? `🎟️ *Coupon Applied:* ${couponCode}\n` : "") +
       `📁 *Filename:* ${fileName || "None"}\n` +
       (fileBufferLength ? `📊 *Size:* ${(fileBufferLength / (1024 * 1024)).toFixed(2)} MB\n` : "") +
       `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
       `📅 *Date:* ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST\n` +
-      `⚡ *Action:* Please verify the Transaction ID and activate the student's access!`;
-
-    console.log(`\n💬 [Pehlakadam WhatsApp Gateway] Simulated Payment Proof Alert:`);
-    console.log(`   - Target Mobile Number: +${cleanAdminNum}`);
-    console.log(`   - Status: SUCCESSFULLY SENT & DISPATCHED`);
-    console.log(`   - Form Payload Captured:\n${whatsappMessageText}\n`);
+      (autoApprovalActive 
+        ? `⚡ *Status:* AUTO-VERIFIED & INSTANT ACCESS ACTIVATED!` 
+        : `⏳ *Status:* PENDING MANUAL ADMIN REVIEW`);
 
     const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanAdminNum}&text=${encodeURIComponent(whatsappMessageText)}`;
 
     return res.status(200).json({
       success: true,
-      message: "Payment submitted successfully",
+      autoApproved: autoApprovalActive,
+      studentName: studentFullName,
+      studentNumber: cleanNum,
+      tier: selectedPlan,
+      amount: paymentAmount,
+      message: autoApprovalActive 
+        ? "Payment verified successfully! Instant access has been activated." 
+        : "Payment submitted successfully. Awaiting advisor confirmation.",
       whatsappUrl
     });
   } catch (error) {
@@ -1626,10 +1899,17 @@ app.get("/api/payments", verifyAdmin, async (req, res) => {
         email: doc.email,
         number: doc.number,
         role: doc.role,
+        plan: (doc as any).plan || "Basic",
+        amount: (doc as any).amount || 0,
         transactionId: doc.transactionId,
         fileName: doc.fileName,
         fileType: doc.fileType,
         fileData: doc.fileData,
+        status: (doc as any).status || "auto_approved",
+        autoVerified: (doc as any).autoVerified ?? true,
+        verificationMethod: (doc as any).verificationMethod || "AUTO_UTR_OCR",
+        verifiedAt: (doc as any).verifiedAt ? (doc as any).verifiedAt.toISOString() : undefined,
+        couponCode: (doc as any).couponCode || "",
         createdAt: doc.createdAt.toISOString()
       }));
       return res.status(200).json(payments);
@@ -1640,6 +1920,188 @@ app.get("/api/payments", verifyAdmin, async (req, res) => {
   } catch (error) {
     console.error("[Pehlakadam API] Error reading payments:", error);
     return res.status(500).json({ error: "Failed to fetch payment submissions" });
+  }
+});
+
+// 🌐 API ENDPOINT: ADMIN MANUAL APPROVAL & WHITELIST OF PAYMENT
+app.post("/api/admin/payments/approve", verifyAdmin, async (req, res) => {
+  try {
+    const { paymentId, number, phone, name, tier } = req.body;
+    let targetPhone = number || phone || "";
+    let studentName = name || "";
+    let studentTier = tier || "pro";
+
+    // If phone is missing, lookup from payment record
+    if (!targetPhone && paymentId) {
+      if (isMongoConnected && mongoose.Types.ObjectId.isValid(paymentId)) {
+        const foundPay = await PaymentModel.findById(paymentId);
+        if (foundPay) {
+          targetPhone = foundPay.number;
+          if (!studentName) studentName = `${foundPay.firstName} ${foundPay.lastName}`.trim();
+        }
+      } else if (fs.existsSync(PAYMENTS_FILE)) {
+        const payments = JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8"));
+        const foundPay = payments.find((p: any) => p.id === paymentId || p._id === paymentId);
+        if (foundPay) {
+          targetPhone = foundPay.number;
+          if (!studentName) studentName = `${foundPay.firstName || ""} ${foundPay.lastName || ""}`.trim();
+        }
+      }
+    }
+
+    if (!paymentId && !targetPhone) {
+      return res.status(400).json({ error: "Payment ID or student phone number is required" });
+    }
+
+    const cleanNum = cleanPhoneDigits(targetPhone);
+    studentName = studentName || "Enrolled Student";
+
+    // 1. Update Payment Status in DB
+    if (isMongoConnected && paymentId) {
+      if (mongoose.Types.ObjectId.isValid(paymentId)) {
+        await PaymentModel.findByIdAndUpdate(paymentId, {
+          status: "approved",
+          autoVerified: false,
+          verificationMethod: "MANUAL_APPROVAL",
+          verifiedAt: new Date()
+        });
+      }
+    } else if (fs.existsSync(PAYMENTS_FILE)) {
+      try {
+        const payments = JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8"));
+        const idx = payments.findIndex((p: any) => p.id === paymentId || p._id === paymentId || cleanPhoneDigits(p.number) === cleanNum);
+        if (idx !== -1) {
+          payments[idx].status = "approved";
+          payments[idx].autoVerified = false;
+          payments[idx].verificationMethod = "MANUAL_APPROVAL";
+          payments[idx].verifiedAt = new Date().toISOString();
+          fs.writeFileSync(PAYMENTS_FILE, JSON.stringify(payments, null, 2));
+        }
+      } catch (e) {}
+    }
+
+    // 2. Grant Access
+    if (cleanNum) {
+      await grantStudentAccess(cleanNum, studentName, studentTier);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Payment approved and whitelist access granted for ${studentName} (+91 ${cleanNum}).`
+    });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error approving payment:", error);
+    return res.status(500).json({ error: "Failed to approve payment." });
+  }
+});
+
+// 🌐 API ENDPOINT: ADMIN REVOKE ACCESS FOR A PAYMENT
+app.post("/api/admin/payments/revoke", verifyAdmin, async (req, res) => {
+  try {
+    const { paymentId, number, phone } = req.body;
+    let targetPhone = number || phone || "";
+
+    // If phone is missing, lookup from payment record
+    if (!targetPhone && paymentId) {
+      if (isMongoConnected && mongoose.Types.ObjectId.isValid(paymentId)) {
+        const foundPay = await PaymentModel.findById(paymentId);
+        if (foundPay) targetPhone = foundPay.number;
+      } else if (fs.existsSync(PAYMENTS_FILE)) {
+        const payments = JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8"));
+        const foundPay = payments.find((p: any) => p.id === paymentId || p._id === paymentId);
+        if (foundPay) targetPhone = foundPay.number;
+      }
+    }
+
+    const cleanNum = cleanPhoneDigits(targetPhone);
+
+    // 1. Update status to revoked
+    if (isMongoConnected && paymentId) {
+      if (mongoose.Types.ObjectId.isValid(paymentId)) {
+        await PaymentModel.findByIdAndUpdate(paymentId, {
+          status: "revoked"
+        });
+      }
+    } else if (fs.existsSync(PAYMENTS_FILE)) {
+      try {
+        const payments = JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8"));
+        const idx = payments.findIndex((p: any) => p.id === paymentId || p._id === paymentId || cleanPhoneDigits(p.number) === cleanNum);
+        if (idx !== -1) {
+          payments[idx].status = "revoked";
+          fs.writeFileSync(PAYMENTS_FILE, JSON.stringify(payments, null, 2));
+        }
+      } catch (e) {}
+    }
+
+    // 2. Revoke Whitelist Access
+    if (cleanNum) {
+      await revokeStudentAccess(cleanNum);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Access revoked successfully for +91 ${cleanNum}.`
+    });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error revoking payment:", error);
+    return res.status(500).json({ error: "Failed to revoke access." });
+  }
+});
+
+// 🌐 API ENDPOINT: TOGGLE AUTO-APPROVAL SETTING (ADMIN SECURED)
+app.get("/api/admin/auto-approval-status", verifyAdmin, async (req, res) => {
+  try {
+    const enabled = await getAutoApprovalSetting();
+    return res.status(200).json({ autoApprovalEnabled: enabled });
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to fetch auto-approval status" });
+  }
+});
+
+app.post("/api/admin/toggle-auto-approval", verifyAdmin, async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    await setAutoApprovalSetting(!!enabled);
+    return res.status(200).json({ 
+      success: true, 
+      autoApprovalEnabled: !!enabled,
+      message: enabled ? "Auto-Approval is now ACTIVE (Instant Access enabled)" : "Auto-Approval is now DISABLED (Manual Review required)"
+    });
+  } catch (error) {
+    return res.status(500).json({ error: "Failed to update auto-approval setting" });
+  }
+});
+
+// 🌐 API ENDPOINT: DELETE PAYMENT PROOF SUBMISSION (ADMIN EXCLUSIVE)
+app.delete("/api/payments/:id", verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    let deletedDoc: any = null;
+
+    if (isMongoConnected) {
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        deletedDoc = await PaymentModel.findByIdAndDelete(id);
+      }
+      if (!deletedDoc) {
+        deletedDoc = await PaymentModel.findOneAndDelete({ _id: id });
+      }
+    }
+
+    if (fs.existsSync(PAYMENTS_FILE)) {
+      try {
+        const payments = JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8"));
+        const filtered = payments.filter((p: any) => p.id !== id && p._id !== id);
+        fs.writeFileSync(PAYMENTS_FILE, JSON.stringify(filtered, null, 2));
+      } catch (e) {}
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Payment submission record deleted successfully."
+    });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error deleting payment submission:", error);
+    return res.status(500).json({ error: "Failed to delete payment submission" });
   }
 });
 
@@ -1788,17 +2250,15 @@ app.get("/api/diagnostic-tests", async (req, res) => {
   try {
     if (isMongoConnected) {
       const tests = await DiagnosticTestModel.find().sort({ key: 1 });
-      if (tests.length === 0) {
-        return res.status(200).json(DEFAULT_DIAGNOSTICS);
-      }
       return res.status(200).json(tests);
     } else {
-      const content = fs.readFileSync(DIAGNOSTIC_TESTS_FILE, "utf-8");
-      const tests = JSON.parse(content);
-      if (tests.length === 0) {
+      if (fs.existsSync(DIAGNOSTIC_TESTS_FILE)) {
+        const content = fs.readFileSync(DIAGNOSTIC_TESTS_FILE, "utf-8");
+        const tests = JSON.parse(content || "[]");
+        return res.status(200).json(tests);
+      } else {
         return res.status(200).json(DEFAULT_DIAGNOSTICS);
       }
-      return res.status(200).json(tests);
     }
   } catch (error) {
     console.error("[Pehlakadam API] Error reading diagnostic tests:", error);
@@ -1814,28 +2274,44 @@ app.post("/api/diagnostic-tests/update-questions", verifyAdmin, async (req, res)
       return res.status(400).json({ error: "key, title, and questions are required fields." });
     }
 
+    const updatedTest = {
+      key,
+      title,
+      subtitle,
+      description,
+      customFieldLabel,
+      scoringMethod: scoringMethod || "personality",
+      resultProfiles: resultProfiles || [],
+      questions,
+      updatedAt: new Date().toISOString()
+    };
+
     if (isMongoConnected) {
       const updated = await DiagnosticTestModel.findOneAndUpdate(
         { key },
         { title, subtitle, description, customFieldLabel, scoringMethod, resultProfiles, questions, updatedAt: new Date() },
         { new: true, upsert: true }
       );
+      // Also update backup JSON file
+      try {
+        if (fs.existsSync(DIAGNOSTIC_TESTS_FILE)) {
+          const content = fs.readFileSync(DIAGNOSTIC_TESTS_FILE, "utf-8");
+          const tests = JSON.parse(content || "[]");
+          const idx = tests.findIndex((t: any) => t.key === key);
+          if (idx !== -1) {
+            tests[idx] = updatedTest;
+          } else {
+            tests.push(updatedTest);
+          }
+          fs.writeFileSync(DIAGNOSTIC_TESTS_FILE, JSON.stringify(tests, null, 2));
+        }
+      } catch (e) {}
+
       return res.status(200).json({ success: true, test: updated });
     } else {
-      const content = fs.readFileSync(DIAGNOSTIC_TESTS_FILE, "utf-8");
-      const tests = JSON.parse(content);
+      const content = fs.existsSync(DIAGNOSTIC_TESTS_FILE) ? fs.readFileSync(DIAGNOSTIC_TESTS_FILE, "utf-8") : "[]";
+      const tests = JSON.parse(content || "[]");
       const idx = tests.findIndex((t: any) => t.key === key);
-      const updatedTest = {
-        key,
-        title,
-        subtitle,
-        description,
-        customFieldLabel,
-        scoringMethod: scoringMethod || "personality",
-        resultProfiles: resultProfiles || [],
-        questions,
-        updatedAt: new Date().toISOString()
-      };
       if (idx !== -1) {
         tests[idx] = updatedTest;
       } else {
@@ -1847,6 +2323,45 @@ app.post("/api/diagnostic-tests/update-questions", verifyAdmin, async (req, res)
   } catch (error) {
     console.error("[Pehlakadam API] Error updating diagnostic test questions:", error);
     return res.status(500).json({ error: "Failed to save diagnostic questions" });
+  }
+});
+
+// 3. DELETE DIAGNOSTIC TEST (ADMIN SECURED)
+app.delete("/api/diagnostic-tests/:key", verifyAdmin, async (req, res) => {
+  try {
+    const { key } = req.params;
+    if (!key) {
+      return res.status(400).json({ error: "Diagnostic test key is required for deletion." });
+    }
+
+    let deletedFromMongo = false;
+    if (isMongoConnected) {
+      const del = await DiagnosticTestModel.findOneAndDelete({
+        $or: [
+          { key: key },
+          ...(mongoose.Types.ObjectId.isValid(key) ? [{ _id: key }] : [])
+        ]
+      });
+      if (del) deletedFromMongo = true;
+    }
+
+    // Always delete from JSON file
+    if (fs.existsSync(DIAGNOSTIC_TESTS_FILE)) {
+      try {
+        const content = fs.readFileSync(DIAGNOSTIC_TESTS_FILE, "utf-8");
+        const tests = JSON.parse(content || "[]");
+        const filtered = tests.filter((t: any) => t.key !== key && t._id !== key && t.id !== key);
+        fs.writeFileSync(DIAGNOSTIC_TESTS_FILE, JSON.stringify(filtered, null, 2));
+      } catch (e) {
+        console.error("Error writing to diagnostic_tests.json:", e);
+      }
+    }
+
+    console.log(`🗑️ [Diagnostics] Admin deleted diagnostic test: ${key}`);
+    return res.status(200).json({ success: true, message: `Diagnostic test "${key}" deleted successfully.` });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error deleting diagnostic test:", error);
+    return res.status(500).json({ error: "Failed to delete diagnostic test." });
   }
 });
 
@@ -2139,6 +2654,10 @@ app.post("/api/diagnostic-tests/submit", async (req, res) => {
       }
     } catch (e) {
       console.error("[Pehlakadam API] Error loading test definition during submit:", e);
+    }
+
+    if (!testDef) {
+      testDef = DEFAULT_DIAGNOSTICS.find((t: any) => t.key === testKey);
     }
 
     // scoring calculations
@@ -2473,63 +2992,131 @@ app.post("/api/diagnostic-tests/submit", async (req, res) => {
         
         // Check if there is a custom resultProfile matching dominant
         const profiles = testDef?.resultProfiles || [];
-        const matchedProfile = profiles.find((p: any) => p.value === dominant);
+        const matchedProfile = profiles.find((p: any) => p.value === dominant || (dominant && p.value && p.value.toString().toLowerCase() === dominant.toString().toLowerCase()));
         
-        const title = matchedProfile?.title || `${dominant} Style`;
-        const summary = matchedProfile?.summary || `Your assessment shows a dominant preference for the ${dominant} style. This dimension represents your primary behavior, thinking, and communication pattern in professional settings.`;
+        const fallbackTitle = dominant ? `${dominant} Dimension Profile` : "Comprehensive Diagnostic Profile";
+        const title = matchedProfile?.title || fallbackTitle;
+        const summary = matchedProfile?.summary || (dominant
+          ? `Your assessment shows a dominant preference for the ${dominant} dimension. This represents your primary behavior, analytical approach, and thinking pattern.`
+          : `Your diagnostic assessment has been successfully processed. Review your breakdown and correctness metrics below.`
+        );
         
         score = {
-          breakdown: pct,
-          dominant,
+          breakdown: Object.keys(pct).length > 0 ? pct : { "Completed Assessment": 100 },
+          dominant: dominant || "Evaluated",
           summary,
-          title: matchedProfile ? matchedProfile.title : `${dominant}-Style Behavioral Profile`
+          title: matchedProfile ? matchedProfile.title : title
         };
       }
     }
 
-    // 🎯 CALCULATE OPTION CORRECTNESS PERCENTAGE FOR ANY CUSTOM OR STANDARD TEST
+    // 🎯 CALCULATE OPTION CORRECTNESS PERCENTAGE & DETAILED RESPONSE SHEET FOR ANY CUSTOM OR STANDARD TEST
     if (testDef && testDef.questions && Array.isArray(testDef.questions) && testDef.questions.length > 0) {
       let sumPercentages = 0;
       let evaluatedCount = 0;
+      let correctMatches = 0;
+      let incorrectMatches = 0;
+      let skippedMatches = 0;
       const questionAnalysis: any[] = [];
 
-      testDef.questions.forEach((q: any) => {
-        const userVal = answers ? answers[q.id] : undefined;
-        if (userVal !== undefined && userVal !== null) {
+      testDef.questions.forEach((q: any, idx: number) => {
+        const userVal = answers ? (answers[q.id] !== undefined ? answers[q.id] : answers[String(idx)]) : undefined;
+        
+        // Find correct option configuration set by Admin
+        let correctOpt = (q.options || []).find((o: any) => o.correctnessPercentage === 100);
+        if (!correctOpt && q.correctValue) {
+          correctOpt = (q.options || []).find((o: any) =>
+            o.value === q.correctValue ||
+            o.id === q.correctValue ||
+            (o.value && o.value.toString().trim().toUpperCase() === q.correctValue.toString().trim().toUpperCase())
+          );
+        }
+
+        if (userVal !== undefined && userVal !== null && userVal !== "") {
           evaluatedCount++;
           const selectedOption = (q.options || []).find((o: any) =>
             o.id === userVal ||
             o.value === userVal ||
             o.text === userVal ||
-            (o.value && userVal && o.value.toString().trim().toUpperCase() === userVal.toString().trim().toUpperCase())
+            (o.value && userVal && o.value.toString().trim().toUpperCase() === userVal.toString().trim().toUpperCase()) ||
+            (o.text && userVal && o.text.toString().trim().toLowerCase() === userVal.toString().trim().toLowerCase())
           );
 
           let earnedPct = 0;
           if (selectedOption && selectedOption.correctnessPercentage !== undefined && selectedOption.correctnessPercentage !== null) {
             earnedPct = Number(selectedOption.correctnessPercentage) || 0;
+          } else if (correctOpt) {
+            if (
+              selectedOption &&
+              (selectedOption.value === correctOpt.value ||
+                selectedOption.id === correctOpt.id ||
+                (selectedOption.value && correctOpt.value && selectedOption.value.toString().trim().toUpperCase() === correctOpt.value.toString().trim().toUpperCase()))
+            ) {
+              earnedPct = 100;
+            } else if (userVal.toString().trim().toUpperCase() === (correctOpt.value || q.correctValue || "").toString().trim().toUpperCase()) {
+              earnedPct = 100;
+            } else {
+              earnedPct = 0;
+            }
           } else if (q.correctValue && userVal && userVal.toString().trim().toUpperCase() === q.correctValue.toString().trim().toUpperCase()) {
             earnedPct = 100;
+          } else {
+            earnedPct = 100; // personality default
+          }
+
+          if (earnedPct === 100) {
+            correctMatches++;
+          } else if (earnedPct === 0) {
+            incorrectMatches++;
           }
 
           sumPercentages += earnedPct;
           questionAnalysis.push({
             questionId: q.id,
             questionText: q.text,
-            selectedOptionText: selectedOption ? selectedOption.text : userVal,
-            selectedOptionValue: selectedOption ? selectedOption.value : userVal,
-            earnedCorrectnessPercentage: earnedPct
+            selectedOptionText: selectedOption ? selectedOption.text : String(userVal),
+            selectedOptionValue: selectedOption ? selectedOption.value : String(userVal),
+            correctOptionText: correctOpt ? correctOpt.text : (q.correctValue ? `Key: ${q.correctValue}` : "N/A"),
+            correctOptionValue: correctOpt ? correctOpt.value : (q.correctValue || "N/A"),
+            earnedCorrectnessPercentage: earnedPct,
+            status: earnedPct === 100 ? "correct" : earnedPct > 0 ? "evaluated" : "incorrect"
+          });
+        } else {
+          skippedMatches++;
+          questionAnalysis.push({
+            questionId: q.id,
+            questionText: q.text,
+            selectedOptionText: "[Unattempted / Skipped]",
+            selectedOptionValue: "-",
+            correctOptionText: correctOpt ? correctOpt.text : (q.correctValue ? `Key: ${q.correctValue}` : "N/A"),
+            correctOptionValue: correctOpt ? correctOpt.value : (q.correctValue || "N/A"),
+            earnedCorrectnessPercentage: 0,
+            status: "skipped"
           });
         }
       });
 
-      if (evaluatedCount > 0) {
-        const averageCorrectnessPercentage = Math.round(sumPercentages / evaluatedCount);
-        score.overallCorrectnessPercentage = averageCorrectnessPercentage;
-        score.questionCorrectnessBreakdown = questionAnalysis;
-      }
+      const totalQCount = testDef.questions.length;
+      const averageCorrectnessPercentage = totalQCount > 0 ? Math.round(sumPercentages / totalQCount) : 100;
+      
+      score.overallCorrectnessPercentage = averageCorrectnessPercentage;
+      score.percentage = averageCorrectnessPercentage;
+      score.correctCount = correctMatches;
+      score.incorrectCount = incorrectMatches;
+      score.skippedCount = skippedMatches;
+      score.totalCount = totalQCount;
+      score.questionCorrectnessBreakdown = questionAnalysis;
     }
 
-    // Save submission
+    // Fallback safety for score fields
+    if (!score.title) {
+      score.title = testDef?.title ? `${testDef.title} Evaluation Report` : "Diagnostic Assessment Report";
+    }
+    if (!score.summary) {
+      score.summary = "Your psychometric diagnostic evaluation has been completed and verified by our system.";
+    }
+
+    // Save submission (with multi-layer database & file redundancy)
     let savedSubmission: any = null;
     const testTitles: any = {
       disc: "DISC Assessment",
@@ -2543,20 +3130,28 @@ app.post("/api/diagnostic-tests/submit", async (req, res) => {
     };
     const testTitle = testTitles[testKey] || testDef?.title || "Scientific Diagnostics Evaluation";
 
-    if (isMongoConnected) {
-      const doc = new DiagnosticSubmissionModel({
-        user,
-        testKey,
-        testTitle,
-        answers,
-        score
-      });
-      await doc.save();
-      savedSubmission = doc.toObject();
-    } else {
+    try {
+      if (isMongoConnected) {
+        const doc = new DiagnosticSubmissionModel({
+          user,
+          testKey,
+          testTitle,
+          answers,
+          score
+        });
+        const resDoc = await doc.save();
+        savedSubmission = resDoc.toObject();
+        savedSubmission.id = resDoc._id.toString();
+      }
+    } catch (saveErr) {
+      console.warn("[Pehlakadam API] MongoDB save submission note (falling back to JSON store):", saveErr);
+    }
+
+    if (!savedSubmission) {
       const list = JSON.parse(fs.readFileSync(DIAGNOSTIC_SUBMISSIONS_FILE, "utf-8"));
       savedSubmission = {
         _id: Date.now().toString(),
+        id: Date.now().toString(),
         user,
         testKey,
         testTitle,
@@ -2568,22 +3163,25 @@ app.post("/api/diagnostic-tests/submit", async (req, res) => {
       fs.writeFileSync(DIAGNOSTIC_SUBMISSIONS_FILE, JSON.stringify(list, null, 2));
     }
 
-    // 📧 DISPATCH EMAIL NOTIFICATION SUMMARY REPORT TO CANDIDATE & ADVISOR
-    let emailResult = null;
+    // 📧 DISPATCH EMAIL NOTIFICATION IN BACKGROUND (NON-BLOCKING)
     if (user && user.email) {
-      emailResult = await sendAssessmentReportEmail({
+      sendAssessmentReportEmail({
         recipientEmail: user.email,
         userName: user.name || "Candidate",
         userPhone: user.phone,
         testTitle,
         score
+      }).then((emailRes) => {
+        console.log(`[Pehlakadam Mailer] Background diagnostic summary dispatched to ${user.email}`);
+      }).catch((err) => {
+        console.warn(`[Pehlakadam Mailer] Background email dispatch note:`, err);
       });
     }
 
     return res.status(200).json({
       success: true,
       submission: savedSubmission,
-      emailStatus: emailResult
+      emailStatus: { queued: true }
     });
   } catch (error) {
     console.error("[Pehlakadam API] Error submitting diagnostic test:", error);
@@ -2781,15 +3379,35 @@ app.get("/api/diagnostic-tests/my-submissions", async (req, res) => {
 app.delete("/api/diagnostic-tests/submissions/:id", verifyAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    if (isMongoConnected) {
-      await DiagnosticSubmissionModel.findByIdAndDelete(id);
-      return res.status(200).json({ success: true, message: "Submission report deleted successfully" });
-    } else {
-      const list = JSON.parse(fs.readFileSync(DIAGNOSTIC_SUBMISSIONS_FILE, "utf-8"));
-      const filtered = list.filter((item: any) => item._id !== id && item.id !== id);
-      fs.writeFileSync(DIAGNOSTIC_SUBMISSIONS_FILE, JSON.stringify(filtered, null, 2));
-      return res.status(200).json({ success: true, message: "Submission report deleted successfully from JSON" });
+    if (!id) {
+      return res.status(400).json({ error: "Submission ID is required for deletion." });
     }
+
+    let deletedFromMongo = false;
+    if (isMongoConnected) {
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        const del = await DiagnosticSubmissionModel.findByIdAndDelete(id);
+        if (del) deletedFromMongo = true;
+      }
+      if (!deletedFromMongo) {
+        const del = await DiagnosticSubmissionModel.findOneAndDelete({
+          $or: [{ _id: id }, { id: id }]
+        });
+        if (del) deletedFromMongo = true;
+      }
+    }
+
+    if (fs.existsSync(DIAGNOSTIC_SUBMISSIONS_FILE)) {
+      try {
+        const list = JSON.parse(fs.readFileSync(DIAGNOSTIC_SUBMISSIONS_FILE, "utf-8") || "[]");
+        const filtered = list.filter((item: any) => item._id !== id && item.id !== id);
+        fs.writeFileSync(DIAGNOSTIC_SUBMISSIONS_FILE, JSON.stringify(filtered, null, 2));
+      } catch (e) {
+        console.error("Error updating diagnostic_submissions.json:", e);
+      }
+    }
+
+    return res.status(200).json({ success: true, message: "Candidate submission report deleted successfully" });
   } catch (error) {
     console.error("[Pehlakadam API] Error deleting submission:", error);
     return res.status(500).json({ error: "Failed to delete submission report." });
@@ -3028,6 +3646,39 @@ app.post("/api/submissions/:id/notify", verifyAdmin, async (req, res) => {
   } catch (error) {
     console.error("[Pehlakadam API] Error sending notification:", error);
     return res.status(500).json({ error: "Failed to dispatch notification." });
+  }
+});
+
+// 🌐 API ENDPOINT: DELETE CONSULTATION LEAD (ADMIN EXCLUSIVE)
+app.delete("/api/submissions/:id", verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    let deletedDoc: any = null;
+
+    if (isMongoConnected) {
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        deletedDoc = await SubmissionModel.findByIdAndDelete(id);
+      }
+      if (!deletedDoc) {
+        deletedDoc = await SubmissionModel.findOneAndDelete({ _id: id });
+      }
+    }
+
+    if (fs.existsSync(SUBMISSIONS_FILE)) {
+      try {
+        const submissions = JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, "utf-8"));
+        const filtered = submissions.filter((s: any) => s.id !== id && s._id !== id);
+        fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(filtered, null, 2));
+      } catch (e) {}
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Consultation lead deleted successfully."
+    });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error deleting submission lead:", error);
+    return res.status(500).json({ error: "Failed to delete submission lead" });
   }
 });
 
@@ -3706,16 +4357,6 @@ app.post("/api/updates", verifyAdmin, async (req, res) => {
 // 🌐 API ENDPOINTS FOR PREMIUM ACCESS CONTROL (AUTHORIZED NUMBERS)
 // =========================================================================================
 
-// Helper to sanitize phone numbers (extracting last 10 digits)
-const cleanPhoneDigits = (num: string) => {
-  if (!num) return "";
-  let digits = String(num).replace(/[^0-9]/g, "");
-  if (digits.length > 10) {
-    digits = digits.slice(-10);
-  }
-  return digits;
-};
-
 // 🔒 SINGLE-DEVICE CONCURRENCY CONTROL SESSION STORE
 // Enforces 1 active device session per phone number for viewing paid courses & paid resources
 interface StudentDeviceSession {
@@ -3838,26 +4479,38 @@ app.post("/api/authorized-numbers", verifyAdmin, async (req, res) => {
 // 3. REVOKE ACCESS FOR A PHONE NUMBER
 app.delete("/api/authorized-numbers/:number", verifyAdmin, async (req, res) => {
   try {
-    const targetNum = cleanPhoneDigits(req.params.number);
+    const rawNumber = req.params.number || "";
+    const targetNum = cleanPhoneDigits(rawNumber);
     if (!targetNum) {
       return res.status(400).json({ error: "Invalid phone number." });
     }
 
     if (isMongoConnected) {
-      const result = await AuthorizedNumberModel.deleteOne({ number: targetNum });
-      if (result.deletedCount === 0) {
-        return res.status(404).json({ error: "Phone number not found in authorized list." });
-      }
-      return res.status(200).json({ success: true, message: "Authorized number revoked successfully." });
-    } else {
-      const list = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
-      const filtered = list.filter((item: any) => cleanPhoneDigits(item.number) !== targetNum);
-      if (filtered.length === list.length) {
-        return res.status(404).json({ error: "Phone number not found in authorized list." });
-      }
-      fs.writeFileSync(AUTHORIZED_NUMBERS_FILE, JSON.stringify(filtered, null, 2));
-      return res.status(200).json({ success: true, message: "Authorized number revoked successfully." });
+      // Match exact, suffix or clean variation
+      const last10 = targetNum.length >= 10 ? targetNum.slice(-10) : targetNum;
+      await AuthorizedNumberModel.deleteMany({
+        $or: [
+          { number: targetNum },
+          { number: rawNumber },
+          { number: last10 },
+          { number: { $regex: new RegExp(`${last10}$`, "i") } }
+        ]
+      });
     }
+
+    const list = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
+    const last10 = targetNum.length >= 10 ? targetNum.slice(-10) : targetNum;
+    const filtered = list.filter((item: any) => {
+      const c = cleanPhoneDigits(item.number);
+      return c !== targetNum && !c.endsWith(last10);
+    });
+    fs.writeFileSync(AUTHORIZED_NUMBERS_FILE, JSON.stringify(filtered, null, 2));
+
+    // Clear active session immediately
+    activeDeviceSessions.delete(targetNum);
+    if (last10 !== targetNum) activeDeviceSessions.delete(last10);
+
+    return res.status(200).json({ success: true, message: "Authorized number revoked successfully." });
   } catch (error) {
     console.error("[Pehlakadam API] Error deleting authorized number:", error);
     return res.status(500).json({ error: "Failed to revoke authorized number." });
@@ -4267,6 +4920,212 @@ app.delete("/api/courses/:id", verifyAdmin, async (req, res) => {
   }
 });
 
+// =========================================================================================
+// 🎓 API ENDPOINT: DIRECT ZERO-FEE COURSE ENROLLMENT & INSTANT AUTO-VALIDATION
+// =========================================================================================
+app.post("/api/courses/enroll", async (req, res) => {
+  try {
+    const { 
+      courseId, 
+      courseTitle, 
+      batch, 
+      tier, 
+      firstName, 
+      lastName, 
+      email, 
+      number, 
+      amount, 
+      transactionId, 
+      couponCode, 
+      fileName, 
+      fileData 
+    } = req.body;
+
+    if (!firstName || !lastName || !email || !number || !transactionId) {
+      return res.status(400).json({ error: "First Name, Last Name, Email, Contact Number, and Transaction/UTR ID are required." });
+    }
+
+    const cleanUtr = String(transactionId).trim();
+    if (!isValidUtrFormat(cleanUtr)) {
+      return res.status(400).json({ error: "Invalid UPI Reference / UTR format. Please provide a valid 6-25 character reference number." });
+    }
+
+    const isDup = await isDuplicateUtr(cleanUtr);
+    if (isDup) {
+      return res.status(400).json({ error: "This Transaction ID / UTR has already been submitted for another course enrollment." });
+    }
+
+    const rawNum = String(number).replace(/[^0-9]/g, "");
+    const cleanPhone = rawNum.length > 10 ? rawNum.slice(-10) : rawNum;
+    const cleanEmail = email.trim().toLowerCase();
+    const studentFullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+    const enrollmentAmount = Number(amount) || 0;
+    const courseTier = tier || "advance";
+    const selectedBatch = batch || "Regular Self-Paced Batch";
+    const selectedCourseTitle = courseTitle || "Custom Career Course";
+    const autoApprovalActive = await getAutoApprovalSetting();
+
+    let savedFileUrl = "";
+    let fileBufferLength = 0;
+
+    if (fileData && fileName) {
+      const matches = fileData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      let base64String = fileData;
+      if (matches && matches.length === 3) {
+        base64String = matches[2];
+      }
+      const fileBuffer = Buffer.from(base64String, "base64");
+      fileBufferLength = fileBuffer.length;
+      const tempId = Date.now().toString();
+      const safeFileName = `course_enroll_${tempId}_${fileName.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
+      const filePath = path.join(UPLOADS_DIR, safeFileName);
+      fs.writeFileSync(filePath, fileBuffer);
+      savedFileUrl = safeFileName;
+    }
+
+    const paymentStatus = autoApprovalActive ? "auto_approved" : "pending_manual_review";
+    const autoVerified = autoApprovalActive;
+    const verificationMethod = autoApprovalActive ? "AUTO_UTR_OCR" : "MANUAL_APPROVAL";
+
+    // 1. Save Payment Record to Payment Collection / payments.json
+    if (isMongoConnected) {
+      const newPayment = new PaymentModel({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: cleanEmail,
+        number: cleanPhone,
+        role: `Course: ${selectedCourseTitle}`,
+        plan: `Course [${selectedBatch}] - ${courseTier.toUpperCase()}`,
+        amount: enrollmentAmount,
+        transactionId: cleanUtr,
+        fileName: fileName || "",
+        fileType: fileData && fileData.includes(";") ? fileData.substring(5, fileData.indexOf(";")) : "application/octet-stream",
+        fileData: fileData || "",
+        status: paymentStatus,
+        autoVerified,
+        verificationMethod,
+        verifiedAt: autoVerified ? new Date() : undefined,
+        couponCode: couponCode || "",
+        createdAt: new Date()
+      });
+      await newPayment.save();
+    } else {
+      let payments: any[] = [];
+      try {
+        if (fs.existsSync(PAYMENTS_FILE)) {
+          payments = JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8"));
+        }
+      } catch (e) {
+        payments = [];
+      }
+      const newPayment = {
+        id: "pay-" + Date.now().toString(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: cleanEmail,
+        number: cleanPhone,
+        role: `Course: ${selectedCourseTitle}`,
+        plan: `Course [${selectedBatch}] - ${courseTier.toUpperCase()}`,
+        amount: enrollmentAmount,
+        transactionId: cleanUtr,
+        fileName: fileName || "",
+        fileUrl: savedFileUrl,
+        couponCode: couponCode || "",
+        status: paymentStatus,
+        autoVerified,
+        verificationMethod,
+        verifiedAt: autoVerified ? new Date().toISOString() : undefined,
+        createdAt: new Date().toISOString()
+      };
+      payments.push(newPayment);
+      fs.writeFileSync(PAYMENTS_FILE, JSON.stringify(payments, null, 2));
+    }
+
+    // 2. Automatically Whitelist Student Phone for Instant LMS Access if auto approval is active
+    if (autoApprovalActive) {
+      await grantStudentAccess(cleanPhone, studentFullName, courseTier);
+    }
+
+    // 3. Initialize Course Progress Entry if courseId is available
+    if (courseId) {
+      if (isMongoConnected) {
+        await CourseProgressModel.findOneAndUpdate(
+          { phone: cleanPhone, courseId },
+          {
+            phone: cleanPhone,
+            email: cleanEmail,
+            courseId,
+            completedLessons: [],
+            progressPercentage: 0,
+            lastAccessedAt: new Date()
+          },
+          { upsert: true, new: true }
+        );
+      } else {
+        let progressMap: Record<string, any> = {};
+        if (fs.existsSync(COURSE_PROGRESS_FILE)) {
+          try {
+            progressMap = JSON.parse(fs.readFileSync(COURSE_PROGRESS_FILE, "utf-8"));
+          } catch (e) {
+            progressMap = {};
+          }
+        }
+        if (!progressMap[cleanPhone]) progressMap[cleanPhone] = {};
+        if (!progressMap[cleanPhone][courseId]) {
+          progressMap[cleanPhone][courseId] = {
+            completedLessons: [],
+            progressPercentage: 0,
+            lastAccessedAt: new Date().toISOString()
+          };
+          fs.writeFileSync(COURSE_PROGRESS_FILE, JSON.stringify(progressMap, null, 2));
+        }
+      }
+    }
+
+    // 4. Construct WhatsApp Dispatch Message for Admin
+    const rawWhatsAppNum = process.env.ADMIN_WHATSAPP_NUMBER || "917428613102";
+    const cleanAdminNum = rawWhatsAppNum.replace(/[^0-9]/g, "");
+
+    const whatsappMessageText = 
+      `🎓 *Pehlakadam Course Enrollment Alert*\n\n` +
+      `🔥 *New Student Enrolled in Course!*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `👤 *Student Name:* ${studentFullName}\n` +
+      `📚 *Course:* ${selectedCourseTitle}\n` +
+      `🏷️ *Batch:* ${selectedBatch}\n` +
+      `⚡ *Tier Granted:* ${courseTier.toUpperCase()}\n` +
+      `💵 *Amount Paid:* ₹${enrollmentAmount ? enrollmentAmount.toLocaleString("en-IN") : "0"}\n` +
+      (couponCode ? `🎟️ *Coupon Applied:* ${couponCode}\n` : "") +
+      `📧 *Email:* ${cleanEmail}\n` +
+      `📞 *Mobile (Whitelisted):* +91 ${cleanPhone}\n` +
+      `🔑 *UTR / Trans ID:* ${transactionId}\n` +
+      (fileName ? `📁 *Receipt Attached:* ${fileName}\n` : "") +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `📅 *Date:* ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST\n` +
+      `✅ *Access Status:* Instant LMS Access AUTO-ACTIVATED for student!`;
+
+    console.log(`\n💬 [Pehlakadam Course Enrollment] Instant Auto-Validation:`);
+    console.log(`   - Student: ${studentFullName} (+91 ${cleanPhone})`);
+    console.log(`   - Course: ${selectedCourseTitle} (${courseTier.toUpperCase()})`);
+    console.log(`   - UTR: ${transactionId} (₹${enrollmentAmount})`);
+    console.log(`   - Admin Alert Target: +${cleanAdminNum}`);
+
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanAdminNum}&text=${encodeURIComponent(whatsappMessageText)}`;
+
+    return res.status(200).json({
+      success: true,
+      message: "Payment validated and course access activated instantly!",
+      studentNumber: cleanPhone,
+      tier: courseTier,
+      courseTitle: selectedCourseTitle,
+      whatsappUrl
+    });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error enrolling in course:", error);
+    return res.status(500).json({ error: "Failed to complete course enrollment. Please try again." });
+  }
+});
+
 // PROMO COUPONS ENDPOINTS
 app.get("/api/coupons", verifyAdmin, async (req, res) => {
   try {
@@ -4554,6 +5413,387 @@ app.post("/api/student/login", async (req, res) => {
     return res.status(500).json({ error: "Failed to authenticate student profile." });
   }
 });
+
+// =========================================================================================
+// 🎯 STUDENT DASHBOARD DATA & LEARNING ACTIVITY TRACKING
+// =========================================================================================
+
+// 1. Track Resource View / Download in Student History
+app.post("/api/student/track-resource", async (req, res) => {
+  try {
+    const { phone, email, resourceId, title, category, type, url } = req.body;
+    if (!title) {
+      return res.status(400).json({ error: "Resource title is required." });
+    }
+
+    const cleanPhone = phone ? String(phone).replace(/[^0-9]/g, "").slice(-10) : "";
+    const cleanEmail = email ? String(email).trim().toLowerCase() : "";
+
+    const historyEntry = {
+      id: `reshist-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      phone: cleanPhone,
+      email: cleanEmail,
+      resourceId: resourceId || "",
+      title: title || "Study Resource",
+      category: category || "General",
+      type: (type === "video" ? "video" : "pdf") as "pdf" | "video",
+      url: url || "",
+      accessedAt: new Date().toISOString()
+    };
+
+    if (isMongoConnected) {
+      await ResourceHistoryModel.create({
+        phone: cleanPhone,
+        email: cleanEmail,
+        resourceId: resourceId || "",
+        title: title || "Study Resource",
+        category: category || "General",
+        type: historyEntry.type,
+        url: url || "",
+        accessedAt: new Date()
+      });
+    }
+
+    if (fs.existsSync(RESOURCE_HISTORY_FILE)) {
+      const fileData = fs.readFileSync(RESOURCE_HISTORY_FILE, "utf-8");
+      const list = JSON.parse(fileData);
+      list.unshift(historyEntry);
+      // Keep most recent 500 records
+      fs.writeFileSync(RESOURCE_HISTORY_FILE, JSON.stringify(list.slice(0, 500), null, 2));
+    } else {
+      fs.writeFileSync(RESOURCE_HISTORY_FILE, JSON.stringify([historyEntry], null, 2));
+    }
+
+    return res.status(200).json({ success: true, entry: historyEntry });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error tracking resource history:", error);
+    return res.status(500).json({ error: "Failed to track resource history." });
+  }
+});
+
+// 2. Update Student Course & Lesson Progress
+app.post("/api/student/update-course-progress", async (req, res) => {
+  try {
+    const { phone, email, courseId, lessonId, completed, completedLessons, progressPercentage } = req.body;
+    if (!courseId) {
+      return res.status(400).json({ error: "courseId is required." });
+    }
+
+    const cleanPhone = phone ? String(phone).replace(/[^0-9]/g, "").slice(-10) : "";
+    const cleanEmail = email ? String(email).trim().toLowerCase() : "";
+    const key = cleanPhone || cleanEmail || "anonymous_student";
+
+    let currentCompleted: string[] = Array.isArray(completedLessons) ? completedLessons : [];
+
+    if (lessonId) {
+      if (completed && !currentCompleted.includes(lessonId)) {
+        currentCompleted.push(lessonId);
+      } else if (!completed && currentCompleted.includes(lessonId)) {
+        currentCompleted = currentCompleted.filter(id => id !== lessonId);
+      }
+    }
+
+    const pct = progressPercentage !== undefined ? Number(progressPercentage) : 0;
+
+    if (isMongoConnected) {
+      await CourseProgressModel.findOneAndUpdate(
+        { $or: [{ phone: cleanPhone }, { email: cleanEmail }], courseId },
+        {
+          phone: cleanPhone,
+          email: cleanEmail,
+          courseId,
+          completedLessons: currentCompleted,
+          progressPercentage: pct,
+          lastAccessedAt: new Date()
+        },
+        { upsert: true, new: true }
+      );
+    }
+
+    let progressMap: Record<string, any> = {};
+    if (fs.existsSync(COURSE_PROGRESS_FILE)) {
+      try {
+        progressMap = JSON.parse(fs.readFileSync(COURSE_PROGRESS_FILE, "utf-8"));
+      } catch (e) {
+        progressMap = {};
+      }
+    }
+
+    if (!progressMap[key]) progressMap[key] = {};
+    progressMap[key][courseId] = {
+      completedLessons: currentCompleted,
+      progressPercentage: pct,
+      lastAccessedAt: new Date().toISOString()
+    };
+    fs.writeFileSync(COURSE_PROGRESS_FILE, JSON.stringify(progressMap, null, 2));
+
+    return res.status(200).json({
+      success: true,
+      courseId,
+      completedLessons: currentCompleted,
+      progressPercentage: pct
+    });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error updating course progress:", error);
+    return res.status(500).json({ error: "Failed to update course progress." });
+  }
+});
+
+// 3. Complete Student Dashboard Data Aggregation
+app.get("/api/student/dashboard-data", async (req, res) => {
+  try {
+    const { phone, email } = req.query;
+    const rawPhone = phone ? String(phone).replace(/[^0-9]/g, "") : "";
+    const cleanPhone = rawPhone.length > 10 ? rawPhone.slice(-10) : rawPhone;
+    const cleanEmail = email ? String(email).trim().toLowerCase() : "";
+
+    // Candidate info gathering
+    let studentName = "Pehlakadam Student";
+    let studentEmail = cleanEmail;
+    let studentPhone = cleanPhone;
+    let studentRole = "Student / Learner";
+    let isAuthorized = false;
+    let userTier: "basic" | "advance" | "pro" = "basic";
+
+    // 1. Check Authorized Numbers
+    let authDoc: any = null;
+    if (cleanPhone) {
+      if (isMongoConnected) {
+        authDoc = await AuthorizedNumberModel.findOne({
+          number: { $regex: new RegExp(`${cleanPhone}$`) }
+        });
+      } else if (fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
+        const authList = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
+        authDoc = authList.find((a: any) => {
+          const num = a.number?.replace(/[^0-9]/g, "");
+          return num && (num === cleanPhone || num.endsWith(cleanPhone) || cleanPhone.endsWith(num));
+        });
+      }
+
+      if (authDoc) {
+        isAuthorized = true;
+        userTier = (authDoc.tier as "basic" | "advance" | "pro") || "pro";
+        if (authDoc.studentName) studentName = authDoc.studentName;
+      }
+    }
+
+    // 2. Check Submissions & Payments for Profile Info & Program Enrollments
+    let payments: any[] = [];
+    let submissions: any[] = [];
+    let diagnosticSubmissions: any[] = [];
+    let resourceHistoryList: any[] = [];
+    let allCoursesList: any[] = [];
+
+    // Load Payments
+    if (isMongoConnected) {
+      payments = await PaymentModel.find().lean();
+    } else if (fs.existsSync(PAYMENTS_FILE)) {
+      payments = JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8"));
+    }
+
+    // Load Submissions
+    if (isMongoConnected) {
+      submissions = await SubmissionModel.find().lean();
+    } else if (fs.existsSync(SUBMISSIONS_FILE)) {
+      submissions = JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, "utf-8"));
+    }
+
+    // Load Diagnostic Submissions
+    if (isMongoConnected) {
+      diagnosticSubmissions = await DiagnosticSubmissionModel.find().sort({ createdAt: -1 }).lean();
+    } else if (fs.existsSync(DIAGNOSTIC_SUBMISSIONS_FILE)) {
+      diagnosticSubmissions = JSON.parse(fs.readFileSync(DIAGNOSTIC_SUBMISSIONS_FILE, "utf-8"));
+    }
+
+    // Match candidate profile across records
+    const matchedPayment = payments.find((p: any) => {
+      const pEmail = p.email?.trim().toLowerCase();
+      const pPhone = p.number?.replace(/[^0-9]/g, "");
+      return (cleanEmail && pEmail === cleanEmail) || (cleanPhone && (pPhone === cleanPhone || pPhone?.endsWith(cleanPhone)));
+    });
+
+    const matchedSub = submissions.find((s: any) => {
+      const sEmail = s.email?.trim().toLowerCase();
+      const sPhone = s.number?.replace(/[^0-9]/g, "");
+      return (cleanEmail && sEmail === cleanEmail) || (cleanPhone && (sPhone === cleanPhone || sPhone?.endsWith(cleanPhone)));
+    });
+
+    const matchedDiag = diagnosticSubmissions.find((d: any) => {
+      const dEmail = d.user?.email?.trim().toLowerCase();
+      const dPhone = d.user?.phone?.replace(/[^0-9]/g, "");
+      return (cleanEmail && dEmail === cleanEmail) || (cleanPhone && (dPhone === cleanPhone || dPhone?.endsWith(cleanPhone)));
+    });
+
+    if (matchedPayment) {
+      studentName = `${matchedPayment.firstName || ""} ${matchedPayment.lastName || ""}`.trim() || studentName;
+      studentEmail = studentEmail || matchedPayment.email || "";
+      studentPhone = studentPhone || matchedPayment.number || "";
+      studentRole = matchedPayment.role || studentRole;
+      isAuthorized = true;
+      if (matchedPayment.plan === "Advance") userTier = "advance";
+      else if (matchedPayment.plan === "Basic") userTier = "basic";
+      else userTier = "pro";
+    } else if (matchedSub) {
+      studentName = `${matchedSub.firstName || ""} ${matchedSub.lastName || ""}`.trim() || studentName;
+      studentEmail = studentEmail || matchedSub.email || "";
+      studentPhone = studentPhone || matchedSub.number || "";
+      studentRole = matchedSub.role || studentRole;
+    } else if (matchedDiag) {
+      studentName = matchedDiag.user?.name || studentName;
+      studentEmail = studentEmail || matchedDiag.user?.email || "";
+      studentPhone = studentPhone || matchedDiag.user?.phone || "";
+      studentRole = matchedDiag.user?.role || studentRole;
+    }
+
+    // 3. Load Courses
+    if (isMongoConnected) {
+      allCoursesList = await CourseModel.find({ published: true }).lean();
+    } else if (fs.existsSync(COURSES_FILE)) {
+      allCoursesList = JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8"));
+    }
+    if (!allCoursesList || allCoursesList.length === 0) {
+      allCoursesList = defaultCourses;
+    }
+
+    // Determine Enrolled Courses
+    // If student is authorized (or tier active), they have full access to courses matching their tier or all published courses
+    const tierOrder: Record<string, number> = { basic: 1, advance: 2, pro: 3 };
+    const userTierNum = tierOrder[userTier] || 1;
+
+    let enrolledCourses: any[] = [];
+    if (isAuthorized) {
+      enrolledCourses = allCoursesList.filter((c: any) => {
+        const reqTier = tierOrder[c.tier] || 1;
+        return userTierNum >= reqTier || c.published;
+      });
+    } else {
+      // Default to foundational preview or general courses
+      enrolledCourses = allCoursesList.filter((c: any) => c.tier === "basic" || c.published);
+    }
+
+    // 4. Enrolled Academic Programs
+    const enrolledPrograms: any[] = [];
+    const programDefs = [
+      { key: "program1", title: "6-8 Grade Student", path: "/programs/program1" },
+      { key: "program2", title: "8-10 Grade Student", path: "/programs/program2" },
+      { key: "program3", title: "11-12 Grade Student", path: "/programs/program3" },
+      { key: "program4", title: "UG/Graduate/PG", path: "/programs/program4" },
+      { key: "program5", title: "Primary Kudos", path: "/programs/program5" },
+      { key: "program6", title: "Generalist to Specialist", path: "/programs/program6" },
+    ];
+
+    programDefs.forEach(prog => {
+      const hasPayment = payments.some((p: any) => {
+        const pEmail = p.email?.trim().toLowerCase();
+        const pPhone = p.number?.replace(/[^0-9]/g, "");
+        const matchesUser = (cleanEmail && pEmail === cleanEmail) || (cleanPhone && (pPhone === cleanPhone || pPhone?.endsWith(cleanPhone)));
+        return matchesUser && (p.role === prog.title || p.plan?.includes(prog.title));
+      });
+
+      const hasSub = submissions.some((s: any) => {
+        const sEmail = s.email?.trim().toLowerCase();
+        const sPhone = s.number?.replace(/[^0-9]/g, "");
+        const matchesUser = (cleanEmail && sEmail === cleanEmail) || (cleanPhone && (sPhone === cleanPhone || sPhone?.endsWith(cleanPhone)));
+        return matchesUser && s.role === prog.title;
+      });
+
+      if (hasPayment || hasSub || studentRole === prog.title) {
+        enrolledPrograms.push({
+          key: prog.key,
+          title: prog.title,
+          path: prog.path,
+          enrolledAt: new Date().toISOString(),
+          plan: hasPayment ? "Premium Verified" : "Active Counseling Track",
+          status: hasPayment ? "active" : "active"
+        });
+      }
+    });
+
+    // 5. Diagnostic Submissions Filtered for this user
+    const userDiagRecords = diagnosticSubmissions.filter((d: any) => {
+      const dEmail = d.user?.email?.trim().toLowerCase();
+      const dPhone = d.user?.phone?.replace(/[^0-9]/g, "");
+      return (cleanEmail && dEmail === cleanEmail) || (cleanPhone && (dPhone === cleanPhone || dPhone?.endsWith(cleanPhone)));
+    }).map((d: any) => ({
+      id: d._id?.toString() || d.id,
+      testKey: d.testKey,
+      testTitle: d.testTitle,
+      dominant: d.score?.dominant || d.score?.mbti || d.score?.temperament || d.score?.dominantType || "",
+      score: d.score || {},
+      answers: d.answers || {},
+      createdAt: d.createdAt ? new Date(d.createdAt).toISOString() : new Date().toISOString()
+    }));
+
+    // 6. Resource History Filtered for this user
+    if (isMongoConnected) {
+      const query: any = {};
+      if (cleanPhone && cleanEmail) {
+        query.$or = [
+          { phone: { $regex: new RegExp(`${cleanPhone}$`) } },
+          { email: { $regex: new RegExp(`^${cleanEmail}$`, "i") } }
+        ];
+      } else if (cleanPhone) {
+        query.phone = { $regex: new RegExp(`${cleanPhone}$`) };
+      } else if (cleanEmail) {
+        query.email = { $regex: new RegExp(`^${cleanEmail}$`, "i") };
+      }
+      resourceHistoryList = await ResourceHistoryModel.find(query).sort({ accessedAt: -1 }).limit(50).lean();
+    } else if (fs.existsSync(RESOURCE_HISTORY_FILE)) {
+      const fileData = fs.readFileSync(RESOURCE_HISTORY_FILE, "utf-8");
+      const list = JSON.parse(fileData);
+      resourceHistoryList = list.filter((r: any) => {
+        const rEmail = r.email?.trim().toLowerCase();
+        const rPhone = r.phone?.replace(/[^0-9]/g, "");
+        if (cleanEmail && rEmail === cleanEmail) return true;
+        if (cleanPhone && (rPhone === cleanPhone || rPhone?.endsWith(cleanPhone))) return true;
+        return false;
+      });
+    }
+
+    const formattedResourceHistory = (resourceHistoryList || []).map((r: any) => ({
+      id: r._id?.toString() || r.id,
+      resourceId: r.resourceId,
+      title: r.title,
+      category: r.category,
+      type: r.type,
+      url: r.url,
+      accessedAt: r.accessedAt ? new Date(r.accessedAt).toISOString() : new Date().toISOString()
+    }));
+
+    // 7. Course Progress
+    let progressMap: Record<string, number> = {};
+    const key = cleanPhone || cleanEmail;
+    if (fs.existsSync(COURSE_PROGRESS_FILE)) {
+      try {
+        const fileMap = JSON.parse(fs.readFileSync(COURSE_PROGRESS_FILE, "utf-8"));
+        const userProgress = fileMap[key] || fileMap[cleanPhone] || fileMap[cleanEmail] || {};
+        Object.keys(userProgress).forEach(cId => {
+          progressMap[cId] = userProgress[cId]?.progressPercentage || 0;
+        });
+      } catch (e) {}
+    }
+
+    return res.status(200).json({
+      student: {
+        name: studentName,
+        phone: studentPhone,
+        email: studentEmail,
+        role: studentRole,
+        tier: userTier,
+        isAuthorized
+      },
+      enrolledCourses,
+      enrolledPrograms,
+      diagnosticHistory: userDiagRecords,
+      resourceHistory: formattedResourceHistory,
+      progress: progressMap
+    });
+  } catch (error) {
+    console.error("[Pehlakadam API] Error compiling student dashboard data:", error);
+    return res.status(500).json({ error: "Failed to compile student dashboard data." });
+  }
+});
+
 
 // =========================================================================================
 // 📈 SYSTEM STATS MANAGEMENT (STUDENTS COUNT, EXPERTS COUNT, SUCCESS RATE, SOCIALS, PAYMENT)

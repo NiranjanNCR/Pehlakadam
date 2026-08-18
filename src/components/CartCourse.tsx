@@ -253,6 +253,7 @@ export default function CartCourse() {
                   planName={basicCard.title} 
                   planPrice={basicCard.currentPrice} 
                   defaultProgram="6-8 Grade Student" 
+                  defaultPlan="Basic"
                   buttonText="Pay & Enroll"
                 />
               </div>
@@ -318,6 +319,7 @@ export default function CartCourse() {
                   planName={standardCard.title} 
                   planPrice={standardCard.currentPrice} 
                   defaultProgram="11-12 Grade Student" 
+                  defaultPlan="Standard"
                   buttonText="Pay & Enroll"
                 />
               </div>
@@ -379,6 +381,7 @@ export default function CartCourse() {
                   planName={premiumCard.title} 
                   planPrice={premiumCard.currentPrice} 
                   defaultProgram="Generalist to Specialist" 
+                  defaultPlan="Premium Pro"
                   buttonText="Pay & Enroll"
                 />
               </div>

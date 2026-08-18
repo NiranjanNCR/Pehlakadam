@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import ScorecardPrintReport from "./ScorecardPrintReport";
 import { 
   Search, 
   Settings, 
@@ -15,7 +16,8 @@ import {
   BookmarkCheck,
   ChevronDown,
   ChevronUp,
-  RefreshCw
+  RefreshCw,
+  Printer
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -131,7 +133,7 @@ export default function AdminDiagnostics() {
     if (!confirm("Are you sure you want to delete this candidate's test report? This action is permanent.")) return;
     const token = localStorage.getItem("pehlakadam_admin_token");
     try {
-      const res = await fetch(`/api/diagnostic-tests/submissions/${id}`, {
+      const res = await fetch(`/api/diagnostic-tests/submissions/${encodeURIComponent(id)}`, {
         method: "DELETE",
         headers: { "Authorization": `Bearer ${token}` }
       });
@@ -140,13 +142,42 @@ export default function AdminDiagnostics() {
         if (selectedSub?.id === id) {
           setSelectedSub(null);
         }
+        alert("Candidate test report deleted successfully.");
       } else {
-        const errData = await res.json();
+        const errData = await res.json().catch(() => ({}));
         alert(errData.error || "Could not delete the report.");
       }
     } catch (err) {
       console.error(err);
       alert("Error contacting server to delete submission.");
+    }
+  };
+
+  const handleDeleteTest = async (key: string, title?: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const testName = title || key;
+    if (!confirm(`Are you sure you want to permanently delete the diagnostic test "${testName}"? All its configurations and questions will be removed from the platform.`)) {
+      return;
+    }
+    const token = localStorage.getItem("pehlakadam_admin_token");
+    try {
+      const res = await fetch(`/api/diagnostic-tests/${encodeURIComponent(key)}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setTests(prev => prev.filter(t => t.key !== key));
+        if (editingTest?.key === key) {
+          setEditingTest(null);
+        }
+        alert(`Diagnostic test "${testName}" was permanently deleted.`);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.error || "Failed to delete the diagnostic test.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Network error while trying to delete diagnostic test.");
     }
   };
 
@@ -452,11 +483,36 @@ export default function AdminDiagnostics() {
                     <p className="text-sm text-zinc-500 font-sans">{selectedSub.testTitle}</p>
                   </div>
                   
-                  <div className="text-left sm:text-right font-mono text-[11px] text-zinc-400">
-                    <div className="font-bold text-zinc-500">Candidate Ref ID:</div>
-                    <div>{selectedSub.id}</div>
-                    <div className="mt-1">{new Date(selectedSub.createdAt).toLocaleString("en-IN")} IST</div>
+                  <div className="flex flex-col sm:items-end gap-2">
+                    <div className="text-left sm:text-right font-mono text-[11px] text-zinc-400">
+                      <div className="font-bold text-zinc-500">Candidate Ref ID:</div>
+                      <div>{selectedSub.id}</div>
+                      <div className="mt-1">{new Date(selectedSub.createdAt).toLocaleString("en-IN")} IST</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => window.print()}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm"
+                      >
+                        <Printer className="h-3.5 w-3.5" /> Print Scorecard
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteSubmission(selectedSub.id, e)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm"
+                        title="Delete candidate report"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" /> Delete Report
+                      </button>
+                    </div>
                   </div>
+                </div>
+
+                {/* OFFICIAL EMBEDDED SCORECARD REPORT */}
+                <div className="pt-2">
+                  <ScorecardPrintReport
+                    report={selectedSub}
+                    testDefinition={tests.find((t) => t.key === selectedSub.testKey)}
+                  />
                 </div>
 
                 {/* Candidate Contact Metrics */}
@@ -600,26 +656,43 @@ export default function AdminDiagnostics() {
             </button>
 
             <div className="bg-white rounded-3xl border border-zinc-200 shadow-sm overflow-hidden divide-y divide-zinc-100">
-              {tests.map((test) => (
-                <div
-                  key={test.key}
-                  onClick={() => handleStartEditing(test)}
-                  className={`p-5 transition-all cursor-pointer ${
-                    editingTest?.key === test.key ? "bg-emerald-50/50 border-l-4 border-emerald-600" : "hover:bg-zinc-50 bg-white"
-                  }`}
-                >
-                  <h4 className="text-xs font-black text-zinc-900 font-sans uppercase tracking-wide">{test.title}</h4>
-                  <p className="text-[11px] text-zinc-500 mt-0.5 line-clamp-2">{test.description}</p>
-                  <div className="flex items-center gap-1.5 mt-2.5">
-                    <span className="text-[10px] font-mono bg-zinc-100 border border-zinc-200 px-2 py-0.5 rounded text-zinc-600 font-bold uppercase">
-                      {test.questions.length} MCQs
-                    </span>
-                    <span className="text-[10px] font-mono bg-zinc-100 border border-zinc-200 px-2 py-0.5 rounded text-zinc-600 font-bold uppercase">
-                      Key: {test.key}
-                    </span>
-                  </div>
+              {tests.length === 0 ? (
+                <div className="p-8 text-center text-zinc-500">
+                  <BrainCircuit className="h-8 w-8 text-zinc-300 mx-auto mb-2" />
+                  <p className="text-xs font-bold uppercase tracking-wider">No Diagnostic Tests</p>
+                  <p className="text-[11px] text-zinc-400 mt-1">Click "Create New Custom Test" to add one.</p>
                 </div>
-              ))}
+              ) : (
+                tests.map((test) => (
+                  <div
+                    key={test.key}
+                    onClick={() => handleStartEditing(test)}
+                    className={`p-5 transition-all cursor-pointer ${
+                      editingTest?.key === test.key ? "bg-emerald-50/50 border-l-4 border-emerald-600" : "hover:bg-zinc-50 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="text-xs font-black text-zinc-900 font-sans uppercase tracking-wide">{test.title}</h4>
+                      <button
+                        onClick={(e) => handleDeleteTest(test.key, test.title, e)}
+                        className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all flex-shrink-0"
+                        title="Delete Diagnostic Test"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-zinc-500 mt-0.5 line-clamp-2">{test.description}</p>
+                    <div className="flex items-center gap-1.5 mt-2.5">
+                      <span className="text-[10px] font-mono bg-zinc-100 border border-zinc-200 px-2 py-0.5 rounded text-zinc-600 font-bold uppercase">
+                        {test.questions.length} MCQs
+                      </span>
+                      <span className="text-[10px] font-mono bg-zinc-100 border border-zinc-200 px-2 py-0.5 rounded text-zinc-600 font-bold uppercase">
+                        Key: {test.key}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -638,6 +711,13 @@ export default function AdminDiagnostics() {
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleDeleteTest(editingTest.key, editingTest.title)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-red-600 hover:bg-red-50 border border-red-200 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+                      title="Delete this entire test"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Delete Test
+                    </button>
                     <button
                       onClick={() => setEditingTest(null)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-zinc-500 hover:bg-zinc-100 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
@@ -960,6 +1040,24 @@ export default function AdminDiagnostics() {
                         No custom result profiles defined yet. The default scoring summary fallback will be used.
                       </div>
                     )}
+                  </div>
+                </div>
+
+                {/* DANGER ZONE: DELETE TEST */}
+                <div className="pt-6 border-t border-zinc-200/80">
+                  <div className="bg-red-50/50 border border-red-200/60 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                      <h4 className="text-xs font-black text-red-950 uppercase tracking-wide">Danger Zone: Delete Diagnostic Assessment</h4>
+                      <p className="text-[11px] text-red-700/80 mt-0.5 max-w-lg">
+                        Permanently removes this assessment (<strong>{editingTest.title}</strong>) and all of its question definitions from the system.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteTest(editingTest.key, editingTest.title)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm flex-shrink-0"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Delete Diagnostic Test
+                    </button>
                   </div>
                 </div>
 

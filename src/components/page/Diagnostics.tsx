@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { Link } from "react-router-dom";
 import NavigationBar from "../NavigationBar";
 import Footer from "../Footer";
+import ScorecardPrintReport from "../ScorecardPrintReport";
 import { DEFAULT_DIAGNOSTICS } from "../DEFAULT_DIAGNOSTICS";
 import { 
   BrainCircuit, 
@@ -23,20 +25,30 @@ import {
   X,
   Mail,
   Send,
-  CheckCircle2
+  CheckCircle2,
+  GraduationCap
 } from "lucide-react";
+
 import { motion, AnimatePresence } from "motion/react";
 
 interface Option {
   id: string;
   text: string;
   value: string;
+  correctnessPercentage?: number;
 }
 
 interface Question {
   id: string;
   text: string;
+  correctValue?: string;
   options: Option[];
+}
+
+interface ResultProfile {
+  value: string;
+  title: string;
+  summary: string;
 }
 
 interface DiagnosticTest {
@@ -45,6 +57,8 @@ interface DiagnosticTest {
   subtitle?: string;
   description?: string;
   customFieldLabel?: string;
+  scoringMethod?: "personality" | "aptitude" | string;
+  resultProfiles?: ResultProfile[];
   questions: Question[];
 }
 
@@ -291,16 +305,25 @@ export default function Diagnostics() {
   };
 
   const handleSelectOption = (questionId: string, optionValue: string) => {
-    setAnswers(prev => ({
-      ...prev,
+    const updatedAnswers = {
+      ...answers,
       [questionId]: optionValue
-    }));
+    };
+    setAnswers(updatedAnswers);
+
+    // If on the final question, automatically trigger evaluation & report generation smoothly
+    if (selectedTest && currentQuestionIdx === selectedTest.questions.length - 1) {
+      setTimeout(() => {
+        submitQuiz(updatedAnswers);
+      }, 350);
+    }
   };
 
   const handleNextQuestion = () => {
     if (!selectedTest) return;
     const currentQ = selectedTest.questions[currentQuestionIdx];
-    if (!answers[currentQ.id]) {
+    const currentAnswer = answers[currentQ.id];
+    if (!currentAnswer) {
       alert("Please select an answer option to proceed.");
       return;
     }
@@ -308,7 +331,7 @@ export default function Diagnostics() {
     if (currentQuestionIdx < selectedTest.questions.length - 1) {
       setCurrentQuestionIdx(prev => prev + 1);
     } else {
-      submitQuiz();
+      submitQuiz(answers);
     }
   };
 
@@ -318,17 +341,43 @@ export default function Diagnostics() {
     }
   };
 
-  const submitQuiz = async () => {
-    if (!selectedTest || !currentUser) return;
+  const submitQuiz = async (answersOverride?: Record<string, string>) => {
+    if (!selectedTest || submittingQuiz) return;
     setSubmittingQuiz(true);
+
+    const effectiveAnswers = answersOverride || answers;
+
+    // Ensure candidate details are loaded or recovered
+    let activeUser = currentUser;
+    if (!activeUser) {
+      const stored = localStorage.getItem("pehlakadam_user");
+      if (stored) {
+        try {
+          activeUser = JSON.parse(stored);
+          setCurrentUser(activeUser);
+        } catch (e) {
+          console.warn("Could not parse stored candidate user:", e);
+        }
+      }
+    }
+    if (!activeUser) {
+      activeUser = {
+        name: signupName || "Student Candidate",
+        email: signupEmail || "candidate@pehlakadam.com",
+        phone: signupPhone || "9876543210",
+        role: signupRole || "Student",
+        specialDetail: signupSpecial || "Diagnostic Assessment"
+      };
+      setCurrentUser(activeUser);
+    }
 
     const payload = {
       user: {
-        ...currentUser,
-        specialDetail: signupSpecial || currentUser.specialDetail || "None specified"
+        ...activeUser,
+        specialDetail: signupSpecial || activeUser.specialDetail || "None specified"
       },
       testKey: selectedTest.key,
-      answers
+      answers: effectiveAnswers
     };
 
     try {
@@ -340,19 +389,407 @@ export default function Diagnostics() {
 
       if (res.ok) {
         const data = await res.json();
-        setActiveQuizReport(data.submission);
-        if (currentUser) {
-          fetchMyReports(currentUser.email);
+        if (data.submission) {
+          setActiveQuizReport(data.submission);
+          if (activeUser?.email) {
+            fetchMyReports(activeUser.email);
+          }
+          return;
         }
-      } else {
-        alert("An error occurred while calculating your profile score. Please try again.");
       }
+      
+      // Fallback local report generation if server returned unexpected payload
+      console.warn("Server submission fallback engaged.");
+      const fallbackReport = generateLocalDiagnosticReport(selectedTest, effectiveAnswers, activeUser);
+      setActiveQuizReport(fallbackReport);
     } catch (e) {
-      console.error(e);
-      alert("Network connection error. Your test report was cached but could not sync to server.");
+      console.error("[Diagnostics submit error]", e);
+      // Generate instant client report so student is never stuck
+      const fallbackReport = generateLocalDiagnosticReport(selectedTest, effectiveAnswers, activeUser);
+      setActiveQuizReport(fallbackReport);
     } finally {
       setSubmittingQuiz(false);
     }
+  };
+
+  // 🛡️ Comprehensive Helper to guarantee student receives a rich scorecard immediately under all test types
+  const generateLocalDiagnosticReport = (test: DiagnosticTest, userAnswers: Record<string, string>, user: any) => {
+    const vals = Object.values(userAnswers);
+    let scoreObj: any = {};
+    const testKey = test.key;
+
+    if (testKey === "disc") {
+      const counts: any = { D: 0, I: 0, S: 0, C: 0 };
+      vals.forEach(v => {
+        if (counts[v] !== undefined) counts[v]++;
+      });
+      const total: number = Object.values(counts).reduce((a: any, b: any) => a + b, 0) as number || 1;
+      const pct = {
+        D: Math.round((counts.D / total) * 100),
+        I: Math.round((counts.I / total) * 100),
+        S: Math.round((counts.S / total) * 100),
+        C: Math.round((counts.C / total) * 100),
+      };
+
+      let dominant = "D";
+      if (pct.I > pct[dominant]) dominant = "I";
+      if (pct.S > pct[dominant]) dominant = "S";
+      if (pct.C > pct[dominant]) dominant = "C";
+
+      const descriptions: any = {
+        D: "Dominant: Decisive, direct, highly assertive, and results-focused. Ideal for high-stakes leadership, entrepreneurial management, and strategic direction roles.",
+        I: "Influential: Persuasive, outgoing, energetic, and highly relationship-driven. Ideal for media, marketing, high-impact consulting, public relations, and sales leadership.",
+        S: "Steady: Calm, cooperative, patient, loyal, and highly methodology-oriented. Excellent for research planning, operations optimization, HR, and structural engineering.",
+        C: "Conscientious: Detail-oriented, analytical, diplomatic, and highly precise. Perfect for scientific analysis, database administration, software architecture, and financial risk planning."
+      };
+
+      scoreObj = {
+        breakdown: {
+          "Dominance (D)": pct.D,
+          "Influence (I)": pct.I,
+          "Steadiness (S)": pct.S,
+          "Conscientiousness (C)": pct.C
+        },
+        dominant,
+        summary: descriptions[dominant] || "Well-balanced behavioral profile.",
+        title: `${dominant}-Style Behavioral Profile`
+      };
+    } else if (testKey === "mbti") {
+      let E = 0, I_val = 0, S = 0, N = 0, T = 0, F = 0, J = 0, P = 0;
+      vals.forEach(v => {
+        if (v === "E") E++;
+        if (v === "I") I_val++;
+        if (v === "S") S++;
+        if (v === "N") N++;
+        if (v === "T") T++;
+        if (v === "F") F++;
+        if (v === "J") J++;
+        if (v === "P") P++;
+      });
+      
+      const mbti = (E >= I_val ? "E" : "I") + (S >= N ? "S" : "N") + (T >= F ? "T" : "F") + (J >= P ? "J" : "P");
+      const totalEI = E + I_val || 1;
+      const totalSN = S + N || 1;
+      const totalTF = T + F || 1;
+      const totalJP = J + P || 1;
+
+      const pct = {
+        E: Math.round((E / totalEI) * 100),
+        I: Math.round((I_val / totalEI) * 100),
+        S: Math.round((S / totalSN) * 100),
+        N: Math.round((N / totalSN) * 100),
+        T: Math.round((T / totalTF) * 100),
+        F: Math.round((F / totalTF) * 100),
+        J: Math.round((J / totalJP) * 100),
+        P: Math.round((P / totalJP) * 100),
+      };
+
+      const careers: any = {
+        INTJ: "Strategic Planner, System Architect, Scientist. You excel in logical blueprints and system design.",
+        ENTJ: "Executive Director, Management Consultant, Venture Capitalist. You are a natural-born decisive leader.",
+        INFP: "Creative Writer, Career Psychologist, Advisor. Guided by internal values, you seek deep, authentic connections.",
+        ENFP: "Innovation Director, Marketing Strategist, Founder. Enthusiastic and creative, you see endless possibilities.",
+        INFJ: "Advocate, Educational Counselor, Policy Planner. Insightful and structured, you drive ethical progress.",
+        ENFJ: "Corporate Coach, HR Director, Public Relations Lead. You inspire others and foster warm environments.",
+        INTP: "Theoretical Physicist, Software Developer, Researcher. Analytical and abstract, you seek logical precision.",
+        ENTP: "Product Strategist, Venture Builder, Creative Director. You love intellectual brainstorming and solving complex puzzles.",
+        ISTJ: "Financial Analyst, Operations Manager, Auditor. Exceptionally reliable, you preserve order and accuracy.",
+        ESTJ: "General Manager, Civil Engineer, Security Director. Highly organized, you execute rules and systems with precision.",
+        ISFJ: "Healthcare Advisor, Database Administrator, Registrar. Quiet, warm, and highly dependable, you support teams silently.",
+        ESFJ: "Academic Dean, Client Success Lead, Hospital Administrator. Warm-hearted and structured, you coordinate social harmony.",
+        ISTP: "Forensic Analyst, Systems Engineer, Pilot. Practical, quiet, and resourceful, you solve issues hands-on.",
+        ESTP: "Sales Negotiator, Operations Lead, Stock Trader. Energetic and tactical, you thrive in fast-paced real-time action.",
+        ISFP: "UX/UI Designer, Visual Artist, Environmentalist. Sensitive and creative, you enrich the world through aesthetics.",
+        ESFP: "Event Director, Public Relations Specialist, Actor. Outgoing and cheerful, you bring high energy to teams."
+      };
+
+      scoreObj = {
+        breakdown: {
+          "Extraversion (E)": pct.E,
+          "Introversion (I)": pct.I,
+          "Sensing (S)": pct.S,
+          "Intuition (N)": pct.N,
+          "Thinking (T)": pct.T,
+          "Feeling (F)": pct.F,
+          "Judging (J)": pct.J,
+          "Perceiving (P)": pct.P,
+        },
+        mbti,
+        summary: careers[mbti] || "Versatile Profile: Highly adaptable psychometric thinker.",
+        title: `MBTI Personality Profile: ${mbti}`
+      };
+    } else if (testKey === "16pf") {
+      const reasoningScore = Math.min(100, Math.max(15, 30 + (vals.includes("Analytical") ? 60 : 0) + (vals.includes("Practical") ? 20 : 40)));
+      const independenceScore = Math.min(100, Math.max(15, 35 + (vals.includes("Dominance") ? 55 : 0) + (vals.includes("Open-To-Change") ? 40 : 10)));
+      const stabilityScore = Math.min(100, Math.max(15, 45 + (vals.includes("Stable") ? 50 : 0) - (vals.includes("Sensitive") ? 25 : 0)));
+      const ruleConsciousnessScore = Math.min(100, Math.max(15, 30 + (vals.includes("Rule-Conscious") ? 50 : 0) + (vals.includes("Structured") ? 45 : 15)));
+      const warmthScore = Math.min(100, Math.max(15, 40 + (vals.includes("Warmth") ? 50 : 0) + (vals.includes("Collaborative") ? 45 : 10)));
+
+      const traits: string[] = [];
+      if (reasoningScore > 65) traits.push("High Analytical Reasoning");
+      if (independenceScore > 65) traits.push("High Independence & Drive");
+      if (stabilityScore > 65) traits.push("Emotional Resilience");
+      if (ruleConsciousnessScore > 65) traits.push("Rule-Consciousness");
+      if (warmthScore > 65) traits.push("Social Warmth");
+
+      scoreObj = {
+        breakdown: {
+          "Analytical Reasoning": reasoningScore,
+          "Independence & Drive": independenceScore,
+          "Emotional Stability": stabilityScore,
+          "Rule-Consciousness": ruleConsciousnessScore,
+          "Social Warmth & Teamwork": warmthScore
+        },
+        summary: `Strongest Career Factors: ${traits.join(", ") || "Balanced General Profile"}. Matches ideally with analytical research, structured process engineering, and proactive communications.`,
+        title: "16PF Factor Mapping Profile"
+      };
+    } else if (testKey === "epi") {
+      let E = 0, I_val = 0, N = 0, S = 0;
+      vals.forEach(v => {
+        if (v === "E") E++;
+        if (v === "I") I_val++;
+        if (v === "N") N++;
+        if (v === "S") S++;
+      });
+      const totalEI = E + I_val || 1;
+      const totalNS = N + S || 1;
+
+      const pct = {
+        E: Math.round((E / totalEI) * 100),
+        I: Math.round((I_val / totalEI) * 100),
+        N: Math.round((N / totalNS) * 100),
+        S: Math.round((S / totalNS) * 100),
+      };
+
+      let temperament = "Balanced";
+      let summary = "Steady, adaptable personality traits.";
+      if (E >= I_val && N >= S) {
+        temperament = "Choleric";
+        summary = "Active, highly energetic, optimistic, and results-focused. Thrives under pressure.";
+      } else if (E >= I_val && S > N) {
+        temperament = "Sanguine";
+        summary = "Highly sociable, outgoing, cheerful, and talkative. Excellent at teamwork.";
+      } else if (I_val > E && N >= S) {
+        temperament = "Melancholic";
+        summary = "Thoughtful, analytical, sensitive, and quiet. Excels in creative or deeply analytical tasks.";
+      } else if (I_val > E && S > N) {
+        temperament = "Phlegmatic";
+        summary = "Peaceful, reliable, structured, and extremely steady. Excellent for methodical operations.";
+      }
+
+      scoreObj = {
+        breakdown: {
+          "Extraversion (E)": pct.E,
+          "Introversion (I)": pct.I,
+          "Neuroticism / Reactivity (N)": pct.N,
+          "Emotional Stability (S)": pct.S
+        },
+        temperament,
+        summary,
+        title: `Eysenck Temperament: ${temperament}`
+      };
+    } else if (testKey === "enneagram") {
+      const counts: any = {
+        "Type 1 - Reformer": 0,
+        "Type 2 - Helper": 0,
+        "Type 3 - Achiever": 0,
+        "Type 4 - Individualist": 0,
+        "Type 5 - Investigator": 0,
+        "Type 6 - Loyalist": 0,
+        "Type 7 - Enthusiast": 0,
+        "Type 8 - Challenger": 0,
+        "Type 9 - Peacemaker": 0
+      };
+      vals.forEach(v => {
+        if (counts[v] !== undefined) counts[v]++;
+      });
+      
+      let dominantType = "Type 9 - Peacemaker";
+      let maxCount = -1;
+      Object.keys(counts).forEach(k => {
+        if (counts[k] > maxCount) {
+          maxCount = counts[k];
+          dominantType = k;
+        }
+      });
+
+      const totalVal = vals.length || 1;
+      const pctBreakdown: any = {};
+      Object.keys(counts).forEach(k => {
+        pctBreakdown[k] = Math.round((counts[k] / totalVal) * 100);
+      });
+
+      scoreObj = {
+        breakdown: pctBreakdown,
+        dominantType,
+        summary: `Your core driving motivator is represented by ${dominantType}. This defines your path of personal integration, helping you align with authentic career callings.`,
+        title: `Enneagram Profile: ${dominantType}`
+      };
+    } else if (testKey === "caliper") {
+      const leadership = Math.min(100, Math.max(15, 30 + (vals.includes("High Leadership") ? 45 : 0) + (vals.includes("High Social Boldness") ? 25 : 0)));
+      const empathy = Math.min(100, Math.max(15, 30 + (vals.includes("High Empathy") ? 45 : 0) + (vals.includes("High Sociability") ? 25 : 0)));
+      const drive = Math.min(100, Math.max(15, 30 + (vals.includes("High Ego-Drive") ? 45 : 0) + (vals.includes("High Assertiveness") ? 25 : 0)));
+      const structure = Math.min(100, Math.max(15, 25 + (vals.includes("High Structure") ? 35 : 0) + (vals.includes("High Organization") ? 25 : 0) + (vals.includes("High Thoroughness") ? 15 : 0)));
+      const cognitive = Math.min(100, Math.max(15, 40 + (vals.includes("High Cognitive") ? 45 : 0) + (vals.includes("High Flexibility") ? 15 : 0)));
+
+      const traits: string[] = [];
+      if (leadership > 65) traits.push("Leadership potential");
+      if (empathy > 65) traits.push("Strong Empathy");
+      if (drive > 65) traits.push("High Persuasion Drive");
+      if (structure > 65) traits.push("Thorough Organization");
+      if (cognitive > 65) traits.push("Abstract Problem-Solving");
+
+      scoreObj = {
+        breakdown: {
+          "Leadership & Boldness": leadership,
+          "Relational Empathy": empathy,
+          "Ego-Drive & Persuasion": drive,
+          "Structure & Organization": structure,
+          "Cognitive Adaptability": cognitive
+        },
+        summary: `Identified Performance Drivers: ${traits.join(", ") || "Balanced Professional Profile"}. Perfect match for fields requiring empathy, structural organization, assertiveness, and cognitive leadership.`,
+        title: "Caliper Job-Performance Driver Profile"
+      };
+    } else if (testKey === "mmpi") {
+      const somatic = Math.min(100, Math.max(15, 40 + (vals.includes("Somatic Stability") ? 50 : 0) - (vals.includes("Somatic Tendency") ? 25 : 0)));
+      const confidence = Math.min(100, Math.max(15, 35 + (vals.includes("Social Confidence") ? 50 : 0) - (vals.includes("Paranoia Tendency") ? 25 : 0)));
+      const energy = Math.min(100, Math.max(15, 40 + (vals.includes("Balanced Energy") ? 50 : 0) - (vals.includes("Depression Tendency") ? 25 : 0)));
+      const emotional = Math.min(100, Math.max(15, 35 + (vals.includes("High Self-Trust") ? 50 : 0) - (vals.includes("Anxiety Tendency") ? 25 : 0)));
+
+      const traits: string[] = [];
+      if (somatic > 65) traits.push("Somatic Stress Resilience");
+      if (confidence > 65) traits.push("High Social Confidence");
+      if (energy > 65) traits.push("Excellent Motivation Balance");
+      if (emotional > 65) traits.push("Emotional Equilibrium");
+
+      scoreObj = {
+        breakdown: {
+          "Somatic Stress Resilience": somatic,
+          "Social Confidence & Trust": confidence,
+          "Mental Energy & Drive": energy,
+          "Emotional Stability & Control": emotional
+        },
+        summary: `Clinical psychometric indicators: ${traits.join(", ") || "Steady Emotional Adaptability"}. Displays steady emotional resilience, structured coping strategies, and optimal cognitive adaptability under high work/study stress.`,
+        title: "MMPI Psychometric Insight"
+      };
+    } else if (test.scoringMethod === "aptitude") {
+      let correctCount = 0;
+      const questionsList = test.questions || [];
+      const totalCount = questionsList.length || 1;
+      
+      questionsList.forEach((q: any) => {
+        const userAns = userAnswers[q.id];
+        if (userAns !== undefined && q.correctValue !== undefined && userAns.toString().trim().toUpperCase() === q.correctValue.toString().trim().toUpperCase()) {
+          correctCount++;
+        }
+      });
+      
+      const percentage = Math.round((correctCount / totalCount) * 100);
+      let summary = "";
+      let bracketTitle = "Foundational";
+      if (percentage >= 90) {
+        bracketTitle = "Exceptional Mastery";
+        summary = `You scored ${correctCount}/${totalCount} (${percentage}%). Exceptional analytical and cognitive ability. You demonstrate excellent command of quantitative, logical reasoning, and verbal concepts.`;
+      } else if (percentage >= 70) {
+        bracketTitle = "Strong Proficiency";
+        summary = `You scored ${correctCount}/${totalCount} (${percentage}%). Strong analytical capacity. You have a solid grasp of logical and quantitative concepts with very minor areas to reinforce.`;
+      } else if (percentage >= 50) {
+        bracketTitle = "Developing Competency";
+        summary = `You scored ${correctCount}/${totalCount} (${percentage}%). Satisfactory performance. You are developing your analytical and cognitive skills but would benefit from targeted study.`;
+      } else {
+        bracketTitle = "Foundational Stage";
+        summary = `You scored ${correctCount}/${totalCount} (${percentage}%). Foundational competency. Focus on strengthening fundamental logic, verbal analogies, and basic quantitative problems.`;
+      }
+      
+      scoreObj = {
+        breakdown: {
+          "Correct Answers": percentage,
+          "Incorrect / Skipped": 100 - percentage
+        },
+        percentage,
+        correctCount,
+        totalCount,
+        summary,
+        title: `Cognitive Score: ${percentage}% (${bracketTitle})`
+      };
+    } else {
+      const counts: Record<string, number> = {};
+      vals.forEach(v => {
+        if (v) counts[v] = (counts[v] || 0) + 1;
+      });
+
+      const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
+      const breakdown: Record<string, number> = {};
+      Object.keys(counts).forEach(k => {
+        breakdown[k] = Math.round((counts[k] / total) * 100);
+      });
+
+      let dominant = "";
+      let maxPct = -1;
+      Object.keys(breakdown).forEach(k => {
+        if (breakdown[k] > maxPct) {
+          maxPct = breakdown[k];
+          dominant = k;
+        }
+      });
+
+      const matchedProfile = (test.resultProfiles || []).find(p => p.value === dominant || p.value.toLowerCase() === dominant.toLowerCase());
+      const scoreTitle = matchedProfile?.title || (dominant ? `${dominant} Dimension Assessment` : `${test.title} Report`);
+      const scoreSummary = matchedProfile?.summary || (dominant
+        ? `Your evaluation indicates a primary affinity for the ${dominant} dimension. This represents your core behavioral orientation and decision style.`
+        : `Your diagnostic assessment for ${test.title} has been evaluated successfully.`
+      );
+
+      scoreObj = {
+        breakdown: Object.keys(breakdown).length > 0 ? breakdown : { "Assessment Completed": 100 },
+        dominant: dominant || "Analyzed",
+        summary: scoreSummary,
+        title: scoreTitle
+      };
+    }
+
+    // Calculate correctness weightings if options have percentages
+    let sumPercentages = 0;
+    let evaluatedCount = 0;
+    const questionAnalysis: any[] = [];
+
+    (test.questions || []).forEach(q => {
+      const userVal = userAnswers[q.id];
+      if (userVal !== undefined && userVal !== null) {
+        evaluatedCount++;
+        const selectedOpt = (q.options || []).find(o => o.value === userVal || o.text === userVal || o.id === userVal);
+        let earnedPct = 0;
+        if (selectedOpt && selectedOpt.correctnessPercentage !== undefined) {
+          earnedPct = Number(selectedOpt.correctnessPercentage) || 0;
+        } else if (q.correctValue && userVal.toString().trim().toUpperCase() === q.correctValue.toString().trim().toUpperCase()) {
+          earnedPct = 100;
+        }
+        sumPercentages += earnedPct;
+        questionAnalysis.push({
+          questionId: q.id,
+          questionText: q.text,
+          selectedOptionText: selectedOpt ? selectedOpt.text : userVal,
+          selectedOptionValue: selectedOpt ? selectedOpt.value : userVal,
+          earnedCorrectnessPercentage: earnedPct
+        });
+      }
+    });
+
+    if (evaluatedCount > 0) {
+      scoreObj.overallCorrectnessPercentage = Math.round(sumPercentages / evaluatedCount);
+      scoreObj.questionCorrectnessBreakdown = questionAnalysis;
+    }
+
+    return {
+      _id: `local-${Date.now()}`,
+      id: `local-${Date.now()}`,
+      user,
+      testKey: test.key,
+      testTitle: test.title,
+      answers: userAnswers,
+      score: scoreObj,
+      createdAt: new Date().toISOString()
+    };
   };
 
   const handleLogoutCandidate = () => {
@@ -572,7 +1009,23 @@ export default function Diagnostics() {
               >
                 {!activeQuizReport ? (
                   // QUIZ IN PROGRESS
-                  <div className="bg-white rounded-3xl border border-zinc-200 shadow-md p-6 sm:p-10 space-y-8 relative">
+                  <div className="bg-white rounded-3xl border border-zinc-200 shadow-md p-6 sm:p-10 space-y-8 relative overflow-hidden">
+                    
+                    {/* Scoring & Submission In-Flight Overlay */}
+                    {submittingQuiz && (
+                      <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-30 flex flex-col items-center justify-center p-6 text-center space-y-4 animate-in fade-in duration-200">
+                        <div className="relative">
+                          <div className="h-16 w-16 rounded-full border-4 border-emerald-100 border-t-emerald-600 animate-spin"></div>
+                          <Sparkles className="h-6 w-6 text-emerald-600 absolute inset-0 m-auto animate-pulse" />
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="text-base font-black text-zinc-950 font-sans">Evaluating Assessment</h4>
+                          <p className="text-xs text-zinc-500 font-sans max-w-xs">
+                            Scoring psychometric dimensions and compiling your diagnostic report...
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Upper Quiz Info Header */}
                     <div className="flex items-center justify-between gap-4 border-b border-zinc-100 pb-5">
@@ -682,46 +1135,45 @@ export default function Diagnostics() {
 
                   </div>
                 ) : (
-                  // QUIZ FINISHED: VISUAL REPORT CARD COMPONENT
+                  // QUIZ FINISHED: OFFICIAL SCORECARD & RESPONSE SHEET REPORT
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-white rounded-3xl border border-zinc-200 shadow-xl p-6 sm:p-10 space-y-8 relative overflow-hidden"
+                    className="space-y-8"
                   >
-                    <div className="absolute top-0 left-0 w-full h-3 bg-gradient-to-r from-emerald-500 to-teal-500"></div>
-
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 border-b border-zinc-100 pb-6">
+                    {/* Action Bar (Screen only, hidden in print) */}
+                    <div className="bg-white rounded-3xl border border-zinc-200 shadow-sm p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 print:hidden">
                       <div className="space-y-1">
                         <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest font-mono flex items-center gap-1.5">
-                          <CheckCircle className="h-3.5 w-3.5" /> Assessment Completed Successfully
+                          <CheckCircle className="h-3.5 w-3.5" /> Assessment Completed & Evaluated Successfully
                         </span>
-                        <h2 className="text-2xl sm:text-3xl font-black text-zinc-950 font-sans tracking-tight leading-tight">
-                          Your Psychometric Report
+                        <h2 className="text-xl sm:text-2xl font-black text-zinc-950 font-sans tracking-tight">
+                          Official Diagnostic Scorecard
                         </h2>
                         <p className="text-xs text-zinc-500 font-sans">
-                          A detailed profiling computed on world-standard benchmarks for <strong>{currentUser?.name}</strong>.
+                          A comprehensive scorecard with your question-by-question response sheet and evaluation breakdown for <strong>{currentUser?.name}</strong>.
                         </p>
                       </div>
 
                       <div className="flex items-center gap-2 self-start sm:self-auto">
                         <button
                           onClick={handlePrint}
-                          className="p-2 bg-zinc-100 hover:bg-zinc-200 rounded-xl text-zinc-700 transition-all cursor-pointer"
-                          title="Print evaluation report"
+                          className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-md shadow-emerald-900/10"
+                          title="Print official scorecard"
                         >
-                          <Printer className="h-4 w-4" />
+                          <Printer className="h-4 w-4" /> Print Scorecard
                         </button>
                         <button
                           onClick={handleCloseWorkspace}
-                          className="px-4.5 py-2 bg-zinc-950 hover:bg-zinc-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+                          className="px-4 py-2.5 bg-zinc-950 hover:bg-zinc-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
                         >
-                          Finish Assessment
+                          Finish & Exit
                         </button>
                       </div>
                     </div>
 
                     {/* 📧 Email Notification Service Summary Banner */}
-                    <div className="bg-emerald-950/40 border border-emerald-500/20 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+                    <div className="bg-emerald-950/40 border border-emerald-500/20 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs print:hidden">
                       <div className="flex items-center gap-3">
                         <div className="p-2.5 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-400 shrink-0">
                           <Mail className="h-4 w-4" />
@@ -756,97 +1208,14 @@ export default function Diagnostics() {
                       </button>
                     </div>
 
-                    {/* visual scorecard */}
-                    <div className="bg-zinc-950 text-white p-6 sm:p-8 rounded-3xl shadow-lg border border-zinc-850 space-y-5">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="space-y-1">
-                          <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest font-mono">Calculated Result Profile</span>
-                          <h3 className="text-xl sm:text-2xl font-black text-white font-sans tracking-tight leading-snug">
-                            {activeQuizReport.score.title}
-                          </h3>
-                        </div>
-                        
-                        {(activeQuizReport.score.dominant || activeQuizReport.score.mbti) && (
-                          <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-400 bg-zinc-900 border border-zinc-800 h-14 w-14 rounded-2xl flex items-center justify-center">
-                            {activeQuizReport.score.dominant || activeQuizReport.score.mbti}
-                          </div>
-                        )}
-                      </div>
+                    {/* OFFICIAL SCORECARD PRINT & SCREEN REPORT */}
+                    <ScorecardPrintReport
+                      report={activeQuizReport}
+                      testDefinition={selectedTest}
+                    />
 
-                      <p className="text-zinc-300 text-xs sm:text-sm leading-relaxed font-medium">
-                        {activeQuizReport.score.summary}
-                      </p>
-
-                      {/* Render score breakdown visualizer bars if available */}
-                      {activeQuizReport.score.breakdown && (
-                        <div className="border-t border-zinc-800 pt-5 space-y-4">
-                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest font-mono block">Psychometric Dimensions Breakdown</span>
-                          <div className="space-y-3">
-                            {Object.entries(activeQuizReport.score.breakdown).map(([k, val]: any) => {
-                              const percent = typeof val === "number" ? val : 25; // default fallback if needed
-                              return (
-                                <div key={k} className="space-y-1">
-                                  <div className="flex justify-between text-[11px] font-mono">
-                                    <span className="font-bold text-zinc-300 uppercase">{k} Aspect</span>
-                                    <span className="text-emerald-400 font-black">{percent}%</span>
-                                  </div>
-                                  <div className="w-full bg-zinc-900 rounded-full h-1.5 overflow-hidden">
-                                    <div 
-                                      className="bg-emerald-500 h-1.5 rounded-full" 
-                                      style={{ width: `${percent}%` }}
-                                    ></div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Render option correctness percentage evaluation breakdown if available */}
-                      {activeQuizReport.score.overallCorrectnessPercentage !== undefined && (
-                        <div className="border-t border-zinc-800 pt-5 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest font-mono">
-                              Weighted Evaluation Accuracy Score
-                            </span>
-                            <span className="text-emerald-400 text-xs font-black font-mono bg-emerald-500/15 px-3 py-1 rounded-full border border-emerald-500/20">
-                              {activeQuizReport.score.overallCorrectnessPercentage}% Total Match Score
-                            </span>
-                          </div>
-
-                          {activeQuizReport.score.questionCorrectnessBreakdown && Array.isArray(activeQuizReport.score.questionCorrectnessBreakdown) && (
-                            <div className="space-y-2 mt-3">
-                              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider font-mono">Question Correctness Breakdown</span>
-                              <div className="grid grid-cols-1 gap-2">
-                                {activeQuizReport.score.questionCorrectnessBreakdown.map((qItem: any, idx: number) => (
-                                  <div key={idx} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 flex items-center justify-between gap-3 text-xs">
-                                    <div className="min-w-0 flex-1">
-                                      <p className="font-bold text-zinc-200 truncate">#{idx + 1}. {qItem.questionText}</p>
-                                      <p className="text-[11px] text-zinc-400 mt-0.5">Your Choice: <span className="text-emerald-400 font-medium">{qItem.selectedOptionText}</span></p>
-                                    </div>
-                                    <div className="shrink-0 text-right">
-                                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black font-mono uppercase ${
-                                        qItem.earnedCorrectnessPercentage === 100
-                                          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
-                                          : qItem.earnedCorrectnessPercentage > 0
-                                          ? "bg-amber-500/15 text-amber-300 border border-amber-500/30"
-                                          : "bg-red-500/15 text-red-400 border border-red-500/30"
-                                      }`}>
-                                        {qItem.earnedCorrectnessPercentage}% Correct
-                                      </span>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Consultation booking CTA with WhatsApp integration or modal booking */}
-                    <div className="p-6 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-5">
+                    {/* Consultation booking CTA with WhatsApp integration or modal booking (Screen only) */}
+                    <div className="p-6 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-5 print:hidden">
                       <div className="space-y-1 text-center sm:text-left">
                         <h4 className="text-sm font-black text-emerald-950 font-sans uppercase tracking-wider flex items-center gap-1.5 justify-center sm:justify-start">
                           <Sparkles className="h-4 w-4 text-emerald-600 animate-pulse" /> Unlock Your Personalized Counseling
@@ -856,18 +1225,26 @@ export default function Diagnostics() {
                         </p>
                       </div>
 
-                      <a
-                        href={`https://api.whatsapp.com/send?phone=${process.env.ADMIN_WHATSAPP_NUMBER || "919876501234"}&text=${encodeURIComponent(
-                          `Hello Pehlakadam Advisor, I completed the *${activeQuizReport.testTitle}* psychometric assessment as *${currentUser?.name}*. Here is my result: *${activeQuizReport.score.title}*. I would like to book a career consultation counseling slot!`
-                        )}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-md shadow-emerald-900/10 cursor-pointer flex-shrink-0"
-                      >
-                        <MessageCircle className="h-4 w-4" /> Book Consultation
-                      </a>
-                    </div>
+                      <div className="flex items-center gap-3 flex-wrap justify-center">
+                        <Link
+                          to={`/dashboard?phone=${currentUser?.phone || ""}&email=${currentUser?.email || ""}`}
+                          className="inline-flex items-center gap-2 px-4 py-3 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-md cursor-pointer flex-shrink-0"
+                        >
+                          <GraduationCap className="h-4 w-4 text-emerald-400" /> My Learning Dashboard
+                        </Link>
 
+                        <a
+                          href={`https://api.whatsapp.com/send?phone=917428613102&text=${encodeURIComponent(
+                            `Hello Pehlakadam Advisor, I completed the *${activeQuizReport.testTitle}* psychometric assessment as *${currentUser?.name || "Candidate"}*. Here is my result: *${activeQuizReport.score?.title || "Assessment Complete"}*. I would like to book a career consultation counseling slot!`
+                          )}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-md shadow-emerald-900/10 cursor-pointer flex-shrink-0"
+                        >
+                          <MessageCircle className="h-4 w-4" /> Book Consultation
+                        </a>
+                      </div>
+                    </div>
                   </motion.div>
                 )}
               </motion.div>
@@ -1018,12 +1395,12 @@ export default function Diagnostics() {
                       onChange={(e) => setSignupRole(e.target.value)}
                       className="w-full bg-zinc-50 border border-zinc-200/80 rounded-xl px-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-zinc-900 font-bold cursor-pointer"
                     >
-                      <option>Primary School Kudos Stream</option>
-                      <option>6th-8th Grade Student</option>
-                      <option>9th-10th Grade Student</option>
-                      <option>11th-12th Grade Student</option>
-                      <option>Graduate / Placements Track</option>
-                      <option>Generalist domain professional</option>
+                      <option value="Primary Kudos">Primary Kudos</option>
+                      <option value="6-8 Grade Student">6-8 Grade Student</option>
+                      <option value="8-10 Grade Student">8-10 Grade Student</option>
+                      <option value="11-12 Grade Student">11-12 Grade Student</option>
+                      <option value="UG/Graduate/PG">UG/Graduate/PG</option>
+                      <option value="Generalist to Specialist">Generalist to Specialist</option>
                     </select>
                   </div>
 

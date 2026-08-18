@@ -9,6 +9,7 @@ import {
 import NavigationBar from "../NavigationBar";
 import Footer from "../Footer";
 import PaymentModal from "../PaymentModal";
+import CourseCheckoutModal from "../CourseCheckoutModal";
 import { Course, Lesson, UserTier } from "../../types";
 
 export default function Courses() {
@@ -18,6 +19,10 @@ export default function Courses() {
   const [selectedTier, setSelectedTier] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedBatch, setSelectedBatch] = useState<string>("all");
+
+  // Course Direct Checkout Modal
+  const [checkoutCourse, setCheckoutCourse] = useState<Course | null>(null);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
   // Student Auth State
   const [studentPhone, setStudentPhone] = useState("");
@@ -62,6 +67,7 @@ export default function Courses() {
     if (!authStatus.authorized || !studentPhone || !studentSessionId) return;
 
     const interval = setInterval(async () => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
       try {
         const res = await fetch("/api/verify-session", {
           method: "POST",
@@ -86,9 +92,9 @@ export default function Courses() {
           }
         }
       } catch (err) {
-        console.error("[Courses] Session heartbeat check failed:", err);
+        // Transient network or server reconnect — silently ignore to prevent false log noise
       }
-    }, 6000); // Check every 6 seconds
+    }, 12000); // Check every 12 seconds for reliable session tracking
 
     return () => clearInterval(interval);
   }, [authStatus.authorized, studentPhone, studentSessionId]);
@@ -326,20 +332,31 @@ export default function Courses() {
               </div>
 
               {authStatus.authorized ? (
-                <div className="p-3.5 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs">
-                  <div className="flex items-center gap-2 font-bold text-sm mb-1">
+                <div className="p-3.5 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs space-y-2.5">
+                  <div className="flex items-center gap-2 font-bold text-sm">
                     <UserCheck className="h-4 w-4 text-emerald-400" />
                     Access Verified!
                   </div>
-                  <p className="text-[11px] text-emerald-200/90 mb-2">
+                  <p className="text-[11px] text-emerald-200/90">
                     Authorized Mobile: <span className="font-mono text-white">{studentPhone}</span>
                   </p>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 font-bold uppercase text-[10px] border border-emerald-500/40">
-                    <Sparkles className="h-3 w-3" />
-                    Tier: {authStatus.tier}
+                  <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 font-bold uppercase text-[10px] border border-emerald-500/40">
+                      <Sparkles className="h-3 w-3" />
+                      Tier: {authStatus.tier}
+                    </div>
+
+                    <Link
+                      to={`/dashboard?phone=${studentPhone}`}
+                      className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl transition-all shadow-md shadow-emerald-900/40"
+                    >
+                      <GraduationCap className="h-3.5 w-3.5" />
+                      Open My Dashboard
+                    </Link>
                   </div>
                 </div>
               ) : (
+
                 <form onSubmit={handlePhoneSubmit} className="space-y-3">
                   <p className="text-xs text-zinc-400">
                     Enter your registered student mobile number to unlock your video courses & downloadable chapters:
@@ -562,13 +579,16 @@ export default function Courses() {
                           Start Course
                         </button>
                       ) : (
-                        <PaymentModal
-                          planName={`${course.title}${course.batch ? ` [Batch: ${course.batch}]` : ''}`}
-                          planPrice={`₹${course.discountPrice}`}
-                          defaultProgram={course.category}
-                          buttonText={`Unlock (${course.tier.toUpperCase()})`}
-                          buttonClassName="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white border border-zinc-700/80 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-                        />
+                        <button
+                          onClick={() => {
+                            setCheckoutCourse(course);
+                            setIsCheckoutOpen(true);
+                          }}
+                          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500/80 text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-emerald-950/40 hover:scale-[1.02] cursor-pointer"
+                        >
+                          <ShieldCheck className="h-4 w-4" />
+                          Enroll Now ({course.tier.toUpperCase()})
+                        </button>
                       )}
                     </div>
                   </div>
@@ -821,6 +841,30 @@ export default function Courses() {
         </div>,
         document.body
       )}
+
+      {/* 💳 COURSE DIRECT ZERO-FEE CHECKOUT & AUTO-ENROLLMENT MODAL */}
+      <CourseCheckoutModal
+        course={checkoutCourse}
+        isOpen={isCheckoutOpen}
+        onClose={() => {
+          setIsCheckoutOpen(false);
+          setCheckoutCourse(null);
+        }}
+        onEnrollSuccess={(phone, tier) => {
+          setStudentPhone(phone);
+          setInputPhone(phone);
+          setAuthStatus({
+            checked: true,
+            authorized: true,
+            tier: (tier as UserTier) || "advance",
+            message: `Instant access activated for +91 ${phone} (${tier.toUpperCase()} Tier)`
+          });
+          // Also if checkoutCourse is set, optionally open player
+          if (checkoutCourse) {
+            openCoursePlayer(checkoutCourse);
+          }
+        }}
+      />
 
       <Footer />
     </div>

@@ -5,6 +5,10 @@ export const DEFAULT_DIAGNOSTICS = [
     subtitle: "Dominance, Influence, Steadiness, Conscientiousness",
     description: "Measures four core dimensions of behavior to understand communication, teamwork, and task styles.",
     customFieldLabel: "Primary Career Goal",
+    isPaid: false,
+    requiredTier: "basic",
+    price: 0,
+    category: "Behavioral Dimensions",
     questions: [
       {
         id: "disc_q1",
@@ -64,6 +68,10 @@ export const DEFAULT_DIAGNOSTICS = [
     subtitle: "16 Psychological Personalities",
     description: "Evaluates your preferences across four core cognitive dichotomies to identify one of the 16 personality types.",
     customFieldLabel: "Current Stream / Field of Study",
+    isPaid: false,
+    requiredTier: "basic",
+    price: 0,
+    category: "Personality & Cognition",
     questions: [
       {
         id: "mbti_q1",
@@ -137,6 +145,10 @@ export const DEFAULT_DIAGNOSTICS = [
     subtitle: "16PF Career Matching",
     description: "Evaluates your primary work, thinking, and communication styles to map you to optimal career paths.",
     customFieldLabel: "Preferred Work / Study Style",
+    isPaid: true,
+    requiredTier: "advance",
+    price: 299,
+    category: "Career & Work Factors",
     questions: [
       {
         id: "pf_q1",
@@ -189,6 +201,10 @@ export const DEFAULT_DIAGNOSTICS = [
     subtitle: "EPI Temperament Scales",
     description: "Evaluates your biological temperament across Extraversion (E) and Neuroticism (N) scales to map to standard temperaments.",
     customFieldLabel: "Primary Stress Trigger / Coping Style",
+    isPaid: false,
+    requiredTier: "basic",
+    price: 0,
+    category: "Temperament & Emotional Scale",
     questions: [
       {
         id: "epi_q1",
@@ -238,6 +254,10 @@ export const DEFAULT_DIAGNOSTICS = [
     subtitle: "9 Interconnected Personality Types",
     description: "Uncovers your core motivations, deepest fears, and developmental pathways among the 9 archetypes.",
     customFieldLabel: "Your Core Life Motivation",
+    isPaid: true,
+    requiredTier: "advance",
+    price: 349,
+    category: "Core Motivations & Drivers",
     questions: [
       {
         id: "en_q1",
@@ -298,6 +318,10 @@ export const DEFAULT_DIAGNOSTICS = [
     subtitle: "Job Performance Matching",
     description: "Aligns your cognitive styles and personal drivers directly with high-performance job domains and organizational roles.",
     customFieldLabel: "Desired Professional Field / Industry",
+    isPaid: true,
+    requiredTier: "pro",
+    price: 499,
+    category: "Professional & Leadership Competency",
     questions: [
       {
         id: "cal_q1",
@@ -350,6 +374,10 @@ export const DEFAULT_DIAGNOSTICS = [
     subtitle: "MMPI Clinical Insights",
     description: "Evaluates your psychological coping capacity, emotional stability, and behavioral tendencies under stress.",
     customFieldLabel: "General Emotional State Recently",
+    isPaid: true,
+    requiredTier: "pro",
+    price: 499,
+    category: "Stress Tolerance & Clinical Insights",
     questions: [
       {
         id: "mmp_q1",

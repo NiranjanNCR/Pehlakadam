@@ -151,6 +151,7 @@ export default function Resources() {
     if (!isPremiumUnlocked || !unlockedPhone || !premiumSessionId) return;
 
     const interval = setInterval(async () => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
       try {
         const res = await fetch("/api/verify-session", {
           method: "POST",
@@ -170,14 +171,43 @@ export default function Resources() {
           }
         }
       } catch (err) {
-        console.error("[Resources] Heartbeat verification failed:", err);
+        // Transient network or server reconnect — silently ignore to prevent false log noise
       }
-    }, 6000);
+    }, 12000);
 
     return () => clearInterval(interval);
   }, [isPremiumUnlocked, unlockedPhone, premiumSessionId]);
 
+  const trackResourceHistory = async (res: ResourceMaterial, url?: string) => {
+    try {
+      let phone = unlockedPhone || localStorage.getItem("pehlakadam_student_phone") || localStorage.getItem("pehlakadam_premium_phone") || "";
+      let email = "";
+      try {
+        const u = JSON.parse(localStorage.getItem("pehlakadam_user") || "{}");
+        if (u.phone && !phone) phone = u.phone;
+        if (u.email) email = u.email;
+      } catch (e) {}
+
+      await fetch("/api/student/track-resource", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone,
+          email,
+          resourceId: res.id,
+          title: res.title,
+          category: res.category,
+          type: res.type,
+          url: url || `/api/resources/view/${res.id}`
+        })
+      });
+    } catch (e) {
+      console.warn("Could not log resource history:", e);
+    }
+  };
+
   const handleViewPdf = (res: ResourceMaterial) => {
+    trackResourceHistory(res, `/api/resources/view/${res.id}`);
     setSelectedPdf({
       title: res.title,
       category: res.category,
@@ -187,7 +217,10 @@ export default function Resources() {
     setIsPdfModalOpen(true);
   };
 
-  const handleWatchVideo = (url: string) => {
+  const handleWatchVideo = (url: string, res?: ResourceMaterial) => {
+    if (res) {
+      trackResourceHistory(res, url);
+    }
     // Standardize URL to embed if it is watch link
     let embedUrl = url;
     if (url.includes("youtube.com/watch?v=")) {
@@ -200,6 +233,7 @@ export default function Resources() {
     setSelectedVideo(embedUrl);
     setIsVideoModalOpen(true);
   };
+
 
   // Filter based on active tab, search query, and free vs paid access mode
   const filteredResources = resources.filter((res) => {
@@ -555,7 +589,7 @@ export default function Resources() {
                     ) : (
                       <button
                         id={`watch-btn-${res.id}`}
-                        onClick={() => handleWatchVideo(res.videoUrl || "")}
+                        onClick={() => handleWatchVideo(res.videoUrl || "", res)}
                         className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 hover:shadow-lg hover:shadow-emerald-600/10 text-white px-4 py-2.5 text-xs font-bold transition-all cursor-pointer"
                       >
                         <Play className="h-3.5 w-3.5 fill-current" /> Watch Video

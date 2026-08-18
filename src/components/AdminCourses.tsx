@@ -422,9 +422,9 @@ export default function AdminCourses() {
                 className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white"
               >
                 <option value="Primary Kudos">Primary Kudos</option>
-                <option value="6-8 Grade">6-8 Grade</option>
-                <option value="8-10 Grade">8-10 Grade</option>
-                <option value="11-12 Grade">11-12 Grade</option>
+                <option value="6-8 Grade Student">6-8 Grade Student</option>
+                <option value="8-10 Grade Student">8-10 Grade Student</option>
+                <option value="11-12 Grade Student">11-12 Grade Student</option>
                 <option value="UG/Graduate/PG">UG/Graduate/PG</option>
                 <option value="Generalist to Specialist">Generalist to Specialist</option>
               </select>
@@ -843,9 +843,9 @@ export default function AdminCourses() {
                   className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white"
                 >
                   <option value="Primary Kudos">Primary Kudos</option>
-                  <option value="6-8 Grade">6-8 Grade</option>
-                  <option value="8-10 Grade">8-10 Grade</option>
-                  <option value="11-12 Grade">11-12 Grade</option>
+                  <option value="6-8 Grade Student">6-8 Grade Student</option>
+                  <option value="8-10 Grade Student">8-10 Grade Student</option>
+                  <option value="11-12 Grade Student">11-12 Grade Student</option>
                   <option value="UG/Graduate/PG">UG/Graduate/PG</option>
                   <option value="Generalist to Specialist">Generalist to Specialist</option>
                 </select>

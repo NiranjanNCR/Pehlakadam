@@ -4,7 +4,30 @@ export interface ContactFormData {
   email: string;
   number: string;
   role: string;
+  plan?: string;
   message: string;
+}
+
+export interface PaymentSubmission {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  number: string;
+  role: string;
+  plan?: string;
+  amount?: number;
+  transactionId: string;
+  fileName?: string;
+  fileType?: string;
+  fileData?: string;
+  fileUrl?: string;
+  status?: "auto_approved" | "pending_manual_review" | "approved" | "revoked";
+  autoVerified?: boolean;
+  verificationMethod?: "AUTO_UTR_OCR" | "MANUAL_APPROVAL" | "MANUAL_WHITELIST" | string;
+  verifiedAt?: string;
+  couponCode?: string;
+  createdAt: string;
 }
 
 export interface Submission extends ContactFormData {
@@ -135,4 +158,51 @@ export interface Course {
   published: boolean;
   createdAt?: string;
 }
+
+export interface ResourceHistoryItem {
+  id: string;
+  resourceId?: string;
+  title: string;
+  category: string;
+  type: "pdf" | "video";
+  url?: string;
+  fileData?: string;
+  accessedAt: string;
+}
+
+export interface DiagnosticRecord {
+  id: string;
+  testKey: string;
+  testTitle: string;
+  dominant?: string;
+  score?: any;
+  answers?: Record<string, string>;
+  createdAt: string;
+}
+
+export interface EnrolledProgram {
+  key: string;
+  title: string;
+  path: string;
+  enrolledAt: string;
+  plan?: string;
+  status: "active" | "completed" | "pending";
+}
+
+export interface StudentDashboardData {
+  student: {
+    name: string;
+    phone: string;
+    email: string;
+    role: string;
+    tier: UserTier;
+    isAuthorized: boolean;
+  };
+  enrolledCourses: Course[];
+  enrolledPrograms: EnrolledProgram[];
+  diagnosticHistory: DiagnosticRecord[];
+  resourceHistory: ResourceHistoryItem[];
+  progress: Record<string, number>; // courseId -> completion percentage
+}
+
 
