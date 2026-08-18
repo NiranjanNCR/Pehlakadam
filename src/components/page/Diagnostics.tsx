@@ -26,6 +26,8 @@ import {
   Mail,
   Send,
   CheckCircle2,
+  ShieldCheck,
+  Phone,
   GraduationCap
 } from "lucide-react";
 
@@ -86,6 +88,11 @@ export default function Diagnostics() {
   const [pendingTest, setPendingTest] = useState<DiagnosticTest | null>(null);
   const [registering, setRegistering] = useState(false);
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
+  const [autoDetectedBanner, setAutoDetectedBanner] = useState<string | null>(null);
+  const [checkingAutoAccess, setCheckingAutoAccess] = useState(false);
+  const [quickPhoneLookup, setQuickPhoneLookup] = useState("");
+  const [lookingUpPhone, setLookingUpPhone] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
 
   // Real-time validation flags
   const isNameValid = signupName.trim().length >= 3;
@@ -177,20 +184,78 @@ export default function Diagnostics() {
     default: { x: 0 }
   };
 
+  // 🎯 REAL-TIME ENROLLMENT DETECTION STATE
+  const [detectedEnrollment, setDetectedEnrollment] = useState<{
+    isEnrolled: boolean;
+    name: string;
+    tier: string;
+    phone: string;
+    email: string;
+    enrolledPrograms: string[];
+    enrolledCourses: string[];
+  } | null>(null);
+
   useEffect(() => {
     // Load tests
     fetchTests();
-    // Check if user is cached in localStorage
+    
+    // Check if user is cached in localStorage & proactively auto-detect enrollment
     const cached = localStorage.getItem("pehlakadam_user");
+    const cachedPhone = localStorage.getItem("pehlakadam_student_phone") || localStorage.getItem("pehlakadam_premium_phone") || "";
+    const cachedEmail = localStorage.getItem("pehlakadam_student_email") || "";
+    let candidateUser: any = null;
+
     if (cached) {
       try {
-        const u = JSON.parse(cached);
-        setCurrentUser(u);
-        fetchMyReports(u.email);
+        candidateUser = JSON.parse(cached);
+        setCurrentUser(candidateUser);
+        if (candidateUser.email) {
+          fetchMyReports(candidateUser.email);
+        }
       } catch (e) {
-        // clear corrupted
         localStorage.removeItem("pehlakadam_user");
       }
+    }
+
+    const checkPhone = candidateUser?.phone || cachedPhone;
+    const checkEmail = candidateUser?.email || cachedEmail;
+
+    if (checkPhone || checkEmail) {
+      fetch("/api/check-premium-access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ number: checkPhone, email: checkEmail })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.authorized) {
+            const studentInfo = {
+              isEnrolled: true,
+              name: data.studentName || candidateUser?.name || "Enrolled Student",
+              tier: data.tier || "pro",
+              phone: checkPhone || data.phone || "",
+              email: data.email || checkEmail || "",
+              enrolledPrograms: data.enrolledPrograms || [],
+              enrolledCourses: data.enrolledCourses || []
+            };
+            setDetectedEnrollment(studentInfo);
+
+            const updatedUser: CandidateUser = {
+              name: studentInfo.name,
+              email: studentInfo.email,
+              phone: studentInfo.phone,
+              role: (studentInfo.enrolledPrograms && studentInfo.enrolledPrograms[0]) || candidateUser?.role || "Enrolled Scholar",
+              specialDetail: "Auto-detected Enrolled Profile"
+            };
+            setCurrentUser(updatedUser);
+            localStorage.setItem("pehlakadam_user", JSON.stringify(updatedUser));
+            if (studentInfo.phone) {
+              localStorage.setItem("pehlakadam_student_phone", studentInfo.phone);
+              localStorage.setItem("pehlakadam_premium_phone", studentInfo.phone);
+            }
+          }
+        })
+        .catch(err => console.warn("Silent enrollment check error:", err));
     }
   }, []);
 
@@ -212,22 +277,202 @@ export default function Diagnostics() {
     }
   };
 
-  const handleStartTestClick = (test: DiagnosticTest) => {
+  const handleStartTestClick = async (test: DiagnosticTest) => {
     setPendingTest(test);
-    // Pre-populate if possible, but always enforce showing the registration form to collect custom fields & save details to database
+    
+    // 1. FAST PATH: If student is already verified & auto-detected
+    if (detectedEnrollment && detectedEnrollment.isEnrolled) {
+      const studentObj: CandidateUser = {
+        name: detectedEnrollment.name || "Enrolled Student",
+        email: detectedEnrollment.email || `${detectedEnrollment.phone}@pehlakadam.com`,
+        phone: detectedEnrollment.phone,
+        role: (detectedEnrollment.enrolledPrograms && detectedEnrollment.enrolledPrograms[0]) || "Enrolled Scholar",
+        specialDetail: "Auto-detected Enrolled Profile"
+      };
+
+      // Register background test session without blocking
+      fetch("/api/diagnostic-tests/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: studentObj.name,
+          email: studentObj.email,
+          phone: studentObj.phone,
+          role: studentObj.role,
+          testKey: test.key,
+          testTitle: test.title,
+          specialDetail: `Auto-detected Enrolled Student Access (${detectedEnrollment.tier} tier)`
+        })
+      }).catch(() => {});
+
+      setSelectedTest(test);
+      setPendingTest(null);
+      setCurrentQuestionIdx(0);
+      setAnswers({});
+      setActiveQuizReport(null);
+
+      setAutoDetectedBanner(`✨ Welcome back, ${studentObj.name}! Enrolled access active — starting your assessment directly.`);
+      setTimeout(() => setAutoDetectedBanner(null), 6000);
+      return;
+    }
+
+    // 2. CHECK CACHED STORAGE
     const cached = localStorage.getItem("pehlakadam_user");
+    const cachedPhone = localStorage.getItem("pehlakadam_student_phone") || localStorage.getItem("pehlakadam_premium_phone");
+    const cachedEmail = localStorage.getItem("pehlakadam_student_email");
     let cachedUser: any = null;
     if (cached) {
       try {
         cachedUser = JSON.parse(cached);
       } catch (e) {}
     }
+
+    const candidatePhone = currentUser?.phone || cachedUser?.phone || cachedPhone || "";
+    const candidateEmail = currentUser?.email || cachedUser?.email || cachedEmail || "";
+
+    if (candidatePhone || candidateEmail) {
+      setCheckingAutoAccess(true);
+      try {
+        const res = await fetch("/api/check-premium-access", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ number: candidatePhone, email: candidateEmail })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.authorized) {
+            // Auto-detected paid/enrolled user!
+            const studentInfo = {
+              isEnrolled: true,
+              name: data.studentName || currentUser?.name || cachedUser?.name || "Enrolled Student",
+              tier: data.tier || "pro",
+              phone: candidatePhone || data.phone || "",
+              email: data.email || candidateEmail,
+              enrolledPrograms: data.enrolledPrograms || [],
+              enrolledCourses: data.enrolledCourses || []
+            };
+            setDetectedEnrollment(studentInfo);
+
+            const studentObj: CandidateUser = {
+              name: studentInfo.name,
+              email: studentInfo.email,
+              phone: studentInfo.phone,
+              role: (studentInfo.enrolledPrograms && studentInfo.enrolledPrograms[0]) || currentUser?.role || cachedUser?.role || "Enrolled Scholar",
+              specialDetail: "Auto-detected Enrolled Profile"
+            };
+
+            // Register background test session without blocking
+            fetch("/api/diagnostic-tests/register", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name: studentObj.name,
+                email: studentObj.email,
+                phone: studentObj.phone,
+                role: studentObj.role,
+                testKey: test.key,
+                testTitle: test.title,
+                specialDetail: "Auto-detected Enrolled Student Access"
+              })
+            }).catch(() => {});
+
+            localStorage.setItem("pehlakadam_user", JSON.stringify(studentObj));
+            if (studentObj.phone) {
+              localStorage.setItem("pehlakadam_student_phone", studentObj.phone);
+              localStorage.setItem("pehlakadam_premium_phone", studentObj.phone);
+            }
+            setCurrentUser(studentObj);
+            fetchMyReports(studentObj.email);
+
+            setSelectedTest(test);
+            setPendingTest(null);
+            setCurrentQuestionIdx(0);
+            setAnswers({});
+            setActiveQuizReport(null);
+
+            setAutoDetectedBanner(`✨ Welcome, ${studentObj.name}! Active enrollment auto-detected — starting your assessment directly.`);
+            setTimeout(() => setAutoDetectedBanner(null), 6000);
+            setCheckingAutoAccess(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Auto-detection check error, falling back to form:", err);
+      } finally {
+        setCheckingAutoAccess(false);
+      }
+    }
+
     setSignupName(currentUser?.name || cachedUser?.name || "");
-    setSignupEmail(currentUser?.email || cachedUser?.email || "");
-    setSignupPhone(currentUser?.phone || cachedUser?.phone || "");
+    setSignupEmail(currentUser?.email || cachedUser?.email || cachedEmail || "");
+    setSignupPhone(currentUser?.phone || cachedUser?.phone || cachedPhone || "");
     setSignupRole(currentUser?.role || cachedUser?.role || "Graduate / Placements Track");
-    setSignupSpecial(""); // Clear so student must input specific field detail for this exact test
+    setSignupSpecial("");
+    setLookupError(null);
     setSignupOpen(true);
+  };
+
+  const handleQuickAutoDetect = async () => {
+    if (!quickPhoneLookup || quickPhoneLookup.trim().length < 10) {
+      setLookupError("Please enter a valid 10-digit mobile number");
+      return;
+    }
+    setLookingUpPhone(true);
+    setLookupError(null);
+    try {
+      const res = await fetch("/api/check-premium-access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ number: quickPhoneLookup.trim() })
+      });
+      const data = await res.json();
+      if (data.authorized && pendingTest) {
+        const studentObj: CandidateUser = {
+          name: data.studentName || "Enrolled Student",
+          email: data.email || `${quickPhoneLookup.trim()}@pehlakadam.com`,
+          phone: quickPhoneLookup.trim(),
+          role: (data.enrolledPrograms && data.enrolledPrograms[0]) || "Enrolled Scholar",
+          specialDetail: "Auto-detected Enrolled Profile"
+        };
+
+        // Register in background
+        fetch("/api/diagnostic-tests/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: studentObj.name,
+            email: studentObj.email,
+            phone: studentObj.phone,
+            role: studentObj.role,
+            testKey: pendingTest.key,
+            testTitle: pendingTest.title,
+            specialDetail: "Auto-detected Enrolled Student Access"
+          })
+        }).catch(() => {});
+
+        localStorage.setItem("pehlakadam_user", JSON.stringify(studentObj));
+        localStorage.setItem("pehlakadam_student_phone", studentObj.phone);
+        setCurrentUser(studentObj);
+        fetchMyReports(studentObj.email);
+
+        setSelectedTest(pendingTest);
+        setPendingTest(null);
+        setCurrentQuestionIdx(0);
+        setAnswers({});
+        setActiveQuizReport(null);
+        setSignupOpen(false);
+
+        setAutoDetectedBanner(`✨ Welcome, ${studentObj.name}! Enrolled profile verified — test launched directly.`);
+        setTimeout(() => setAutoDetectedBanner(null), 6000);
+      } else {
+        setLookupError("No active enrollment found for this number. Please fill in the details below.");
+        setSignupPhone(quickPhoneLookup.trim());
+      }
+    } catch (e) {
+      setLookupError("Failed to verify number. Please fill the form below.");
+    } finally {
+      setLookingUpPhone(false);
+    }
   };
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
@@ -859,6 +1104,33 @@ export default function Diagnostics() {
 
         {/* Diagnostic Dashboard/Selection Area */}
         <main className="py-16 max-w-7xl mx-auto px-6">
+          {/* Real-time Auto-detection status alert */}
+          <AnimatePresence>
+            {autoDetectedBanner && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="mb-8 p-4.5 bg-emerald-950 text-white rounded-2xl border border-emerald-500/30 flex items-center justify-between shadow-lg"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-500/20 rounded-xl text-emerald-400">
+                    <Sparkles className="h-5 w-5 animate-pulse" />
+                  </div>
+                  <p className="text-xs sm:text-sm font-bold text-emerald-100 font-sans">
+                    {autoDetectedBanner}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setAutoDetectedBanner(null)}
+                  className="text-emerald-400 hover:text-white text-xs font-bold uppercase tracking-wider ml-4 cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <AnimatePresence mode="wait">
             {!selectedTest ? (
               // 1. GRID LIST OF DIAGNOSTICS TESTS
@@ -867,8 +1139,126 @@ export default function Diagnostics() {
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -15 }}
-                className="space-y-10"
+                className="space-y-8"
               >
+                {/* 🌟 ENROLLED STUDENT STATUS BANNER */}
+                {detectedEnrollment && detectedEnrollment.isEnrolled ? (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 bg-emerald-600 text-white rounded-2xl shadow-inner shrink-0">
+                        <ShieldCheck className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-sm font-extrabold text-emerald-950 uppercase tracking-wide">
+                            Enrolled Scholar: {detectedEnrollment.name}
+                          </h4>
+                          <span className="text-[10px] font-bold bg-emerald-200/80 text-emerald-900 px-2.5 py-0.5 rounded-full uppercase">
+                            {detectedEnrollment.tier} Tier Active
+                          </span>
+                        </div>
+                        <p className="text-xs text-emerald-700 mt-1">
+                          Mobile: <span className="font-mono font-bold">{detectedEnrollment.phone}</span>
+                          {detectedEnrollment.enrolledPrograms && detectedEnrollment.enrolledPrograms.length > 0 && (
+                            <span className="ml-2 font-semibold bg-emerald-100/80 px-2 py-0.5 rounded text-emerald-900 text-[11px]">
+                              Programs: {detectedEnrollment.enrolledPrograms.join(", ")}
+                            </span>
+                          )}
+                          {" • "}All diagnostic tests unlocked for instant 1-click evaluation with zero forms.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-100/90 px-3.5 py-2 rounded-xl border border-emerald-200 shadow-xs">
+                        <Zap className="h-3.5 w-3.5 text-emerald-600 fill-current" /> Form-Bypass Active
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  /* ⚡ QUICK AUTO-DETECT MOBILE NUMBER LOOKUP BAR */
+                  <div className="bg-white rounded-3xl border border-zinc-200 p-5 sm:p-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-2xl shrink-0">
+                        <Sparkles className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-zinc-900">
+                          Already Enrolled in a Paid Program or Course?
+                        </h4>
+                        <p className="text-xs text-zinc-500 mt-0.5">
+                          Enter your registered mobile number for instant 1-click test access without filling any registration forms.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 w-full md:w-auto">
+                      <div className="relative flex-1 md:w-56">
+                        <Phone className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-400" />
+                        <input
+                          type="tel"
+                          placeholder="e.g. 9876543210"
+                          value={quickPhoneLookup}
+                          onChange={(e) => setQuickPhoneLookup(e.target.value)}
+                          className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-9 pr-3 py-2 text-xs font-mono text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                        />
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (!quickPhoneLookup || quickPhoneLookup.trim().length < 10) {
+                            alert("Please enter a valid 10-digit mobile number");
+                            return;
+                          }
+                          setCheckingAutoAccess(true);
+                          try {
+                            const res = await fetch("/api/check-premium-access", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ number: quickPhoneLookup.trim() })
+                            });
+                            const data = await res.json();
+                            if (data && data.authorized) {
+                              const studentInfo = {
+                                isEnrolled: true,
+                                name: data.studentName || "Enrolled Student",
+                                tier: data.tier || "pro",
+                                phone: quickPhoneLookup.trim(),
+                                email: data.email || "",
+                                enrolledPrograms: data.enrolledPrograms || [],
+                                enrolledCourses: data.enrolledCourses || []
+                              };
+                              setDetectedEnrollment(studentInfo);
+                              const userObj = {
+                                name: studentInfo.name,
+                                email: studentInfo.email,
+                                phone: studentInfo.phone,
+                                role: (studentInfo.enrolledPrograms && studentInfo.enrolledPrograms[0]) || "Enrolled Scholar",
+                                specialDetail: "Auto-detected Enrolled Profile"
+                              };
+                              setCurrentUser(userObj);
+                              localStorage.setItem("pehlakadam_user", JSON.stringify(userObj));
+                              localStorage.setItem("pehlakadam_student_phone", studentInfo.phone);
+                              localStorage.setItem("pehlakadam_premium_phone", studentInfo.phone);
+                              setAutoDetectedBanner(`✨ Welcome, ${studentInfo.name}! Enrolled profile verified — all diagnostic assessments and paid resources are now unlocked.`);
+                              setTimeout(() => setAutoDetectedBanner(null), 6000);
+                            } else {
+                              alert("No active enrollment found for this phone number. You can take free assessments or contact support for enrollment.");
+                            }
+                          } catch (e) {
+                            alert("Network error checking phone number.");
+                          } finally {
+                            setCheckingAutoAccess(false);
+                          }
+                        }}
+                        disabled={checkingAutoAccess}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shrink-0 cursor-pointer shadow-sm disabled:opacity-50"
+                      >
+                        {checkingAutoAccess ? "Verifying..." : "Auto-Detect Access"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {loading ? (
                   <div className="text-center py-24 bg-white rounded-3xl border border-zinc-200 shadow-sm">
                     <RefreshCw className="h-8 w-8 animate-spin text-emerald-600 mx-auto mb-4" />
@@ -877,6 +1267,7 @@ export default function Diagnostics() {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {tests.map((test) => {
+                      const isEnrolledActive = (detectedEnrollment && detectedEnrollment.isEnrolled) || !!currentUser;
                       const iconMap: Record<string, any> = {
                         disc: clipboardStyle("emerald"),
                         mbti: clipboardStyle("indigo"),
@@ -908,9 +1299,16 @@ export default function Diagnostics() {
                                   <BrainCircuit className="h-6 w-6" />
                                 </div>
                               )}
-                              <span className="text-[10px] font-bold font-mono bg-zinc-50 border border-zinc-150 rounded px-2 py-0.5 text-zinc-500 uppercase">
-                                {test.questions.length} MCQs
-                              </span>
+                              <div className="flex items-center gap-1.5">
+                                {isEnrolledActive && (
+                                  <span className="text-[9px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5 flex items-center gap-1">
+                                    <Zap className="h-2.5 w-2.5 fill-current" /> Instant Start
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-bold font-mono bg-zinc-50 border border-zinc-150 rounded px-2 py-0.5 text-zinc-500 uppercase">
+                                  {test.questions.length} MCQs
+                                </span>
+                              </div>
                             </div>
 
                             <div className="space-y-1.5">
@@ -930,10 +1328,14 @@ export default function Diagnostics() {
 
                           <button
                             onClick={() => handleStartTestClick(test)}
-                            className="w-full bg-zinc-950 hover:bg-zinc-800 text-white font-bold text-xs py-3.5 px-4 rounded-2xl transition-all uppercase tracking-wider inline-flex items-center justify-center gap-2 cursor-pointer shadow-sm shadow-zinc-950/10"
+                            className={`w-full font-bold text-xs py-3.5 px-4 rounded-2xl transition-all uppercase tracking-wider inline-flex items-center justify-center gap-2 cursor-pointer shadow-sm ${
+                              isEnrolledActive
+                                ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20"
+                                : "bg-zinc-950 hover:bg-zinc-800 text-white shadow-zinc-950/10"
+                            }`}
                           >
-                            <span>Begin Evaluation</span>
-                            <ChevronRight className="h-4 w-4 text-emerald-400" />
+                            <span>{isEnrolledActive ? "Begin Evaluation (Instant Access)" : "Begin Evaluation"}</span>
+                            <ChevronRight className="h-4 w-4 text-emerald-300" />
                           </button>
                         </motion.div>
                       );
@@ -1285,8 +1687,45 @@ export default function Diagnostics() {
                     Begin {pendingTest.title}
                   </h3>
                   <p className="text-xs text-zinc-400 font-sans leading-relaxed">
-                    Please submit your registration credentials. Our advisors analyze this info against your answers to ensure pinpoint precision counseling.
+                    Enrolled in a paid program or course? Enter your mobile number below to auto-detect your access instantly!
                   </p>
+                </div>
+
+                {/* Instant Auto-Detect for Enrolled / Paid Students */}
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-emerald-900 flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-emerald-600" /> Auto-Detect Enrolled Profile
+                    </span>
+                    <span className="text-[9px] font-mono font-bold bg-emerald-200/70 text-emerald-800 px-2 py-0.5 rounded-full">
+                      Instant 1-Click
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="tel"
+                      value={quickPhoneLookup}
+                      onChange={(e) => setQuickPhoneLookup(e.target.value)}
+                      placeholder="Enter registered 10-digit mobile"
+                      className="flex-1 bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs font-bold text-zinc-900 outline-none focus:ring-2 focus:ring-emerald-500/30"
+                    />
+                    <button
+                      type="button"
+                      disabled={lookingUpPhone}
+                      onClick={handleQuickAutoDetect}
+                      className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                    >
+                      {lookingUpPhone ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : "Verify"}
+                    </button>
+                  </div>
+                  {lookupError && (
+                    <p className="text-[10px] text-red-600 font-semibold">{lookupError}</p>
+                  )}
+                </div>
+
+                <div className="relative flex items-center justify-center">
+                  <div className="border-t border-zinc-200 w-full"></div>
+                  <span className="bg-white px-3 text-[10px] uppercase font-bold text-zinc-400 tracking-wider">or register details</span>
                 </div>
 
                 <form onSubmit={handleSignupSubmit} className="space-y-4">

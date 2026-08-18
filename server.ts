@@ -501,10 +501,16 @@ const UpdateSchema = new mongoose.Schema({
 });
 
 // 📂 SCHEMA 4: AUTHORIZED PAID USERS SCHEMA
-// Stores list of student phone numbers authorized by admin to access paid resources.
+// Stores list of student phone numbers authorized by admin to access paid resources and assessments.
 const AuthorizedNumberSchema = new mongoose.Schema({
   number: { type: String, required: true, unique: true },
-  createdAt: { type: Date, default: Date.now }
+  studentName: { type: String, default: "Enrolled Student" },
+  email: { type: String, default: "" },
+  tier: { type: String, default: "pro" }, // "basic" | "advance" | "pro"
+  enrolledPrograms: { type: [String], default: [] },
+  enrolledCourses: { type: [String], default: [] },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
 });
 
 // 📂 SCHEMA 5: PAYMENT SUBMISSIONS SCHEMA
@@ -1650,24 +1656,31 @@ function cleanPhoneDigits(phone: string | undefined): string {
   return raw.length > 10 ? raw.slice(-10) : raw;
 }
 
-// 4. Grant Student Whitelist & Course Access
-async function grantStudentAccess(phone: string, name?: string, tier: string = "pro"): Promise<void> {
+// 4. Grant Whitelist Access to Student (Mongo + JSON Sync with Enrolled Programs & Courses)
+async function grantStudentAccess(
+  phone: string,
+  studentName: string = "Enrolled Student",
+  studentTier: string = "pro",
+  programs: string[] = [],
+  courses: string[] = [],
+  studentEmail: string = ""
+) {
   const cleanPhone = cleanPhoneDigits(phone);
   if (!cleanPhone) return;
 
-  const studentName = name || "Enrolled Student";
-  const studentTier = tier || "pro";
-
   if (isMongoConnected) {
     await AuthorizedNumberModel.findOneAndUpdate(
-      { number: { $regex: new RegExp(`${cleanPhone}$`) } },
+      { number: cleanPhone },
       {
         number: cleanPhone,
         studentName,
+        email: studentEmail,
         tier: studentTier,
-        createdAt: new Date()
+        enrolledPrograms: programs,
+        enrolledCourses: courses,
+        updatedAt: new Date()
       },
-      { upsert: true, new: true }
+      { upsert: true, new: true, setDefaultsOnInsert: true }
     );
   } else {
     let authList: any[] = [];
@@ -1683,24 +1696,34 @@ async function grantStudentAccess(phone: string, name?: string, tier: string = "
       return num && (num === cleanPhone || num.endsWith(cleanPhone) || cleanPhone.endsWith(num));
     });
     if (existingIdx !== -1) {
+      const prevPrograms = Array.isArray(authList[existingIdx].enrolledPrograms) ? authList[existingIdx].enrolledPrograms : [];
+      const prevCourses = Array.isArray(authList[existingIdx].enrolledCourses) ? authList[existingIdx].enrolledCourses : [];
       authList[existingIdx] = {
         ...authList[existingIdx],
         number: cleanPhone,
-        studentName,
-        tier: studentTier,
+        studentName: studentName || authList[existingIdx].studentName,
+        email: studentEmail || authList[existingIdx].email || "",
+        tier: studentTier || authList[existingIdx].tier || "pro",
+        enrolledPrograms: programs.length > 0 ? programs : prevPrograms,
+        enrolledCourses: courses.length > 0 ? courses : prevCourses,
         updatedAt: new Date().toISOString()
       };
     } else {
       authList.push({
+        id: Date.now().toString(),
         number: cleanPhone,
         studentName,
+        email: studentEmail,
         tier: studentTier,
-        createdAt: new Date().toISOString()
+        enrolledPrograms: programs,
+        enrolledCourses: courses,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       });
     }
     fs.writeFileSync(AUTHORIZED_NUMBERS_FILE, JSON.stringify(authList, null, 2));
   }
-  console.log(`⚡ [Access Manager] Access GRANTED & WHITELISTED for: ${studentName} (+91 ${cleanPhone}) [${studentTier}]`);
+  console.log(`⚡ [Access Manager] Access GRANTED & WHITELISTED for: ${studentName} (+91 ${cleanPhone}) [${studentTier}] [Programs: ${programs.join(", ") || "All"}]`);
 }
 
 // 5. Revoke Student Whitelist & Course Access
@@ -1930,21 +1953,33 @@ app.post("/api/admin/payments/approve", verifyAdmin, async (req, res) => {
     let targetPhone = number || phone || "";
     let studentName = name || "";
     let studentTier = tier || "pro";
+    let studentRole = "";
+    let studentEmail = "";
 
     // If phone is missing, lookup from payment record
-    if (!targetPhone && paymentId) {
+    if (paymentId) {
       if (isMongoConnected && mongoose.Types.ObjectId.isValid(paymentId)) {
         const foundPay = await PaymentModel.findById(paymentId);
         if (foundPay) {
-          targetPhone = foundPay.number;
+          if (!targetPhone) targetPhone = foundPay.number;
           if (!studentName) studentName = `${foundPay.firstName} ${foundPay.lastName}`.trim();
+          studentRole = foundPay.role || "";
+          studentEmail = foundPay.email || "";
+          if (!tier && foundPay.plan) {
+            studentTier = foundPay.plan === "Advance" ? "advance" : foundPay.plan === "Basic" ? "basic" : "pro";
+          }
         }
       } else if (fs.existsSync(PAYMENTS_FILE)) {
         const payments = JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8"));
         const foundPay = payments.find((p: any) => p.id === paymentId || p._id === paymentId);
         if (foundPay) {
-          targetPhone = foundPay.number;
+          if (!targetPhone) targetPhone = foundPay.number;
           if (!studentName) studentName = `${foundPay.firstName || ""} ${foundPay.lastName || ""}`.trim();
+          studentRole = foundPay.role || "";
+          studentEmail = foundPay.email || "";
+          if (!tier && foundPay.plan) {
+            studentTier = foundPay.plan === "Advance" ? "advance" : foundPay.plan === "Basic" ? "basic" : "pro";
+          }
         }
       }
     }
@@ -1980,9 +2015,10 @@ app.post("/api/admin/payments/approve", verifyAdmin, async (req, res) => {
       } catch (e) {}
     }
 
-    // 2. Grant Access
+    // 2. Grant Access with Enrolled Program
     if (cleanNum) {
-      await grantStudentAccess(cleanNum, studentName, studentTier);
+      const assignedPrograms = studentRole ? [studentRole] : [];
+      await grantStudentAccess(cleanNum, studentName, studentTier, assignedPrograms, [], studentEmail);
     }
 
     return res.status(200).json({
@@ -4415,12 +4451,24 @@ app.get("/api/authorized-numbers", verifyAdmin, async (req, res) => {
       const numbersList = docs.map(doc => ({
         id: doc._id.toString(),
         number: doc.number,
-        createdAt: doc.createdAt
+        studentName: (doc as any).studentName || "Enrolled Student",
+        email: (doc as any).email || "",
+        tier: (doc as any).tier || "pro",
+        enrolledPrograms: (doc as any).enrolledPrograms || [],
+        enrolledCourses: (doc as any).enrolledCourses || [],
+        createdAt: doc.createdAt,
+        updatedAt: (doc as any).updatedAt
       }));
       return res.status(200).json(numbersList);
     } else {
-      const fileData = fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8");
-      const list = JSON.parse(fileData);
+      let list = [];
+      try {
+        if (fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
+          list = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
+        }
+      } catch (e) {
+        list = [];
+      }
       return res.status(200).json(list);
     }
   } catch (error) {
@@ -4429,10 +4477,10 @@ app.get("/api/authorized-numbers", verifyAdmin, async (req, res) => {
   }
 });
 
-// 2. AUTHORIZE A NEW PREMIUM PHONE NUMBER
+// 2. AUTHORIZE A NEW PREMIUM PHONE NUMBER OR UPDATE EXISTING
 app.post("/api/authorized-numbers", verifyAdmin, async (req, res) => {
   try {
-    const { number } = req.body;
+    const { number, studentName, email, tier, enrolledPrograms, enrolledCourses } = req.body;
     if (!number) {
       return res.status(400).json({ error: "Phone number is required." });
     }
@@ -4442,37 +4490,114 @@ app.post("/api/authorized-numbers", verifyAdmin, async (req, res) => {
       return res.status(400).json({ error: "Invalid phone number formatting." });
     }
 
-    if (isMongoConnected) {
-      // Check duplicate
-      const existing = await AuthorizedNumberModel.findOne({ number: cleanedNum });
-      if (existing) {
-        return res.status(400).json({ error: "This phone number is already authorized." });
-      }
+    const name = studentName ? String(studentName).trim() : "Enrolled Student";
+    const userTier = tier || "pro";
+    const programs = Array.isArray(enrolledPrograms) ? enrolledPrograms : [];
+    const courses = Array.isArray(enrolledCourses) ? enrolledCourses : [];
+    const mail = email ? String(email).trim().toLowerCase() : "";
 
-      const tier = req.body.tier || "pro";
-      const newDoc = new AuthorizedNumberModel({ number: cleanedNum, tier });
-      await newDoc.save();
-      return res.status(200).json({ success: true, item: { id: newDoc._id.toString(), number: cleanedNum, tier, createdAt: newDoc.createdAt } });
-    } else {
-      const list = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
-      if (list.some((item: any) => cleanPhoneDigits(item.number) === cleanedNum)) {
-        return res.status(400).json({ error: "This phone number is already authorized." });
-      }
+    await grantStudentAccess(cleanedNum, name, userTier, programs, courses, mail);
 
-      const tier = req.body.tier || "pro";
-      const newItem = {
-        id: Date.now().toString(),
+    return res.status(200).json({
+      success: true,
+      message: `Student +91 ${cleanedNum} successfully whitelisted with [${userTier}] tier.`,
+      item: {
         number: cleanedNum,
-        tier,
+        studentName: name,
+        email: mail,
+        tier: userTier,
+        enrolledPrograms: programs,
+        enrolledCourses: courses,
         createdAt: new Date().toISOString()
-      };
-      list.push(newItem);
-      fs.writeFileSync(AUTHORIZED_NUMBERS_FILE, JSON.stringify(list, null, 2));
-      return res.status(200).json({ success: true, item: newItem });
-    }
+      }
+    });
   } catch (error) {
     console.error("[Pehlakadam API] Error saving authorized number:", error);
-    return res.status(500).json({ error: "Failed to authorize phone number." });
+    return res.status(500).json({ error: "Failed to authorize student number." });
+  }
+});
+
+// 2b. UPDATE AN EXISTING AUTHORIZED STUDENT RECORD
+app.put("/api/authorized-numbers/:id", verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { number, studentName, email, tier, enrolledPrograms, enrolledCourses } = req.body;
+
+    const cleanedNum = number ? cleanPhoneDigits(number) : "";
+    const name = studentName ? String(studentName).trim() : "Enrolled Student";
+    const userTier = tier || "pro";
+    const programs = Array.isArray(enrolledPrograms) ? enrolledPrograms : [];
+    const courses = Array.isArray(enrolledCourses) ? enrolledCourses : [];
+    const mail = email ? String(email).trim().toLowerCase() : "";
+
+    if (isMongoConnected) {
+      let doc = null;
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        doc = await AuthorizedNumberModel.findByIdAndUpdate(
+          id,
+          {
+            ...(cleanedNum ? { number: cleanedNum } : {}),
+            studentName: name,
+            email: mail,
+            tier: userTier,
+            enrolledPrograms: programs,
+            enrolledCourses: courses,
+            updatedAt: new Date()
+          },
+          { new: true }
+        );
+      }
+      if (!doc && cleanedNum) {
+        doc = await AuthorizedNumberModel.findOneAndUpdate(
+          { number: cleanedNum },
+          {
+            studentName: name,
+            email: mail,
+            tier: userTier,
+            enrolledPrograms: programs,
+            enrolledCourses: courses,
+            updatedAt: new Date()
+          },
+          { new: true, upsert: true }
+        );
+      }
+      return res.status(200).json({ success: true, item: doc });
+    } else {
+      let list = [];
+      if (fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
+        list = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
+      }
+      const idx = list.findIndex((item: any) => item.id === id || cleanPhoneDigits(item.number) === cleanedNum);
+      if (idx !== -1) {
+        list[idx] = {
+          ...list[idx],
+          ...(cleanedNum ? { number: cleanedNum } : {}),
+          studentName: name,
+          email: mail,
+          tier: userTier,
+          enrolledPrograms: programs,
+          enrolledCourses: courses,
+          updatedAt: new Date().toISOString()
+        };
+      } else {
+        list.push({
+          id: id || Date.now().toString(),
+          number: cleanedNum,
+          studentName: name,
+          email: mail,
+          tier: userTier,
+          enrolledPrograms: programs,
+          enrolledCourses: courses,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+      fs.writeFileSync(AUTHORIZED_NUMBERS_FILE, JSON.stringify(list, null, 2));
+      return res.status(200).json({ success: true, item: list[idx !== -1 ? idx : list.length - 1] });
+    }
+  } catch (error) {
+    console.error("[Pehlakadam API] Error updating authorized number:", error);
+    return res.status(500).json({ error: "Failed to update authorized student." });
   }
 });
 
@@ -4520,38 +4645,53 @@ app.delete("/api/authorized-numbers/:number", verifyAdmin, async (req, res) => {
 // 4. CHECK ACCESS FOR STUDENT PHONE NUMBER (WITH SINGLE-DEVICE RESTRICTION)
 app.post("/api/check-access", async (req, res) => {
   try {
-    const { number, sessionId, action } = req.body;
-    if (!number) {
+    const { number, email, sessionId, action } = req.body;
+    if (!number && !email) {
       return res.status(200).json({ authorized: false });
     }
 
-    const cleanedNum = cleanPhoneDigits(number);
-    if (!cleanedNum) {
-      return res.status(200).json({ authorized: false });
-    }
+    const cleanedNum = number ? cleanPhoneDigits(number) : "";
+    const cleanMail = email ? String(email).trim().toLowerCase() : "";
 
     let authorized = false;
     let tier = "pro";
+    let studentName = "Enrolled Student";
+    let enrolledPrograms: string[] = [];
+    let enrolledCourses: string[] = [];
 
     if (isMongoConnected) {
-      const doc = await AuthorizedNumberModel.findOne({
-        $or: [
-          { number: cleanedNum },
-          { number: { $regex: cleanedNum + "$" } }
-        ]
-      });
+      const conditions: any[] = [];
+      if (cleanedNum) {
+        conditions.push({ number: cleanedNum });
+        conditions.push({ number: { $regex: cleanedNum + "$" } });
+      }
+      if (cleanMail) {
+        conditions.push({ email: cleanMail });
+      }
+
+      const doc = await AuthorizedNumberModel.findOne({ $or: conditions });
       if (doc) {
         authorized = true;
         tier = (doc as any).tier || "pro";
+        studentName = (doc as any).studentName || "Enrolled Student";
+        enrolledPrograms = (doc as any).enrolledPrograms || [];
+        enrolledCourses = (doc as any).enrolledCourses || [];
       }
     }
 
     if (!authorized) {
       const list = fs.existsSync(AUTHORIZED_NUMBERS_FILE) ? JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8")) : [];
-      const found = list.find((item: any) => cleanPhoneDigits(item.number) === cleanedNum);
+      const found = list.find((item: any) => {
+        const numMatch = cleanedNum && cleanPhoneDigits(item.number) === cleanedNum;
+        const mailMatch = cleanMail && item.email && item.email.toLowerCase() === cleanMail;
+        return numMatch || mailMatch;
+      });
       if (found) {
         authorized = true;
         tier = found.tier || "pro";
+        studentName = found.studentName || "Enrolled Student";
+        enrolledPrograms = found.enrolledPrograms || [];
+        enrolledCourses = found.enrolledCourses || [];
       }
     }
 
@@ -4559,7 +4699,7 @@ app.post("/api/check-access", async (req, res) => {
       return res.status(200).json({ authorized: false });
     }
 
-    const sessionResult = handleStudentSession(cleanedNum, sessionId, action, req);
+    const sessionResult = handleStudentSession(cleanedNum || cleanMail, sessionId, action, req);
     if (!sessionResult.valid && sessionResult.sessionConflict) {
       return res.status(200).json({
         authorized: false,
@@ -4571,6 +4711,9 @@ app.post("/api/check-access", async (req, res) => {
     return res.status(200).json({
       authorized: true,
       tier,
+      studentName,
+      enrolledPrograms,
+      enrolledCourses,
       sessionId: sessionResult.sessionId
     });
   } catch (error) {
@@ -4582,41 +4725,57 @@ app.post("/api/check-access", async (req, res) => {
 // CHECK PREMIUM ACCESS WITH TIER (Comprehensive Mongo + JSON across Authorized Numbers, Payments, and Submissions)
 app.post("/api/check-premium-access", async (req, res) => {
   try {
-    const { number, sessionId, action } = req.body;
-    if (!number) {
+    const { number, email, sessionId, action } = req.body;
+    if (!number && !email) {
       return res.status(200).json({ authorized: false });
     }
-    const cleanedNum = cleanPhoneDigits(number);
-    if (!cleanedNum) {
-      return res.status(200).json({ authorized: false });
-    }
+    const cleanedNum = number ? cleanPhoneDigits(number) : "";
+    const cleanMail = email ? String(email).trim().toLowerCase() : "";
 
     let authorized = false;
     let tier = "pro";
+    let studentName = "Enrolled Student";
+    let enrolledPrograms: string[] = [];
+    let enrolledCourses: string[] = [];
 
     // 1. Check Mongo Authorized Numbers if connected
     if (isMongoConnected) {
-      const authDoc = await AuthorizedNumberModel.findOne({
-        $or: [
-          { number: cleanedNum },
-          { number: { $regex: cleanedNum + "$" } }
-        ]
-      });
+      const authConditions: any[] = [];
+      if (cleanedNum) {
+        authConditions.push({ number: cleanedNum });
+        authConditions.push({ number: { $regex: cleanedNum + "$" } });
+      }
+      if (cleanMail) {
+        authConditions.push({ email: cleanMail });
+      }
+
+      const authDoc = await AuthorizedNumberModel.findOne({ $or: authConditions });
       if (authDoc) {
         authorized = true;
         tier = (authDoc as any).tier || "pro";
+        studentName = (authDoc as any).studentName || "Enrolled Student";
+        enrolledPrograms = (authDoc as any).enrolledPrograms || [];
+        enrolledCourses = (authDoc as any).enrolledCourses || [];
       }
 
       if (!authorized) {
-        const paidDoc = await PaymentModel.findOne({
-          $or: [
-            { number: cleanedNum },
-            { number: { $regex: cleanedNum + "$" } }
-          ]
-        });
+        const payConditions: any[] = [];
+        if (cleanedNum) {
+          payConditions.push({ number: cleanedNum });
+          payConditions.push({ number: { $regex: cleanedNum + "$" } });
+        }
+        if (cleanMail) {
+          payConditions.push({ email: cleanMail });
+        }
+
+        const paidDoc = await PaymentModel.findOne({ $or: payConditions });
         if (paidDoc) {
           authorized = true;
           tier = (paidDoc as any).tier || "pro";
+          studentName = `${(paidDoc as any).firstName || ""} ${(paidDoc as any).lastName || ""}`.trim() || "Enrolled Student";
+          if ((paidDoc as any).role) {
+            enrolledPrograms = [(paidDoc as any).role];
+          }
         }
       }
 
@@ -4625,8 +4784,8 @@ app.post("/api/check-premium-access", async (req, res) => {
           $and: [
             {
               $or: [
-                { number: cleanedNum },
-                { number: { $regex: cleanedNum + "$" } }
+                ...(cleanedNum ? [{ number: cleanedNum }, { number: { $regex: cleanedNum + "$" } }] : []),
+                ...(cleanMail ? [{ email: cleanMail }] : [])
               ]
             },
             {
@@ -4637,6 +4796,10 @@ app.post("/api/check-premium-access", async (req, res) => {
         if (subDoc) {
           authorized = true;
           tier = (subDoc as any).tier || "pro";
+          studentName = `${(subDoc as any).firstName || ""} ${(subDoc as any).lastName || ""}`.trim() || "Enrolled Student";
+          if ((subDoc as any).role) {
+            enrolledPrograms = [(subDoc as any).role];
+          }
         }
       }
     }
@@ -4644,28 +4807,51 @@ app.post("/api/check-premium-access", async (req, res) => {
     // 2. Check JSON Flat Files Fallback
     if (!authorized) {
       const authorizedList = fs.existsSync(AUTHORIZED_NUMBERS_FILE) ? JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8")) : [];
-      const foundAuth = authorizedList.find((item: any) => cleanPhoneDigits(item.number) === cleanedNum);
+      const foundAuth = authorizedList.find((item: any) => {
+        const numMatch = cleanedNum && cleanPhoneDigits(item.number) === cleanedNum;
+        const mailMatch = cleanMail && item.email && item.email.toLowerCase() === cleanMail;
+        return numMatch || mailMatch;
+      });
       if (foundAuth) {
         authorized = true;
         tier = foundAuth.tier || "pro";
+        studentName = foundAuth.studentName || "Enrolled Student";
+        enrolledPrograms = foundAuth.enrolledPrograms || [];
+        enrolledCourses = foundAuth.enrolledCourses || [];
       }
     }
 
     if (!authorized) {
       const payments = fs.existsSync(PAYMENTS_FILE) ? JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8")) : [];
-      const foundPayment = payments.find((p: any) => cleanPhoneDigits(p.number || p.phone) === cleanedNum);
+      const foundPayment = payments.find((p: any) => {
+        const numMatch = cleanedNum && cleanPhoneDigits(p.number || p.phone) === cleanedNum;
+        const mailMatch = cleanMail && p.email && p.email.toLowerCase() === cleanMail;
+        return numMatch || mailMatch;
+      });
       if (foundPayment) {
         authorized = true;
         tier = foundPayment.tier || "pro";
+        studentName = `${foundPayment.firstName || ""} ${foundPayment.lastName || ""}`.trim() || "Enrolled Student";
+        if (foundPayment.role) {
+          enrolledPrograms = [foundPayment.role];
+        }
       }
     }
 
     if (!authorized) {
       const submissions = fs.existsSync(SUBMISSIONS_FILE) ? JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, "utf-8")) : [];
-      const foundSub = submissions.find((s: any) => cleanPhoneDigits(s.number) === cleanedNum && (s.isPaid || s.hasPaidAccess));
+      const foundSub = submissions.find((s: any) => {
+        const numMatch = cleanedNum && cleanPhoneDigits(s.number) === cleanedNum;
+        const mailMatch = cleanMail && s.email && s.email.toLowerCase() === cleanMail;
+        return (numMatch || mailMatch) && (s.isPaid || s.hasPaidAccess);
+      });
       if (foundSub) {
         authorized = true;
         tier = foundSub.tier || "pro";
+        studentName = `${foundSub.firstName || ""} ${foundSub.lastName || ""}`.trim() || "Enrolled Student";
+        if (foundSub.role) {
+          enrolledPrograms = [foundSub.role];
+        }
       }
     }
 
@@ -4673,7 +4859,7 @@ app.post("/api/check-premium-access", async (req, res) => {
       return res.status(200).json({ authorized: false });
     }
 
-    const sessionResult = handleStudentSession(cleanedNum, sessionId, action, req);
+    const sessionResult = handleStudentSession(cleanedNum || cleanMail, sessionId, action, req);
     if (!sessionResult.valid && sessionResult.sessionConflict) {
       return res.status(200).json({
         authorized: false,
@@ -4685,6 +4871,9 @@ app.post("/api/check-premium-access", async (req, res) => {
     return res.status(200).json({
       authorized: true,
       tier,
+      studentName,
+      enrolledPrograms,
+      enrolledCourses,
       sessionId: sessionResult.sessionId
     });
   } catch (error) {
@@ -5555,26 +5744,32 @@ app.get("/api/student/dashboard-data", async (req, res) => {
     let isAuthorized = false;
     let userTier: "basic" | "advance" | "pro" = "basic";
 
-    // 1. Check Authorized Numbers
+    // Check Authorized Number / Whitelist profile
     let authDoc: any = null;
-    if (cleanPhone) {
-      if (isMongoConnected) {
-        authDoc = await AuthorizedNumberModel.findOne({
-          number: { $regex: new RegExp(`${cleanPhone}$`) }
-        });
-      } else if (fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
-        const authList = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
-        authDoc = authList.find((a: any) => {
-          const num = a.number?.replace(/[^0-9]/g, "");
-          return num && (num === cleanPhone || num.endsWith(cleanPhone) || cleanPhone.endsWith(num));
-        });
+    if (isMongoConnected) {
+      const conditions: any[] = [];
+      if (cleanPhone) conditions.push({ number: { $regex: new RegExp(`${cleanPhone}$`, "i") } });
+      if (cleanEmail) conditions.push({ email: { $regex: new RegExp(`^${cleanEmail}$`, "i") } });
+      if (conditions.length > 0) {
+        authDoc = await AuthorizedNumberModel.findOne({ $or: conditions });
       }
+    } else if (fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
+      const authList = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
+      authDoc = authList.find((a: any) => {
+        const num = a.number?.replace(/[^0-9]/g, "");
+        const mail = a.email?.trim().toLowerCase();
+        const numMatch = cleanPhone && num && (num === cleanPhone || num.endsWith(cleanPhone) || cleanPhone.endsWith(num));
+        const mailMatch = cleanEmail && mail && mail === cleanEmail;
+        return numMatch || mailMatch;
+      });
+    }
 
-      if (authDoc) {
-        isAuthorized = true;
-        userTier = (authDoc.tier as "basic" | "advance" | "pro") || "pro";
-        if (authDoc.studentName) studentName = authDoc.studentName;
-      }
+    if (authDoc) {
+      isAuthorized = true;
+      userTier = (authDoc.tier as "basic" | "advance" | "pro") || "pro";
+      if (authDoc.studentName) studentName = authDoc.studentName;
+      if (authDoc.email && !studentEmail) studentEmail = authDoc.email;
+      if (authDoc.number && !studentPhone) studentPhone = authDoc.number;
     }
 
     // 2. Check Submissions & Payments for Profile Info & Program Enrollments
@@ -5656,55 +5851,77 @@ app.get("/api/student/dashboard-data", async (req, res) => {
     }
 
     // Determine Enrolled Courses
-    // If student is authorized (or tier active), they have full access to courses matching their tier or all published courses
     const tierOrder: Record<string, number> = { basic: 1, advance: 2, pro: 3 };
     const userTierNum = tierOrder[userTier] || 1;
 
     let enrolledCourses: any[] = [];
-    if (isAuthorized) {
-      enrolledCourses = allCoursesList.filter((c: any) => {
-        const reqTier = tierOrder[c.tier] || 1;
-        return userTierNum >= reqTier || c.published;
-      });
-    } else {
-      // Default to foundational preview or general courses
-      enrolledCourses = allCoursesList.filter((c: any) => c.tier === "basic" || c.published);
+    const customEnrolledCourseIds: string[] = authDoc?.enrolledCourses || [];
+
+    if (customEnrolledCourseIds.length > 0) {
+      enrolledCourses = allCoursesList.filter((c: any) => customEnrolledCourseIds.includes(c.id) || customEnrolledCourseIds.includes(c.slug));
+    }
+
+    if (enrolledCourses.length === 0) {
+      if (isAuthorized) {
+        enrolledCourses = allCoursesList.filter((c: any) => {
+          const reqTier = tierOrder[c.tier] || 1;
+          return userTierNum >= reqTier || c.published;
+        });
+      } else {
+        enrolledCourses = allCoursesList.filter((c: any) => c.tier === "basic" || c.published);
+      }
     }
 
     // 4. Enrolled Academic Programs
     const enrolledPrograms: any[] = [];
     const programDefs = [
-      { key: "program1", title: "6-8 Grade Student", path: "/programs/program1" },
-      { key: "program2", title: "8-10 Grade Student", path: "/programs/program2" },
-      { key: "program3", title: "11-12 Grade Student", path: "/programs/program3" },
-      { key: "program4", title: "UG/Graduate/PG", path: "/programs/program4" },
-      { key: "program5", title: "Primary Kudos", path: "/programs/program5" },
-      { key: "program6", title: "Generalist to Specialist", path: "/programs/program6" },
+      { key: "6-8", alias: "program1", title: "6-8 Grade Student", path: "/programs/program1" },
+      { key: "9-10", alias: "program2", title: "9-10 Grade Student", path: "/programs/program2" },
+      { key: "11-12", alias: "program3", title: "11-12 Grade Student", path: "/programs/program3" },
+      { key: "graduate", alias: "program4", title: "UG/Graduate/PG", path: "/programs/program4" },
+      { key: "kudos", alias: "program5", title: "Primary Kudos", path: "/programs/program5" },
+      { key: "generalist", alias: "program6", title: "Generalist to Specialist", path: "/programs/program6" },
     ];
 
+    const customEnrolledPrograms: string[] = authDoc?.enrolledPrograms || [];
+    const hasAllAccess = customEnrolledPrograms.includes("all") || customEnrolledPrograms.includes("all_programs") || (isAuthorized && userTier === "pro" && customEnrolledPrograms.length === 0);
+
     programDefs.forEach(prog => {
+      const isCustomAssigned = hasAllAccess || customEnrolledPrograms.some(
+        cp => {
+          const norm = String(cp).toLowerCase().trim();
+          return norm === prog.key || 
+                 norm === prog.alias || 
+                 norm === prog.title.toLowerCase() || 
+                 prog.title.toLowerCase().includes(norm) ||
+                 norm.includes(prog.key);
+        }
+      );
+
       const hasPayment = payments.some((p: any) => {
         const pEmail = p.email?.trim().toLowerCase();
         const pPhone = p.number?.replace(/[^0-9]/g, "");
         const matchesUser = (cleanEmail && pEmail === cleanEmail) || (cleanPhone && (pPhone === cleanPhone || pPhone?.endsWith(cleanPhone)));
-        return matchesUser && (p.role === prog.title || p.plan?.includes(prog.title));
+        return matchesUser && (p.role === prog.title || p.plan?.includes(prog.title) || p.role?.includes(prog.key));
       });
 
       const hasSub = submissions.some((s: any) => {
         const sEmail = s.email?.trim().toLowerCase();
         const sPhone = s.number?.replace(/[^0-9]/g, "");
         const matchesUser = (cleanEmail && sEmail === cleanEmail) || (cleanPhone && (sPhone === cleanPhone || sPhone?.endsWith(cleanPhone)));
-        return matchesUser && s.role === prog.title;
+        return matchesUser && (s.role === prog.title || s.role?.includes(prog.key));
       });
 
-      if (hasPayment || hasSub || studentRole === prog.title) {
+      const matchesRole = studentRole === prog.title || studentRole.includes(prog.key) || (prog.key === "9-10" && studentRole.includes("8-10"));
+
+      if (isCustomAssigned || hasPayment || hasSub || matchesRole) {
         enrolledPrograms.push({
           key: prog.key,
           title: prog.title,
           path: prog.path,
           enrolledAt: new Date().toISOString(),
-          plan: hasPayment ? "Premium Verified" : "Active Counseling Track",
-          status: hasPayment ? "active" : "active"
+          plan: isCustomAssigned || hasPayment ? "Verified Enrolled Track" : "Active Counseling Track",
+          status: "active"
         });
       }
     });

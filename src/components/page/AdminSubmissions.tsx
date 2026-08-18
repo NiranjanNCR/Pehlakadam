@@ -44,7 +44,12 @@ import {
   Tag,
   Eye,
   Zap,
-  Check
+  Check,
+  Edit3,
+  GraduationCap,
+  BookMarked,
+  UserCheck,
+  Filter
 } from "lucide-react";
 import { Submission, ResourceMaterial, SessionUpdate, Testimonial } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
@@ -54,6 +59,35 @@ import { motion, AnimatePresence } from "motion/react";
 // =========================================================================================
 type AdminTab = "leads" | "payments" | "resources" | "lms-courses" | "coupons" | "broadcast" | "paid-access" | "programs-config" | "diagnostics" | "system-stats" | "subscribers" | "testimonials";
 
+export interface AuthorizedStudent {
+  id: string;
+  number: string;
+  studentName?: string;
+  email?: string;
+  tier?: "pro" | "advance" | "basic" | string;
+  enrolledPrograms?: string[];
+  enrolledCourses?: string[];
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export const SYSTEM_PROGRAM_OPTIONS = [
+  { key: "kudos", label: "Primary Kudos (Class 1-5)" },
+  { key: "6-8", label: "Junior Explorers (Class 6-8)" },
+  { key: "9-10", label: "Secondary Steer (Class 9-10)" },
+  { key: "11-12", label: "Senior Stream & Career (Class 11-12)" },
+  { key: "graduate", label: "Undergraduate & Graduate Launch" },
+  { key: "generalist", label: "Generalist to Specialist" },
+];
+
+export const SYSTEM_DEFAULT_COURSES = [
+  { id: "course-1", title: "Master Psychometric & Career Stream Blueprint" },
+  { id: "course-2", title: "Pro Mentorship: Modern Tech & Management Placement Masterclass" },
+  { id: "course-disc", title: "DISC Personality Mastery & Behavioral Mapping" },
+  { id: "course-mbti", title: "MBTI 16-Personalities Cognitive Framework" },
+  { id: "course-ats", title: "ATS Resume Architecture & Corporate Placement Masterclass" }
+];
+
 export default function AdminSubmissions() {
   const [activeTab, setActiveTab] = useState<AdminTab>("leads");
   
@@ -62,7 +96,7 @@ export default function AdminSubmissions() {
   const [payments, setPayments] = useState<any[]>([]);
   const [resources, setResources] = useState<ResourceMaterial[]>([]);
   const [broadcasts, setBroadcasts] = useState<SessionUpdate[]>([]);
-  const [authorizedNumbers, setAuthorizedNumbers] = useState<{ id: string, number: string, createdAt: string }[]>([]);
+  const [authorizedNumbers, setAuthorizedNumbers] = useState<AuthorizedStudent[]>([]);
   const [programsConfigs, setProgramsConfigs] = useState<any[]>([]);
   const [subscribers, setSubscribers] = useState<{ id: string; email: string; phone?: string; createdAt: string }[]>([]);
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
@@ -157,7 +191,23 @@ export default function AdminSubmissions() {
 
   // 🔒 PREMIUM ACCESS LIST COMPOSER STATE
   const [newAuthNumber, setNewAuthNumber] = useState("");
+  const [authStudentName, setAuthStudentName] = useState("");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authTier, setAuthTier] = useState<"pro" | "advance" | "basic">("pro");
+  const [authSelectedPrograms, setAuthSelectedPrograms] = useState<string[]>([]);
+  const [authSelectedCourses, setAuthSelectedCourses] = useState<string[]>([]);
   const [savingAuthNumber, setSavingAuthNumber] = useState(false);
+  const [authSearchQuery, setAuthSearchQuery] = useState("");
+
+  // ✏️ EDIT STUDENT ENROLLED ACCESS MODAL STATE
+  const [editingAuthUser, setEditingAuthUser] = useState<AuthorizedStudent | null>(null);
+  const [editNumber, setEditNumber] = useState("");
+  const [editStudentName, setEditStudentName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editTier, setEditTier] = useState<"pro" | "advance" | "basic">("pro");
+  const [editSelectedPrograms, setEditSelectedPrograms] = useState<string[]>([]);
+  const [editSelectedCourses, setEditSelectedCourses] = useState<string[]>([]);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // 📢 NEW LIVE BROADCAST BROADCASTER STATE
   const [broadcastMsg, setBroadcastMsg] = useState("");
@@ -209,7 +259,10 @@ export default function AdminSubmissions() {
 
   const handleAddAuthNumber = async (e: FormEvent) => {
     e.preventDefault();
-    if (!newAuthNumber.trim()) return;
+    if (!newAuthNumber.trim()) {
+      alert("Please provide the student's mobile number.");
+      return;
+    }
     setSavingAuthNumber(true);
     try {
       const token = localStorage.getItem("pehlakadam_admin_token");
@@ -219,10 +272,22 @@ export default function AdminSubmissions() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ number: newAuthNumber })
+        body: JSON.stringify({ 
+          number: newAuthNumber,
+          studentName: authStudentName.trim() || "Enrolled Student",
+          email: authEmail.trim(),
+          tier: authTier,
+          enrolledPrograms: authSelectedPrograms,
+          enrolledCourses: authSelectedCourses
+        })
       });
       if (res.ok) {
         setNewAuthNumber("");
+        setAuthStudentName("");
+        setAuthEmail("");
+        setAuthTier("pro");
+        setAuthSelectedPrograms([]);
+        setAuthSelectedCourses([]);
         const resAuth = await fetch("/api/authorized-numbers", {
           headers: { "Authorization": `Bearer ${token}` }
         });
@@ -230,6 +295,7 @@ export default function AdminSubmissions() {
           const authData = await resAuth.json();
           setAuthorizedNumbers(authData);
         }
+        alert("Student successfully enrolled and whitelisted for instant access!");
       } else {
         const errData = await res.json();
         alert(errData.error || "Failed to whitelist phone number.");
@@ -242,8 +308,61 @@ export default function AdminSubmissions() {
     }
   };
 
-  const handleRevokeAuthNumber = async (num: string) => {
-    if (!confirm(`Are you sure you want to revoke Premium Whitelisted Access for: ${num}?`)) return;
+  const handleOpenEditModal = (student: AuthorizedStudent) => {
+    setEditingAuthUser(student);
+    setEditNumber(student.number || "");
+    setEditStudentName(student.studentName || "");
+    setEditEmail(student.email || "");
+    setEditTier((student.tier as any) || "pro");
+    setEditSelectedPrograms(Array.isArray(student.enrolledPrograms) ? [...student.enrolledPrograms] : []);
+    setEditSelectedCourses(Array.isArray(student.enrolledCourses) ? [...student.enrolledCourses] : []);
+  };
+
+  const handleUpdateAuthUser = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingAuthUser) return;
+    setSavingEdit(true);
+    try {
+      const token = localStorage.getItem("pehlakadam_admin_token");
+      const res = await fetch(`/api/authorized-numbers/${editingAuthUser.id || editingAuthUser.number}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          number: editNumber,
+          studentName: editStudentName.trim() || "Enrolled Student",
+          email: editEmail.trim(),
+          tier: editTier,
+          enrolledPrograms: editSelectedPrograms,
+          enrolledCourses: editSelectedCourses
+        })
+      });
+      if (res.ok) {
+        setEditingAuthUser(null);
+        const resAuth = await fetch("/api/authorized-numbers", {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (resAuth.ok) {
+          const authData = await resAuth.json();
+          setAuthorizedNumbers(authData);
+        }
+        alert("Enrolled student permissions and courses successfully updated!");
+      } else {
+        const errData = await res.json();
+        alert(errData.error || "Failed to update student access.");
+      }
+    } catch (err) {
+      console.error("Error updating student access:", err);
+      alert("Network error while updating student access.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleRevokeAuthNumber = async (num: string, name?: string) => {
+    if (!confirm(`Are you sure you want to revoke enrollment and whitelisted access for: ${name ? `"${name}" ` : ""}(+91 ${num})?`)) return;
     try {
       const token = localStorage.getItem("pehlakadam_admin_token");
       const res = await fetch(`/api/authorized-numbers/${num}`, {
@@ -2473,99 +2592,412 @@ export default function AdminSubmissions() {
                 </motion.div>
               )}
 
-              {/* TAB 4: PAID PREMIUM STUDENT ACCESS MANAGER */}
+              {/* TAB 4: ENROLLED STUDENTS & PAID COURSE ACCESS MANAGER */}
               {activeTab === "paid-access" && (
                 <motion.div
                   key="paid-access-tab"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="grid grid-cols-1 lg:grid-cols-12 gap-8"
+                  className="space-y-8"
                 >
-                  {/* Whitelist Form */}
-                  <div className="lg:col-span-5 bg-white rounded-3xl border border-zinc-200 p-8 shadow-sm h-fit">
-                    <h2 className="text-xl font-bold font-sans text-zinc-950 mb-1 flex items-center gap-2">
-                      <ShieldCheck className="h-5 w-5 text-emerald-600" />
-                      Grant Whitelist Entry
-                    </h2>
-                    <p className="text-zinc-500 text-xs mb-6">
-                      Add a student's phone number to whitelist them for premium paid resources instantly. Once whitelisted, they can access premium classes & PDFs by entering their phone number on the resources tab.
-                    </p>
-
-                    <form onSubmit={handleAddAuthNumber} className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1.5">
-                          Student Mobile Number
-                        </label>
-                        <input
-                          type="tel"
-                          required
-                          value={newAuthNumber}
-                          onChange={(e) => setNewAuthNumber(e.target.value)}
-                          placeholder="e.g. +919876543210 (digits only)"
-                          className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
-                        />
+                  {/* Top Stats Banner */}
+                  <div className="bg-gradient-to-r from-emerald-900 via-zinc-900 to-zinc-900 rounded-3xl border border-emerald-800/40 p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div>
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold uppercase tracking-wider mb-3">
+                        <ShieldCheck className="h-4 w-4" /> Paid Access & Enrollment Control
                       </div>
+                      <h2 className="text-2xl sm:text-3xl font-black font-sans tracking-tight">
+                        Enrolled Students & Course Manager
+                      </h2>
+                      <p className="text-zinc-400 text-xs sm:text-sm mt-1 max-w-2xl">
+                        Enrolled students are automatically recognized across scientific diagnostics, evaluation tests, and premium LMS modules without needing to refill registration forms.
+                      </p>
+                    </div>
 
-                      <button
-                        type="submit"
-                        disabled={savingAuthNumber}
-                        className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50"
-                      >
-                        {savingAuthNumber ? (
-                          <>
-                            <RefreshCw className="h-4 w-4 animate-spin" /> Whitelisting...
-                          </>
-                        ) : (
-                          <>
-                            <PlusCircle className="h-4 w-4" /> Grant Premium Access
-                          </>
-                        )}
-                      </button>
-                    </form>
+                    <div className="flex items-center gap-4">
+                      <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 p-4 min-w-[140px] text-center">
+                        <div className="text-2xl sm:text-3xl font-black text-emerald-400">
+                          {authorizedNumbers.length}
+                        </div>
+                        <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider mt-0.5">
+                          Active Enrolled
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Whitelisted Numbers List */}
-                  <div className="lg:col-span-7 space-y-4">
-                    <h2 className="text-xl font-bold font-sans text-zinc-950">
-                      Whitelisted Premium Students ({authorizedNumbers.length})
-                    </h2>
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    {/* Enrollment Composer Form */}
+                    <div className="lg:col-span-5 bg-white rounded-3xl border border-zinc-200 p-6 sm:p-8 shadow-sm h-fit space-y-6">
+                      <div>
+                        <h3 className="text-lg font-black font-sans text-zinc-950 flex items-center gap-2">
+                          <UserCheck className="h-5 w-5 text-emerald-600" />
+                          Enroll New Student
+                        </h3>
+                        <p className="text-zinc-500 text-xs mt-1">
+                          Assign specific career programs, test access, and LMS courses to the student.
+                        </p>
+                      </div>
 
-                    <div className="space-y-3">
-                      {authorizedNumbers.length > 0 ? (
-                        authorizedNumbers.map((item) => (
-                          <div
-                            key={item.id}
-                            className="bg-white rounded-2xl border border-zinc-200 p-5 flex items-center justify-between shadow-sm"
+                      <form onSubmit={handleAddAuthNumber} className="space-y-4">
+                        {/* Student Name */}
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-600 mb-1">
+                            Student Full Name
+                          </label>
+                          <input
+                            type="text"
+                            value={authStudentName}
+                            onChange={(e) => setAuthStudentName(e.target.value)}
+                            placeholder="e.g. Aarav Sharma"
+                            className="w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                          />
+                        </div>
+
+                        {/* Mobile Number */}
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-600 mb-1">
+                            Student Mobile Number <span className="text-emerald-600">*</span>
+                          </label>
+                          <input
+                            type="tel"
+                            required
+                            value={newAuthNumber}
+                            onChange={(e) => setNewAuthNumber(e.target.value)}
+                            placeholder="e.g. 9876543210 (10 digits)"
+                            className="w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-sm font-mono text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                          />
+                          <p className="text-[10px] text-zinc-400 mt-1">
+                            Phone number is used for seamless auto-detection on tests and paid resource tabs.
+                          </p>
+                        </div>
+
+                        {/* Email */}
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-600 mb-1">
+                            Student Email Address
+                          </label>
+                          <input
+                            type="email"
+                            value={authEmail}
+                            onChange={(e) => setAuthEmail(e.target.value)}
+                            placeholder="e.g. student@gmail.com"
+                            className="w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                          />
+                        </div>
+
+                        {/* Membership Tier */}
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-600 mb-1">
+                            Access Tier
+                          </label>
+                          <select
+                            value={authTier}
+                            onChange={(e) => setAuthTier(e.target.value as any)}
+                            className="w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
                           >
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-bold font-mono text-zinc-950">{item.number}</span>
-                                <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[9px] font-bold uppercase px-2 py-0.5 rounded-full">
-                                  Enrolled (Premium)
-                                </span>
-                              </div>
-                              <p className="text-[10px] text-zinc-400">
-                                Authorized on: {new Date(item.createdAt).toLocaleString()}
+                            <option value="pro">Pro Full Access (All Tests & Premium Library)</option>
+                            <option value="advance">Advance Tier (Selected Programs & Diagnostics)</option>
+                            <option value="basic">Basic Membership (Foundation Portal)</option>
+                          </select>
+                        </div>
+
+                        {/* Enrolled Programs Selection */}
+                        <div className="pt-2">
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-700 mb-2 flex items-center justify-between">
+                            <span className="flex items-center gap-1.5">
+                              <GraduationCap className="h-3.5 w-3.5 text-emerald-600" />
+                              Enrolled Programs (Bypass Diagnostic Form)
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (authSelectedPrograms.length === SYSTEM_PROGRAM_OPTIONS.length) {
+                                  setAuthSelectedPrograms([]);
+                                } else {
+                                  setAuthSelectedPrograms(SYSTEM_PROGRAM_OPTIONS.map(p => p.key));
+                                }
+                              }}
+                              className="text-[10px] text-emerald-600 hover:text-emerald-700 font-bold underline cursor-pointer"
+                            >
+                              {authSelectedPrograms.length === SYSTEM_PROGRAM_OPTIONS.length ? "Clear All" : "Select All"}
+                            </button>
+                          </label>
+                          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 border border-zinc-100 rounded-xl p-2 bg-zinc-50/50">
+                            {SYSTEM_PROGRAM_OPTIONS.map((prog) => {
+                              const isChecked = authSelectedPrograms.includes(prog.key);
+                              return (
+                                <label
+                                  key={prog.key}
+                                  className={`flex items-center gap-2.5 p-2 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                                    isChecked ? "bg-emerald-50 text-emerald-900 font-bold border border-emerald-200" : "hover:bg-zinc-100 text-zinc-700"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setAuthSelectedPrograms(prev => [...prev, prog.key]);
+                                      } else {
+                                        setAuthSelectedPrograms(prev => prev.filter(k => k !== prog.key));
+                                      }
+                                    }}
+                                    className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                                  />
+                                  <span className="flex-1">{prog.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Enrolled Courses Selection */}
+                        <div className="pt-2">
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-700 mb-2 flex items-center justify-between">
+                            <span className="flex items-center gap-1.5">
+                              <BookOpen className="h-3.5 w-3.5 text-blue-600" />
+                              Enrolled Courses (LMS & Masterclasses)
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (authSelectedCourses.length === SYSTEM_DEFAULT_COURSES.length) {
+                                  setAuthSelectedCourses([]);
+                                } else {
+                                  setAuthSelectedCourses(SYSTEM_DEFAULT_COURSES.map(c => c.id));
+                                }
+                              }}
+                              className="text-[10px] text-blue-600 hover:text-blue-700 font-bold underline cursor-pointer"
+                            >
+                              {authSelectedCourses.length === SYSTEM_DEFAULT_COURSES.length ? "Clear All" : "Select All"}
+                            </button>
+                          </label>
+                          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 border border-zinc-100 rounded-xl p-2 bg-zinc-50/50">
+                            {SYSTEM_DEFAULT_COURSES.map((course) => {
+                              const isChecked = authSelectedCourses.includes(course.id);
+                              return (
+                                <label
+                                  key={course.id}
+                                  className={`flex items-center gap-2.5 p-2 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                                    isChecked ? "bg-blue-50 text-blue-900 font-bold border border-blue-200" : "hover:bg-zinc-100 text-zinc-700"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setAuthSelectedCourses(prev => [...prev, course.id]);
+                                      } else {
+                                        setAuthSelectedCourses(prev => prev.filter(k => k !== course.id));
+                                      }
+                                    }}
+                                    className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                                  />
+                                  <span className="flex-1 line-clamp-1">{course.title}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={savingAuthNumber}
+                          className="w-full mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50"
+                        >
+                          {savingAuthNumber ? (
+                            <>
+                              <RefreshCw className="h-4 w-4 animate-spin" /> Enrolling Student...
+                            </>
+                          ) : (
+                            <>
+                              <PlusCircle className="h-4 w-4" /> Grant & Enroll Access
+                            </>
+                          )}
+                        </button>
+                      </form>
+                    </div>
+
+                    {/* Whitelisted & Enrolled Students Roster */}
+                    <div className="lg:col-span-7 space-y-4">
+                      {/* Search Bar */}
+                      <div className="bg-white rounded-2xl border border-zinc-200 p-3 shadow-sm flex items-center gap-3">
+                        <Search className="h-4 w-4 text-zinc-400 ml-2" />
+                        <input
+                          type="text"
+                          value={authSearchQuery}
+                          onChange={(e) => setAuthSearchQuery(e.target.value)}
+                          placeholder="Search enrolled students by name, mobile number, email, or program..."
+                          className="w-full bg-transparent text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none"
+                        />
+                        {authSearchQuery && (
+                          <button
+                            onClick={() => setAuthSearchQuery("")}
+                            className="text-zinc-400 hover:text-zinc-600 text-xs font-bold px-2 py-1"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Header */}
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-base font-bold font-sans text-zinc-950">
+                          Active Enrolled Students ({authorizedNumbers.length})
+                        </h3>
+                        <span className="text-[11px] text-zinc-400 font-medium">
+                          Auto-detected on tests & resources
+                        </span>
+                      </div>
+
+                      {/* Roster Cards */}
+                      {(() => {
+                        const filtered = authorizedNumbers.filter((s) => {
+                          if (!authSearchQuery) return true;
+                          const q = authSearchQuery.toLowerCase();
+                          return (
+                            (s.studentName && s.studentName.toLowerCase().includes(q)) ||
+                            (s.number && s.number.includes(q)) ||
+                            (s.email && s.email.toLowerCase().includes(q)) ||
+                            (s.tier && s.tier.toLowerCase().includes(q)) ||
+                            (s.enrolledPrograms && s.enrolledPrograms.some(p => p.toLowerCase().includes(q))) ||
+                            (s.enrolledCourses && s.enrolledCourses.some(c => c.toLowerCase().includes(q)))
+                          );
+                        });
+
+                        if (filtered.length === 0) {
+                          return (
+                            <div className="text-center py-16 bg-white rounded-3xl border border-zinc-200 p-8 shadow-sm">
+                              <Lock className="h-10 w-10 text-zinc-300 mx-auto mb-3" />
+                              <h4 className="text-sm font-bold text-zinc-800">
+                                {authSearchQuery ? "No matching enrolled students found" : "No enrolled students yet"}
+                              </h4>
+                              <p className="text-zinc-500 text-xs mt-1 max-w-md mx-auto">
+                                {authSearchQuery
+                                  ? "Try searching with a different mobile number or student name."
+                                  : "Use the enrollment form on the left to add students with designated programs and courses."}
                               </p>
                             </div>
+                          );
+                        }
 
-                            <button
-                              onClick={() => handleRevokeAuthNumber(item.number)}
-                              className="p-2 rounded-xl border border-zinc-150 hover:border-red-200 hover:bg-red-50 text-zinc-400 hover:text-red-600 transition-all cursor-pointer"
-                              title="Revoke Premium Whitelist Access"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                        return (
+                          <div className="space-y-3">
+                            {filtered.map((item) => {
+                              const programLabels = (item.enrolledPrograms || []).map(k => {
+                                const opt = SYSTEM_PROGRAM_OPTIONS.find(o => o.key === k);
+                                return opt ? opt.label : k;
+                              });
+
+                              const courseLabels = (item.enrolledCourses || []).map(cid => {
+                                const opt = SYSTEM_DEFAULT_COURSES.find(c => c.id === cid);
+                                return opt ? opt.title : cid;
+                              });
+
+                              return (
+                                <div
+                                  key={item.id || item.number}
+                                  className="bg-white rounded-2xl border border-zinc-200 p-5 shadow-sm hover:border-emerald-300 transition-all space-y-3"
+                                >
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div className="flex items-center gap-3">
+                                      <div className="h-10 w-10 rounded-xl bg-emerald-100 text-emerald-800 font-black text-sm flex items-center justify-center uppercase shrink-0">
+                                        {(item.studentName || "S")[0]}
+                                      </div>
+                                      <div>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="text-sm font-bold text-zinc-950">
+                                            {item.studentName || "Enrolled Student"}
+                                          </span>
+                                          <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full border ${
+                                            item.tier === "pro"
+                                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                              : item.tier === "advance"
+                                              ? "bg-blue-50 text-blue-700 border-blue-200"
+                                              : "bg-amber-50 text-amber-700 border-amber-200"
+                                          }`}>
+                                            {item.tier || "pro"} Tier
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-xs text-zinc-500 mt-0.5 flex-wrap">
+                                          <span className="font-mono font-bold text-zinc-700 flex items-center gap-1">
+                                            <Phone className="h-3 w-3 text-emerald-600" /> +91 {item.number}
+                                          </span>
+                                          {item.email && (
+                                            <span className="flex items-center gap-1 text-zinc-500">
+                                              <Mail className="h-3 w-3 text-zinc-400" /> {item.email}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="flex items-center gap-1.5">
+                                      <button
+                                        onClick={() => handleOpenEditModal(item)}
+                                        className="p-2 rounded-xl bg-zinc-50 hover:bg-zinc-100 text-zinc-600 hover:text-zinc-900 border border-zinc-200 transition-colors cursor-pointer"
+                                        title="Edit Enrolled Programs & Courses"
+                                      >
+                                        <Edit3 className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleRevokeAuthNumber(item.number, item.studentName)}
+                                        className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 transition-colors cursor-pointer"
+                                        title="Revoke Student Enrollment"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Badges for Programs & Courses */}
+                                  <div className="pt-2 border-t border-zinc-100 space-y-2">
+                                    {/* Enrolled Programs */}
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mr-1 flex items-center gap-1">
+                                        <GraduationCap className="h-3 w-3 text-emerald-600" /> Programs:
+                                      </span>
+                                      {programLabels.length > 0 ? (
+                                        programLabels.map((lbl, idx) => (
+                                          <span
+                                            key={idx}
+                                            className="bg-emerald-50 text-emerald-800 border border-emerald-200/80 text-[10px] font-bold px-2 py-0.5 rounded-lg"
+                                          >
+                                            {lbl}
+                                          </span>
+                                        ))
+                                      ) : (
+                                        <span className="text-[10px] text-zinc-400 italic">All Standard Programs</span>
+                                      )}
+                                    </div>
+
+                                    {/* Enrolled Courses */}
+                                    {courseLabels.length > 0 && (
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mr-1 flex items-center gap-1">
+                                          <BookOpen className="h-3 w-3 text-blue-600" /> Courses:
+                                        </span>
+                                        {courseLabels.map((lbl, idx) => (
+                                          <span
+                                            key={idx}
+                                            className="bg-blue-50 text-blue-800 border border-blue-200/80 text-[10px] font-bold px-2 py-0.5 rounded-lg"
+                                          >
+                                            {lbl}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-20 bg-white rounded-3xl border border-zinc-200 p-8 shadow-sm">
-                          <Lock className="h-12 w-12 text-zinc-300 mx-auto mb-4" />
-                          <h3 className="text-md font-bold text-zinc-800">No whitelisted students yet</h3>
-                          <p className="text-zinc-500 text-xs mt-1">Use the entry manager form to whitelist students manually, or enroll them after receiving their WhatsApp requests.</p>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   </div>
                 </motion.div>
@@ -3499,6 +3931,216 @@ export default function AdminSubmissions() {
                   </button>
                 </div>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ✏️ EDIT ENROLLED STUDENT MODAL */}
+      <AnimatePresence>
+        {editingAuthUser && (
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 pt-16 pb-6 sm:p-6 bg-black/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl border border-zinc-200 shadow-2xl max-w-xl w-full p-6 sm:p-8 relative my-auto"
+            >
+              <button
+                onClick={() => setEditingAuthUser(null)}
+                className="absolute top-6 right-6 h-9 w-9 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center text-zinc-600 transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-12 w-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-lg">
+                  <Edit3 className="h-6 w-6 text-emerald-700" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-extrabold text-zinc-950 font-sans">
+                    Edit Student Enrollment & Access
+                  </h3>
+                  <p className="text-xs text-zinc-500">
+                    Update program permissions and course access for this student.
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleUpdateAuthUser} className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-zinc-700 font-bold mb-1 uppercase tracking-wider text-[10px]">
+                    Student Full Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editStudentName}
+                    onChange={(e) => setEditStudentName(e.target.value)}
+                    className="w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-zinc-700 font-bold mb-1 uppercase tracking-wider text-[10px]">
+                      Mobile Number
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={editNumber}
+                      onChange={(e) => setEditNumber(e.target.value)}
+                      className="w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-sm font-mono text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-700 font-bold mb-1 uppercase tracking-wider text-[10px]">
+                      Access Tier
+                    </label>
+                    <select
+                      value={editTier}
+                      onChange={(e) => setEditTier(e.target.value as any)}
+                      className="w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    >
+                      <option value="pro">Pro Full Access</option>
+                      <option value="advance">Advance Tier</option>
+                      <option value="basic">Basic Membership</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-zinc-700 font-bold mb-1 uppercase tracking-wider text-[10px]">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    className="w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  />
+                </div>
+
+                {/* Programs Checkbox list */}
+                <div>
+                  <label className="block text-zinc-700 font-bold mb-1 uppercase tracking-wider text-[10px] flex items-center justify-between">
+                    <span>Enrolled Programs (Diagnostic Form Bypass)</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (editSelectedPrograms.length === SYSTEM_PROGRAM_OPTIONS.length) {
+                          setEditSelectedPrograms([]);
+                        } else {
+                          setEditSelectedPrograms(SYSTEM_PROGRAM_OPTIONS.map(p => p.key));
+                        }
+                      }}
+                      className="text-[10px] text-emerald-600 hover:text-emerald-700 font-bold underline cursor-pointer"
+                    >
+                      {editSelectedPrograms.length === SYSTEM_PROGRAM_OPTIONS.length ? "Clear All" : "Select All"}
+                    </button>
+                  </label>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1 border border-zinc-100 rounded-xl p-2 bg-zinc-50/50">
+                    {SYSTEM_PROGRAM_OPTIONS.map((prog) => {
+                      const isChecked = editSelectedPrograms.includes(prog.key);
+                      return (
+                        <label
+                          key={prog.key}
+                          className={`flex items-center gap-2.5 p-2 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                            isChecked ? "bg-emerald-50 text-emerald-900 font-bold border border-emerald-200" : "hover:bg-zinc-100 text-zinc-700"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setEditSelectedPrograms(prev => [...prev, prog.key]);
+                              } else {
+                                setEditSelectedPrograms(prev => prev.filter(k => k !== prog.key));
+                              }
+                            }}
+                            className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                          />
+                          <span className="flex-1">{prog.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Courses Checkbox list */}
+                <div>
+                  <label className="block text-zinc-700 font-bold mb-1 uppercase tracking-wider text-[10px] flex items-center justify-between">
+                    <span>Enrolled Courses</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (editSelectedCourses.length === SYSTEM_DEFAULT_COURSES.length) {
+                          setEditSelectedCourses([]);
+                        } else {
+                          setEditSelectedCourses(SYSTEM_DEFAULT_COURSES.map(c => c.id));
+                        }
+                      }}
+                      className="text-[10px] text-blue-600 hover:text-blue-700 font-bold underline cursor-pointer"
+                    >
+                      {editSelectedCourses.length === SYSTEM_DEFAULT_COURSES.length ? "Clear All" : "Select All"}
+                    </button>
+                  </label>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1 border border-zinc-100 rounded-xl p-2 bg-zinc-50/50">
+                    {SYSTEM_DEFAULT_COURSES.map((course) => {
+                      const isChecked = editSelectedCourses.includes(course.id);
+                      return (
+                        <label
+                          key={course.id}
+                          className={`flex items-center gap-2.5 p-2 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                            isChecked ? "bg-blue-50 text-blue-900 font-bold border border-blue-200" : "hover:bg-zinc-100 text-zinc-700"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setEditSelectedCourses(prev => [...prev, course.id]);
+                              } else {
+                                setEditSelectedCourses(prev => prev.filter(k => k !== course.id));
+                              }
+                            }}
+                            className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                          />
+                          <span className="flex-1 line-clamp-1">{course.title}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-zinc-100 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEditingAuthUser(null)}
+                    className="px-4 py-2 rounded-xl text-zinc-600 hover:bg-zinc-100 font-bold text-xs transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingEdit}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-5 text-xs transition-all shadow-md cursor-pointer disabled:opacity-50"
+                  >
+                    {savingEdit ? (
+                      <>
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Saving...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-3.5 w-3.5" /> Save Changes
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}

@@ -104,7 +104,11 @@ export interface AuthorizedUser {
   number: string;
   tier: UserTier;
   studentName?: string;
+  email?: string;
+  enrolledPrograms?: string[];
+  enrolledCourses?: string[];
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Coupon {

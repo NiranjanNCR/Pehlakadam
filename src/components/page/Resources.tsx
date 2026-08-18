@@ -27,6 +27,12 @@ export default function Resources() {
   const [isPremiumUnlocked, setIsPremiumUnlocked] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [unlockedPhone, setUnlockedPhone] = useState("");
+  const [studentMetadata, setStudentMetadata] = useState<{
+    studentName?: string;
+    email?: string;
+    enrolledPrograms?: string[];
+    enrolledCourses?: string[];
+  }>({});
   const [premiumSessionId, setPremiumSessionId] = useState<string>("");
   const [verifyingPhone, setVerifyingPhone] = useState(false);
   const [verificationFeedback, setVerificationFeedback] = useState("");
@@ -54,8 +60,8 @@ export default function Resources() {
     }
   };
 
-  const verifyPremiumAccess = async (phoneNumber: string, isAutoCheck = false, existingSessionId?: string) => {
-    if (!phoneNumber) return;
+  const verifyPremiumAccess = async (phoneNumber: string, isAutoCheck = false, existingSessionId?: string, emailInput?: string) => {
+    if (!phoneNumber && !emailInput) return;
     setVerifyingPhone(true);
     setVerificationFeedback("");
     try {
@@ -65,6 +71,7 @@ export default function Resources() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           number: phoneNumber,
+          email: emailInput,
           sessionId: sessId,
           action: isAutoCheck ? "verify" : "login"
         })
@@ -74,9 +81,17 @@ export default function Resources() {
         if (data.authorized) {
           const newSessId = data.sessionId || sessId || "";
           setIsPremiumUnlocked(true);
-          setUnlockedPhone(phoneNumber);
+          setUnlockedPhone(phoneNumber || data.phone || "");
+          setStudentMetadata({
+            studentName: data.studentName || "Enrolled Student",
+            email: data.email || emailInput || "",
+            enrolledPrograms: data.enrolledPrograms || [],
+            enrolledCourses: data.enrolledCourses || []
+          });
           setPremiumSessionId(newSessId);
-          localStorage.setItem("pehlakadam_premium_phone", phoneNumber);
+          if (phoneNumber) {
+            localStorage.setItem("pehlakadam_premium_phone", phoneNumber);
+          }
           if (newSessId) {
             localStorage.setItem("pehlakadam_premium_session_id", newSessId);
           }
@@ -121,6 +136,7 @@ export default function Resources() {
     }
     setIsPremiumUnlocked(false);
     setUnlockedPhone("");
+    setStudentMetadata({});
     setPremiumSessionId("");
     setPhoneInput("");
     setVerificationFeedback("");
@@ -136,13 +152,22 @@ export default function Resources() {
     setIsAdmin(adminCheck);
     
     // Auto restore active premium phone lock if stored
-    const savedPhone = localStorage.getItem("pehlakadam_premium_phone");
+    let savedPhone = localStorage.getItem("pehlakadam_premium_phone") || localStorage.getItem("pehlakadam_student_phone") || "";
     const savedSession = localStorage.getItem("pehlakadam_premium_session_id");
+    let savedEmail = localStorage.getItem("pehlakadam_student_email") || "";
+    try {
+      const u = JSON.parse(localStorage.getItem("pehlakadam_user") || "{}");
+      if (!savedPhone && u.phone) savedPhone = u.phone;
+      if (!savedEmail && u.email) savedEmail = u.email;
+    } catch (e) {}
+
     if (savedSession) setPremiumSessionId(savedSession);
-    if (savedPhone) {
-      setUnlockedPhone(savedPhone);
-      setPhoneInput(savedPhone);
-      verifyPremiumAccess(savedPhone, true, savedSession || undefined);
+    if (savedPhone || savedEmail) {
+      if (savedPhone) {
+        setUnlockedPhone(savedPhone);
+        setPhoneInput(savedPhone);
+      }
+      verifyPremiumAccess(savedPhone || "", true, savedSession || undefined, savedEmail || undefined);
     }
   }, []);
 
@@ -388,14 +413,22 @@ export default function Resources() {
                   <ShieldCheck className="h-6 w-6" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-extrabold text-emerald-950 font-sans uppercase tracking-wide">
-                    {isAdmin ? "👑 Administrator Access Active" : "Premium Access Portal Active"}
+                  <h4 className="text-sm font-extrabold text-emerald-950 font-sans uppercase tracking-wide flex items-center gap-2">
+                    {isAdmin ? "👑 Administrator Access Active" : `✨ Enrolled Portal: ${studentMetadata.studentName || "Active Scholar"}`}
                   </h4>
                   <p className="text-emerald-700 text-xs mt-0.5">
                     {isAdmin ? (
                       "Bypassed lock as Admin. You have complete unrestricted access to all premium assets."
                     ) : (
-                      <>Authorized for: <span className="font-mono font-bold bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-200 text-emerald-900">{unlockedPhone}</span>. Enjoy exclusive downloads and classes.</>
+                      <>
+                        Authorized for: <span className="font-mono font-bold bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-200 text-emerald-900">{unlockedPhone}</span>
+                        {studentMetadata.enrolledPrograms && studentMetadata.enrolledPrograms.length > 0 && (
+                          <span className="ml-2 bg-emerald-200/60 text-emerald-900 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                            {studentMetadata.enrolledPrograms.join(", ")}
+                          </span>
+                        )}
+                        . Enjoy exclusive downloads and classes.
+                      </>
                     )}
                   </p>
                 </div>
