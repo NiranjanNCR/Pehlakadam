@@ -1,260 +1,353 @@
-# PEHLAKADAM — Full-Stack Portal Documentation & Reference Manual
+# PEHLAKADAM — Comprehensive Full-Stack Portal Documentation & Reference Manual
 
-This document serves as an exhaustive reference guide covering the system architecture, active databases, admin workspace configurations, security parameters, and design guidelines of the **Pehlakadam** platform.
+This document is the definitive engineering reference manual covering the system architecture, dual-persistence data layers, security controls, API interfaces, admin governance suites, and user experience workflows of the **Pehlakadam** platform.
+
+---
+
+## Table of Contents
+1. [System Overview & Architecture](#1-system-overview--architecture)
+2. [Security & Session Concurrency Engine](#2-security--session-concurrency-engine)
+3. [Payment & Checkout Architecture](#3-payment--checkout-architecture)
+4. [LMS Video & Interactive Curriculum Portal](#4-lms-video--interactive-curriculum-portal)
+5. [Psychometric & Diagnostic Assessment Suite](#5-psychometric--diagnostic-assessment-suite)
+6. [Promo Coupon & Dynamic Pricing Engine](#6-promo-coupon--dynamic-pricing-engine)
+7. [1-on-1 Counseling & Lead Management System](#7-1-on-1-counseling--lead-management-system)
+8. [Admin Governance Control Room](#8-admin-governance-control-room)
+9. [Complete REST API Reference](#9-complete-rest-api-reference)
+10. [Database Schemas & Data Models](#10-database-schemas--data-models)
+11. [PDF Handbook & Rendering System](#11-pdf-handbook--rendering-system)
+12. [SEO & Head Hydration Architecture](#12-seo--head-hydration-architecture)
+13. [Deployment, Build & Environment Configuration](#13-deployment-build--environment-configuration)
 
 ---
 
 ## 1. System Overview & Architecture
 
-Pehlakadam is a high-performance, full-stack career counseling, skill diagnosis, and personality assessment suite. Built with **React 18**, **Vite**, **TypeScript**, and **Tailwind CSS** on the frontend, and backed by an **Express.js** and **Mongoose (MongoDB)** backend with automated JSON file-system backups.
+Pehlakadam is a high-performance, full-stack educational and career counseling ecosystem tailored for students (Grades 6–12), undergraduates, postgraduates, and career switchers.
 
-The architecture guarantees high availability and resilient persistence:
-*   **Database Dual-Persistence Pattern**: When MongoDB is connected, the server utilizes real Mongoose models for querying and updates. If the database goes into transient offline states, it falls back to parsing and writing to synchronized JSON flat-files (`system_stats.json`, `career_tips_subscribers.json`, `submissions.json`, `authorized_numbers.json`, `courses.json`, `coupons.json`, etc.) instantly, preventing any disruption to user operations.
-*   **Secure API Routing**: Secret-key operations, whitelisting, and credential verifications are proxied strictly server-side through `/api/*` routes.
-*   **Access Tier Hierarchy**: Standardized 3-tier access architecture across all courses and resources:
-    1. **Basic Tier**: Free/standard PDFs & basic resource guides.
-    2. **Advance Tier**: Interactive LMS Video Courses & Dashboard access.
-    3. **Pro Tier**: Full unrestricted access to all Custom Courses, LMS Video Modules, and 1:1 Expert Support.
-*   **Hot-Module Ingress Routing**: The application is served on port `3000` via automated reverse-proxying.
-
----
-
-## 2. Core Dynamic Features & Flowcharts
-
-### 📈 Trust Stats System (Hero Section)
-*   **Endpoint**: `GET /api/system-stats` & `POST /api/system-stats` (Admin Secured)
-*   **Pathways**:
-    1. The Hero section on the homepage fetches trust numbers dynamically (Students Count, Expert Count, and Success Rate).
-    2. Admin updates these inside the **Admin Control Room** tab.
-    3. The updated metrics persist to MongoDB and `system_stats.json` and refresh in real time.
-
-### 📚 LMS Course Curriculum & Video Player System (`/courses`)
-*   **Endpoints**: `GET /api/courses`, `POST /api/courses`, `PUT /api/courses/:id`, `DELETE /api/courses/:id`
-*   **Pathways**:
-    1. Students browse available courses filtered by Tier requirement (Basic, Advance, Pro) or Academic Category ("Primary Kudos", "6-8 Grade", "8-10 Grade", "11-12 Grade", "UG/Graduate/PG", "Generalist to Specialist").
-    2. Students authorize their registered phone number to verify tier access level (`POST /api/check-premium-access`).
-    3. Unlocked courses launch an interactive course modal equipped with chapter dropdowns, video embeds, lesson summaries, and downloadable PDF worksheets.
-    4. Admins manage chapters, video links, and worksheet attachments directly inside the **LMS Courses** tab in the Admin Panel.
-
-### 🎟️ Promo Coupons & Discount Manager
-*   **Endpoints**: `GET /api/coupons`, `POST /api/coupons`, `PUT /api/coupons/:id`, `DELETE /api/coupons/:id`, `POST /api/coupons/validate`
-*   **Pathways**:
-    1. Admins create custom promo codes (Percentage % or Flat ₹ Off, min cart requirements, active/inactive toggles).
-    2. During course enrollment checkout or payment modal interaction, students enter promo codes (e.g., `PEHLA50`, `PRO100`, `FESTIVE100`, `WELCOME20`).
-    3. The checkout engine dispatches `POST /api/coupons/validate` to validate the code against MongoDB/JSON stored coupons and static fallback maps.
-    4. The server returns the applied discount value, minimum order check status, and computed `finalPrice`.
-    5. **UPI Payload Synchronization**: The payment QR code (`upi://pay?pa={upiId}&pn={merchantName}&am={finalPrice}&cu=INR&tn={planName}`) and deep links for GPay, PhonePe, and Paytm instantly recalculate to reflect the discounted amount.
-
-### 🛡️ Single-Device Parallel Access Concurrency Control System
-*   **Endpoints**: `POST /api/check-access`, `POST /api/check-premium-access`, `POST /api/verify-session`, `POST /api/logout-session`
-*   **Mechanism**:
-    1. Enforces strict **1 active device / browser session per phone number** for paid LMS courses (`/courses`) and paid resources (`/resources`).
-    2. When a student verifies their phone number on Device A, a unique session ID (`sess_{phone}_{timestamp}_{rand}`) is issued by the server and registered in `activeDeviceSessions`.
-    3. If the same phone number is entered or accessed on Device B, Device B is granted access and receives a new session ID, immediately overwriting the active session on the server.
-    4. Active clients maintain a background heartbeat interval (`useEffect` every 6 seconds) invoking `POST /api/verify-session`.
-    5. When Device A sends its next heartbeat, the server detects that Device A's session ID no longer matches the current active session ID for that phone number.
-    6. Device A receives `{ valid: false, sessionConflict: true }`, automatically revokes local session tokens (`pehlakadam_student_phone`, `pehlakadam_premium_phone`), locks paid course/video/PDF content, and displays a prominent warning:
-       `"⚠️ Session Conflict: Account active on another device. Simultaneous access on multiple devices is restricted to 1 active device at a time."`
-
-### 💳 Course Enrollment & Program Selection System
-*   **Flow**:
-    1. Students click "Enroll Now" or "Unlock Premium" on any course card across the platform.
-    2. The checkout modal opens with a fully interactive program selection dropdown, pre-filling or allowing the user to select their exact grade or track ("Primary Kudos", "6-8 Grade", "8-10 Grade", "11-12 Grade", "UG/Graduate/PG", "Generalist to Specialist").
-    3. Students apply discount coupons (`PRO100`, `PEHLA50`, etc.) to reduce final cart prices, triggering server-side validation.
-    4. The platform dynamically queries `GET /api/system-stats` to retrieve the current payee account details (**UPI Address** and **Merchant Registered Name**).
-    5. A dynamic UPI payload string is generated: `upi://pay?pa={upiId}&pn={merchantName}&am={finalPrice}&cu=INR&tn={planName}`.
-    6. A scannable custom QR code is rendered instantly using this payload alongside deep-linking buttons for GPay, PhonePe, and Paytm.
-    7. Students upload their transaction screenshot and submit proof.
-    8. Admin verifies the transaction under **Payment Proofs** and clicks **Approve & Whitelist** to grant immediate access.
-
-### 🔑 Leads & Quick Student Tier Authorization Bar
-*   **Flow**:
-    1. Admins reviewing registered leads or inside the LMS manager can grant instant course access via the **Instant Student Phone Access Authorization** bar.
-    2. Admins input student phone numbers and select their access level (**Basic**, **Advance**, **Pro**).
-    3. The system immediately registers the phone number in `authorized_numbers.json` and MongoDB with the specified tier, authorizing the student instantly across the `/courses` and `/resources` portals.
-
-### 📅 1-on-1 Counseling Scheduler & Multi-Channel Dispatch
-*   **Flow**:
-    1. Inside the **Consultation Leads** manager, advisors can click **"Schedule & Notify Counseling"** for any candidate.
-    2. A rich modal opens allowing the advisor to set the session topic, scheduled date, time, online joining link (Google Meet/Zoom), and personalized advisor notes.
-    3. The schedule is saved server-side under `PUT /api/submissions/:id/counselling`.
-    4. Admins can dispatch notifications with 1-click via:
-        *   **Email**: Professional HTML formatted invitation delivered via SMTP mailer.
-        *   **WhatsApp**: Generates formatted session link and opens direct outreach thread.
-        *   **SMS**: Dispatches instant text message confirmation.
-
-### ✉️ Weekly Career Tips & Community Conversion Funnel
-*   **Active Funnel**:
-    1. Visitors enter their Email or Mobile Number in the Newsletter section of the footer.
-    2. A secure request is dispatched to `POST /api/career-tips-join`.
-    3. The details are safely persisted in MongoDB under `CareerTipSubscriber` (or `career_tips_subscribers.json` fallback).
-    4. Upon successful submission, the system fetches the Admin-specified **WhatsApp Group Link** and **Alternative Forum Link** in the response.
-    5. The UI dynamically morphs to present premium **"Join Official WhatsApp Group"** and **"Join Career Forum"** buttons instantly.
+### Technology Stack
+*   **Frontend**: React 18, Vite, TypeScript, Tailwind CSS, Lucide Icons, Motion (`motion/react`).
+*   **Backend Server**: Express.js (Node.js runtime with `tsx` development runner and `esbuild` production bundling to `dist/server.cjs`).
+*   **Persistence Layer**: Dual-Persistence Architecture:
+    *   **Primary Cloud Database**: MongoDB via Mongoose ORM.
+    *   **Resilient JSON Flat-File Fallback**: Synchronized JSON storage files (`system_stats.json`, `courses.json`, `course_progress.json`, `coupons.json`, `authorized_numbers.json`, `submissions.json`, `diagnostic_tests.json`, `diagnostic_submissions.json`, `resources.json`, `resource_history.json`, `testimonials.json`, `updates.json`, `programs_config.json`).
+*   **Networking & Port Routing**: The dev and production servers strictly bind to `0.0.0.0:3000` behind the reverse-proxy environment.
 
 ---
 
-## 3. Database Schemas
+## 2. Security & Session Concurrency Engine
 
-### 🎓 LMS Course Schema (`Course`)
+### Single-Device Parallel Access Concurrency Control
+To prevent unauthorized account sharing across multiple users or pirate devices:
+*   **Active Session Enforcement**: Restricts access to **1 active device / browser session** per registered phone number for all paid LMS courses (`/courses`), diagnostic tools, and premium resources (`/resources`).
+*   **Token Allocation**: Upon entering a phone number, the server issues a session token: `sess_{phone}_{timestamp}_{rand}`.
+*   **Session Overwrite on New Login**: When a user logs in on Device B, Device B is granted the current active session ID, overriding the record in server memory (`activeDeviceSessions`).
+*   **Heartbeat Verification**: Active clients trigger a non-blocking background heartbeat every 6 seconds to `POST /api/verify-session`.
+*   **Instant Remote Logout**: If Device A's heartbeat detects a mismatched session ID, it immediately revokes local credentials (`pehlakadam_student_phone`, `pehlakadam_premium_phone`), locks video/course content, and shows a session conflict alert:
+    > *"⚠️ Session Conflict: Account active on another device. Simultaneous access on multiple devices is restricted to 1 active device at a time."*
+
+---
+
+## 3. Payment & Checkout Architecture
+
+The payment system provides a fast, frictionless, and secure checkout experience without requiring file/screenshot uploads.
+
+```
+[Student Clicks "Enroll" or "Unlock"]
+                 │
+                 ▼
+[Modal Displays Grade/Track Selector & Price Calculation]
+                 │
+                 ▼
+[Student Enters Promo Coupon (Optional)] ──► [Server Validates Code & Discounts Price]
+                 │
+                 ▼
+[Dynamic UPI String Generated: upi://pay?pa=...&pn=...&am=...&cu=INR&tn=...]
+                 │
+  ┌──────────────┴──────────────┐
+  ▼                             ▼
+[Scannable Live QR Code]   [1-Click Deep Links: GPay / PhonePe / Paytm]
+  │                             │
+  └──────────────┬──────────────┘
+                 │
+                 ▼
+[Student Completes UPI Payment in Bank App & Copies 12-Digit UTR]
+                 │
+                 ▼
+[Student Pastes 12-Digit UTR / Transaction ID]
+                 │
+                 ▼
+[Submit Enrollment (POST /api/payment-submit or /api/courses/enroll)]
+                 │
+  ┌──────────────┴──────────────────────────┐
+  ▼                                         ▼
+[Record Saved with Status "pending"]   [WhatsApp Dispatcher Link Opened for Instant Activation]
+  │
+  ▼
+[Admin Reviews UTR & Clicks "Approve & Whitelist" ──► Phone Number Instant Tier Access]
+```
+
+### Key Workflow Highlights
+1.  **Direct UTR Identification**: Verification relies on the bank-issued 12-digit UTR / UPI Reference ID and the student's registered mobile number.
+2.  **Dynamic QR & Deep-Links**: QR codes and UPI payment links update in real time when coupons are applied.
+3.  **One-Click WhatsApp Dispatch**: On submission, a WhatsApp link pre-filled with the student's name, email, phone number, plan, amount paid, and UTR is generated to facilitate instant support and onboarding.
+4.  **Admin Whitelisting**: Admins can approve payment records with one click in the **Payment Proofs** tab, automatically enrolling the student in the database.
+
+---
+
+## 4. LMS Video & Interactive Curriculum Portal
+
+Accessible via `/courses` with full tiered authorization:
+*   **Curriculum Structure**: Courses contain structured Chapters, each composed of Lessons with duration, YouTube/Vimeo/MP4 video embeds, comprehensive lesson notes, and downloadable PDF worksheets.
+*   **Tier Gating**:
+    *   **Basic**: Standard introductory tracks, syllabus previews, and free PDF resources.
+    *   **Advance**: Full interactive LMS video curriculums, lesson summaries, and exercise workbooks.
+    *   **Pro**: Unrestricted access across all courses, advanced modules, and 1-on-1 counselor guidance.
+*   **Interactive Player**: Video player equipped with chapter navigation dropdowns, complete/incomplete lesson toggles, and PDF worksheet viewer.
+*   **Progress Tracking**: Tracks student lesson completion percentage with local and server synchronization (`/api/courses/progress`).
+
+---
+
+## 5. Psychometric & Diagnostic Assessment Suite
+
+Accessible via `/diagnostic` or the Student Portal:
+*   **Assessment Frameworks**:
+    *   **DISC Behavioral Analysis**: Evaluates Dominance, Influence, Steadiness, and Conscientiousness.
+    *   **MBTI-Style Personality Matrix**: Classifies 16 distinct cognitive archetypes.
+    *   **16PF (Personality Factors)**: Assesses career readiness and behavioral drivers.
+    *   **Stream & Career Selector**: Guides Class 10/12 students toward Science, Commerce, Arts, or Vocational streams.
+*   **Instant Result Analysis**:
+    *   Automated multi-trait scoring algorithms.
+    *   Visual radar & bar graphs highlighting strengths and development areas.
+    *   Actionable career recommendations and recommended LMS course modules.
+    *   One-click downloadable PDF diagnostic report.
+
+---
+
+## 6. Promo Coupon & Dynamic Pricing Engine
+
+*   **Coupon Types**: Percentage Discount (e.g., 20% off) or Fixed Amount (e.g., ₹100 off).
+*   **Cart Requirements**: Configurable minimum order amount (`minOrderAmount`) to prevent discount abuse.
+*   **Real-Time Validation**: Evaluated server-side via `POST /api/coupons/validate`.
+*   **Admin Controls**: Add, edit, toggle active/inactive status, or delete coupons directly inside the **Coupon Manager** tab.
+
+---
+
+## 7. 1-on-1 Counseling & Lead Management System
+
+*   **Lead Capture**: Captures inquiries from the homepage consultation form and program landing pages.
+*   **Counseling Scheduler**:
+    *   Advisors configure session topic, date, time, meeting link (Google Meet / Zoom), and personalized notes.
+    *   Persisted under `PUT /api/submissions/:id/counselling`.
+*   **Multi-Channel Notification Dispatcher**:
+    *   **Email**: Automated HTML session confirmation.
+    *   **WhatsApp**: Pre-formatted direct messaging link with session details.
+    *   **SMS**: Instant text message confirmation.
+*   **Instant Access Granting**: Advisors can directly whitelist a lead's phone number for Basic, Advance, or Pro tier access without leaving the leads table.
+
+---
+
+## 8. Admin Governance Control Room
+
+The Admin Panel (`/admin`) is a multi-tab administrative workspace:
+
+| Tab Name | Purpose & Functionality |
+| :--- | :--- |
+| **Consultation Leads** | View leads, schedule counseling sessions, dispatch notifications (Email/WhatsApp/SMS), and grant access. |
+| **Payment Proofs** | Review submitted payments with 12-digit UTRs, filter by status, and click **Approve & Whitelist** for instant access. |
+| **LMS Courses** | Create and edit courses, add chapters/lessons, embed videos, attach PDF worksheets, and set tier levels. |
+| **Diagnostic Tests** | Create, manage, and review psychometric and career aptitude tests, question banks, and student submissions. |
+| **Resources** | Upload or update downloadable PDF handbooks, guides, and briefing videos. |
+| **Coupon Manager** | Manage discount codes, discount rates (% or ₹), minimum order thresholds, and active statuses. |
+| **Paid Access Manager** | Directly view, add, modify, or revoke whitelisted phone numbers and their assigned access tier (Basic/Advance/Pro). |
+| **Programs Config** | Configure grade-specific brochures, syllabus summaries, and video highlight links. |
+| **Home Page Stats (Control Room)** | Update public Trust Stats (Students Count, Experts, Success Rate), UPI ID & Merchant Name, Social URLs, and SEO metadata. |
+| **Broadcast Manager** | Compose and send batch announcements to students via multi-channel templates. |
+| **Tips Subscribers** | View and manage newsletter subscribers registered from the career tips footer funnel. |
+| **Success Testimonials** | Curate and publish student reviews, star ratings, and success stories. |
+
+---
+
+## 9. Complete REST API Reference
+
+### System & Health
+*   `GET /api/health` — Server health check.
+*   `GET /api/system-stats` — Fetch dynamic trust numbers, UPI payee info, social URLs, and SEO metadata.
+*   `POST /api/system-stats` — (Admin) Update system configurations and metadata.
+
+### Authentication & Device Concurrency
+*   `POST /api/check-access` — Validate student phone number for resource access.
+*   `POST /api/check-premium-access` — Validate student phone number and return active tier level + session ID.
+*   `POST /api/verify-session` — Periodic heartbeat checking for single-device concurrency conflicts.
+*   `POST /api/logout-session` — Terminate active device session for a phone number.
+
+### Courses & LMS
+*   `GET /api/courses` — Retrieve list of all published LMS courses and curriculums.
+*   `POST /api/courses` — (Admin) Create a new LMS course.
+*   `PUT /api/courses/:id` — (Admin) Update course details, chapters, or lessons.
+*   `DELETE /api/courses/:id` — (Admin) Delete an LMS course.
+*   `POST /api/courses/enroll` — Submit a course enrollment request with UTR.
+*   `GET /api/courses/progress` — Fetch student lesson completion history.
+*   `POST /api/courses/progress` — Record completed lesson IDs for a student.
+
+### Payments & Whitelisting
+*   `POST /api/payment-submit` — Submit general program payment verification with UTR.
+*   `GET /api/payment-proofs` — (Admin) Fetch all payment records.
+*   `PUT /api/payment-proofs/:id/status` — (Admin) Update payment record status.
+*   `POST /api/payment-proofs/:id/approve` — (Admin) Approve payment and automatically whitelist student phone number.
+*   `GET /api/authorized-numbers` — (Admin) Fetch list of all whitelisted numbers and tiers.
+*   `POST /api/authorized-numbers` — (Admin) Add or update whitelisted number.
+*   `DELETE /api/authorized-numbers/:phone` — (Admin) Remove number from whitelist.
+
+### Coupons
+*   `GET /api/coupons` — (Admin) List all coupons.
+*   `POST /api/coupons` — (Admin) Create a new coupon.
+*   `PUT /api/coupons/:id` — (Admin) Update coupon details or active status.
+*   `DELETE /api/coupons/:id` — (Admin) Delete a coupon.
+*   `POST /api/coupons/validate` — Validate a promo code against cart value.
+
+### Submissions & Counseling
+*   `GET /api/submissions` — (Admin) Fetch all consultation leads.
+*   `POST /api/submissions` — Submit a new consultation inquiry from the public portal.
+*   `PUT /api/submissions/:id/counselling` — (Admin) Update counseling schedule, topic, notes, and meeting link.
+*   `POST /api/submissions/:id/notify` — (Admin) Dispatch counseling notification via Email, WhatsApp, or SMS.
+
+### Diagnostic Tests
+*   `GET /api/diagnostics/tests` — Fetch available diagnostic tests.
+*   `POST /api/diagnostics/submit` — Submit test answers and compute diagnostic scores.
+*   `GET /api/diagnostics/submissions` — (Admin) Fetch test submission records.
+
+### Career Tips & Community
+*   `POST /api/career-tips-join` — Subscribe to weekly newsletter and retrieve WhatsApp group links.
+*   `GET /api/career-tips-subscribers` — (Admin) Fetch list of all newsletter subscribers.
+*   `DELETE /api/career-tips-subscribers/:id` — (Admin) Remove a subscriber.
+
+---
+
+## 10. Database Schemas & Data Models
+
+### LMS Course (`Course`)
 ```typescript
 {
-  id: string,
-  title: string,
-  slug: string,
-  description: string,
-  thumbnailUrl: string,
-  tier: "basic" | "advance" | "pro",
-  category: string,
-  originalPrice: number,
-  discountPrice: number,
-  duration: string,
-  level: string,
-  published: boolean,
-  createdAt: string,
-  chapters: [{
-    id: string,
-    title: string,
-    lessons: [{
-      id: string,
-      title: string,
-      duration: string,
-      videoUrl: string,
-      summary: string,
-      isFreePreview: boolean,
-      attachments: [{
-        id: string,
-        title: string,
-        type: "pdf" | "doc" | "link",
-        fileUrl: string
-      }]
-    }]
-  }]
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  thumbnailUrl: string;
+  tier: "basic" | "advance" | "pro";
+  category: string;
+  originalPrice: number;
+  discountPrice: number;
+  duration: string;
+  level: string;
+  published: boolean;
+  createdAt: string;
+  chapters: {
+    id: string;
+    title: string;
+    lessons: {
+      id: string;
+      title: string;
+      duration: string;
+      videoUrl: string;
+      summary: string;
+      isFreePreview: boolean;
+      attachments: {
+        id: string;
+        title: string;
+        type: "pdf" | "doc" | "link";
+        fileUrl: string;
+      }[];
+    }[];
+  }[];
 }
 ```
 
-### 🎟️ Promo Coupon Schema (`Coupon`)
+### Payment Record (`PaymentProof`)
 ```typescript
 {
-  id: string,
-  code: string,
-  discountType: "percentage" | "fixed",
-  discountValue: number,
-  minOrderAmount: number,
-  active: boolean,
-  createdAt: string
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  number: string;
+  role: string;          // Academic track / grade program
+  plan: string;          // Selected tier ("Basic" | "Advance" | "Pro")
+  amount: number;        // Final paid amount after discounts
+  transactionId: string; // 12-digit UTR / UPI reference ID
+  couponCode?: string;   // Applied coupon (if any)
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
 }
 ```
 
-### 📊 System Stats & Config Schema (`SystemStatsModel`)
+### System Configuration (`SystemStats`)
 ```typescript
 {
-  studentsCount: { type: String, default: "10K+" },
-  expertsCount: { type: String, default: "15+" },
-  successRate: { type: String, default: "99%" },
-  upiId: { type: String, default: "nrjstudywrk@okicici" },
-  merchantName: { type: String, default: "Niranjan Singh (Pehlakadam)" },
-  instagramUrl: { type: String, default: "#" },
-  youtubeUrl: { type: String, default: "#" },
-  whatsappSupportUrl: { type: String, default: "#" },
-  whatsappGroupUrl: { type: String, default: "" },
-  forumJoinUrl: { type: String, default: "" },
-  seoTitle: { type: String, default: "Pehlakadam - Best Career Counselling & Personality Development" },
-  seoDescription: { type: String, default: "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips." },
-  seoKeywords: { type: String, default: "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam" },
-  seoAuthor: { type: String, default: "Pehlakadam" },
-  updatedAt: { type: Date, default: Date.now }
-}
-```
-
-### 📋 Candidate Lead Submission Schema (`SubmissionModel`)
-```typescript
-{
-  firstName: { type: String, required: true },
-  lastName: { type: String, required: true },
-  email: { type: String, required: true },
-  number: { type: String, required: true },
-  role: { type: String, required: true },
-  message: { type: String, required: true },
-  counsellingDate: { type: String, default: "" },
-  counsellingTime: { type: String, default: "" },
-  counsellingTopic: { type: String, default: "" },
-  joiningLink: { type: String, default: "" },
-  counsellingNotes: { type: String, default: "" },
-  notifications: [{
-    channel: { type: String }, // "email" | "whatsapp" | "sms"
-    sentAt: { type: Date, default: Date.now },
-    status: { type: String, default: "sent" },
-    message: { type: String }
-  }],
-  createdAt: { type: Date, default: Date.now }
+  studentsCount: string;       // e.g. "10K+"
+  expertsCount: string;        // e.g. "15+"
+  successRate: string;         // e.g. "99%"
+  upiId: string;               // Payee VPA address
+  merchantName: string;        // Merchant registered name
+  instagramUrl: string;
+  youtubeUrl: string;
+  whatsappSupportUrl: string;
+  whatsappGroupUrl: string;
+  forumJoinUrl: string;
+  seoTitle: string;
+  seoDescription: string;
+  seoKeywords: string;
+  seoAuthor: string;
+  updatedAt: string;
 }
 ```
 
 ---
 
-## 4. Admin Panel Layout
+## 11. PDF Handbook & Rendering System
 
-The Admin panel is structured as an elegant, multi-tab console containing:
-1.  **Consultation Leads**: View lead profiles, schedule 1-on-1 counseling sessions, dispatch notifications (Email, WhatsApp, SMS), and directly grant or revoke Paid Section Access with 1-click.
-2.  **Payment Proofs**: Interactive verification table displaying proof screenshot attachments, transaction codes, and the instant **Approve & Whitelist** button.
-3.  **Resources**: Add new PDF Handbooks or briefing videos to the static resource library.
-4.  **LMS Courses**: Launch new custom LMS courses, build multi-chapter video curriculums, link downloadable PDF worksheets, and set tier access requirements (Basic, Advance, Pro).
-5.  **Coupon Manager**: Create percentage (%) or flat (₹) discount codes with cart limits and live activation toggles.
-6.  **Broadcast Manager**: Dispatch bulk communications.
-7.  **Paid Access Manager**: View and manage whitelisted student phone numbers with tier assignments (Basic, Advance, Pro).
-8.  **Programs Config**: Customize brochures and counseling video highlights for all grade levels.
-9.  **Home Page Stats (Control Room)**:
-    *   Modify Students Count, Experts Count, and Success Rate metrics.
-    *   Set dynamic **UPI Address** and **Merchant Name** configurations.
-    *   Update social links (**Instagram**, **YouTube**, and **WhatsApp Support**).
-    *   Configure dynamic **Weekly WhatsApp Group Invite Links** and **Forum Join Links**.
-    *   **SEO Metadata Configuration**: Control Global Page Titles, Meta Descriptions, Focus Keywords, and Meta Author attributes.
-10. **Tips Subscribers**: Live database tracker showing all newsletter subscribers with contact details and removal controls.
-11. **Success Testimonials**: Manage featured student reviews and ratings.
+*   **Component**: `src/components/PdfViewerModal.tsx`.
+*   **High-DPI Rendering**: Automatically applies device pixel ratio scaling (`dpr = Math.max(window.devicePixelRatio, 2)`) with high smoothing quality for crisp display on high-density phone and tablet screens.
+*   **Aspect Ratio Protection**: Strict container constraints prevent image or text distortion across varying viewport sizes.
+*   **Reading Controls**: Zoom (50%–300%), 90-degree page rotation, full-screen mode, single-page, and continuous scroll views.
 
 ---
 
-## 5. Global Search Engine Optimization (SEO) Architecture
+## 12. SEO & Head Hydration Architecture
 
-Pehlakadam implements a dynamic SEO injection system:
-*   **Static Meta Tags**: `/index.html` contains pre-rendered semantic meta tags for search engine crawling.
-*   **Dynamic Head Hydration**: On client startup, the app fetches `GET /api/system-stats` and dynamically updates `document.title` and meta tags for description, focus keywords, author, and Open Graph previews (`og:title`, `og:description`).
-
----
-
-## 6. Legal & Governance Framework
-*   **Routes**: `/terms`, `/privacy`, `/refund-policy`, `/legal`
-*   **Architecture**:
-    *   Unified, tabbed interactive legal viewer (`TermsAndPolicies.tsx`) supporting direct URL routing and dynamic switching between **Terms & Conditions**, **Privacy Policy**, **Cancellation & Refund Policy**, and **Advisory Disclaimer**.
-    *   **In-App Document Printing**: Direct print/save-as-PDF action for parent and student record-keeping.
-    *   **Footer Integration**: Dedicated legal policy section and bottom-row copyright hyperlinks.
-    *   **Payment Checkout Consent**: Mandatory legal agreement notice embedded in `PaymentModal.tsx` prior to verification proof upload.
+1.  **Static Crawlability**: `index.html` defines semantic meta tags, OpenGraph previews, and robots directives.
+2.  **Dynamic Client Hydration**: On app startup, the frontend fetches `/api/system-stats` and dynamically updates:
+    *   `document.title`
+    *   `meta[name="description"]`
+    *   `meta[name="keywords"]`
+    *   `meta[name="author"]`
+    *   `meta[property="og:title"]`
+    *   `meta[property="og:description"]`
 
 ---
 
-## 7. In-App PDF & Handbook Viewer System
-*   **Component**: `src/components/PdfViewerModal.tsx`
-*   **Cross-Device Optimization Features**:
-    *   **HiDPI / Retina Sharp Rendering**: Configures high Device Pixel Ratio (`dpr = Math.max(window.devicePixelRatio, 2)`) with `ctx.imageSmoothingQuality = "high"` to eliminate blur, fuzzy edges, and pixelation on high-density phone and tablet displays.
-    *   **Aspect-Ratio Protection**: Strict `max-w-full` and `object-contain` scaling prevents image/page stretching or distortion across all display resolutions.
-    *   **Smart Device-Responsive Zoom**: Mobile devices (<640px) default to an initial 85% width-fit to avoid horizontal clipping, while desktops default to 115% reading zoom.
-    *   **Reading Tools**: In-app Zoom in/out (50%–300%), Page Rotation (90°), Continuous Scroll, and Single-Page pagination modes.
+## 13. Deployment, Build & Environment Configuration
 
----
+### Available Scripts
+```bash
+# Start dev server (tsx server.ts with Vite middleware)
+npm run dev
 
-## 8. Navigation & Scroll Management
-*   **Component**: `src/components/ScrollToTop.tsx`
-*   **Behavior**:
-    *   Mounted at root router level in `App.tsx`.
-    *   Automatically resets window and document scroll position (`window.scrollTo(0, 0)`) to the top on every route transition (e.g. `/resources`, `/about`, `/portal`, `/courses`), preventing pages from loading scrolled at the footer.
+# Run TypeScript linter
+npm run lint
 
----
+# Production build (Vite client build + esbuild backend bundling to dist/server.cjs)
+npm run build
 
-## 9. Responsiveness & Styling Reference
+# Launch production server
+npm start
+```
 
-*   **Fluid Layouts**: Tailwind configurations with `w-full max-w-7xl mx-auto px-6` prevent ultra-wide stretching.
-*   **Touch Targets**: Input buttons and links maintain touch target sizes (`min-h-[44px]`) for mobile accessibility.
-*   **Card Containers**: Cards utilize clean, high-contrast borders (`border border-zinc-200 shadow-sm hover:shadow-md transition-all rounded-3xl`).
-*   **Theme Continuity & High Contrast Typography**: Dark banners and cards enforce explicit high-contrast text styling (`text-white`, `drop-shadow-sm`, `text-emerald-100`) to guarantee high readability across dark background overlays, cards, and modal headings. Accent headings reset appropriately without forced dark color overrides on dark backgrounds.
+### Environment Variables (`.env.example`)
+```env
+# MongoDB Connection String (Optional, automatically falls back to JSON flat files if unconfigured)
+MONGODB_URI=
 
-
+# Port is fixed to 3000 by container infrastructure
+PORT=3000
+```
