@@ -1,6 +1,10 @@
-import { useState, ChangeEvent, FormEvent, DragEvent, useRef, useEffect } from "react";
+import { useState, ChangeEvent, FormEvent, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, CreditCard, CheckCircle, MessageSquare, Upload, FileText, ImageIcon, Copy, Check, Shield, Phone, QrCode, Sparkles } from "lucide-react";
+import { 
+  X, CreditCard, CheckCircle, MessageSquare, 
+  Copy, Check, Shield, Phone, QrCode, Sparkles, 
+  Smartphone, Zap, ClipboardPaste, ArrowRight, ExternalLink 
+} from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 export const PLAN_OPTIONS = ["Basic", "Standard", "Premium Pro"] as const;
@@ -35,7 +39,22 @@ export const normalizePlan = (plan?: string): PlanOption => {
   return "Basic";
 };
 
-// 💰 Dynamic Pricing Matrix by Plan Tier (Basic, Standard, Premium Pro)
+// Helper: Parse currency string (e.g. "₹8,500", "8500", "₹18,500/student") to numeric and display format
+export const parsePriceValue = (val?: string | number, fallback: number = 8500): { price: number; displayPrice: string } => {
+  if (val === undefined || val === null || val === "") {
+    return { price: fallback, displayPrice: "₹" + fallback.toLocaleString("en-IN") };
+  }
+  if (typeof val === "number") {
+    const num = isNaN(val) || val < 0 ? fallback : val;
+    return { price: num, displayPrice: "₹" + num.toLocaleString("en-IN") };
+  }
+  const cleanDigits = String(val).replace(/[^0-9]/g, "");
+  const num = cleanDigits ? parseInt(cleanDigits, 10) : fallback;
+  const validNum = isNaN(num) || num < 0 ? fallback : num;
+  return { price: validNum, displayPrice: "₹" + validNum.toLocaleString("en-IN") };
+};
+
+// 💰 Fallback Base Dynamic Pricing Matrix by Plan Tier
 export const PLAN_PRICES: Record<PlanOption, { price: number; displayPrice: string }> = {
   "Basic": { price: 8500, displayPrice: "₹8,500" },
   "Standard": { price: 18500, displayPrice: "₹18,500" },
@@ -78,24 +97,111 @@ export default function PaymentModal({
     transactionId: "",
   });
 
-  // Keep state in sync if defaultProgram or defaultPlan props change
+  // Dynamic synchronized prices for all 3 tiers (Basic, Standard, Premium Pro)
+  const [syncedPlanPrices, setSyncedPlanPrices] = useState<Record<PlanOption, { price: number; displayPrice: string }>>(() => {
+    const initial = { ...PLAN_PRICES };
+    if (planPrice) {
+      const parsed = parsePriceValue(planPrice);
+      const targetPlan = normalizePlan(defaultPlan || planName);
+      initial[targetPlan] = parsed;
+    }
+    return initial;
+  });
+
+  // Fetch updated live pricing configurations from server and admin settings
+  const fetchLivePrices = () => {
+    fetch("/api/programs-config")
+      .then((res) => {
+        if (res.ok) return res.json();
+        throw new Error("Failed to load configs");
+      })
+      .then((configs: any[]) => {
+        if (Array.isArray(configs) && configs.length > 0) {
+          const basicCfg = configs.find((c) => c.programKey === "card_basic");
+          const standardCfg = configs.find((c) => c.programKey === "card_standard");
+          const premiumCfg = configs.find((c) => c.programKey === "card_premium");
+
+          setSyncedPlanPrices((prev) => {
+            const updated = { ...prev };
+            if (basicCfg?.currentPrice) {
+              updated["Basic"] = parsePriceValue(basicCfg.currentPrice, 8500);
+            }
+            if (standardCfg?.currentPrice) {
+              updated["Standard"] = parsePriceValue(standardCfg.currentPrice, 18500);
+            }
+            if (premiumCfg?.currentPrice) {
+              updated["Premium Pro"] = parsePriceValue(premiumCfg.currentPrice, 35000);
+            }
+            // If explicit planPrice passed as prop for this instance, prioritize it
+            if (planPrice) {
+              const target = normalizePlan(defaultPlan || planName);
+              updated[target] = parsePriceValue(planPrice, updated[target].price);
+            }
+            return updated;
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn("[PaymentModal] Note: Using default or passed prices:", err);
+      });
+  };
+
   useEffect(() => {
+    fetchLivePrices();
+  }, [planPrice, defaultPlan, planName]);
+
+  // Keep state in sync if defaultProgram or defaultPlan props change, and prefill student profile
+  useEffect(() => {
+    const targetPlan = normalizePlan(defaultPlan || planName);
+    const targetProg = defaultProgram ? normalizeProgram(defaultProgram) : "6-8 Grade Student";
+    
+    // Auto-fill from localStorage if available
+    let autoPhone = "";
+    let autoEmail = "";
+    let autoFirst = "";
+    let autoLast = "";
+
+    try {
+      autoPhone = localStorage.getItem("pehlakadam_student_phone") || "";
+      autoEmail = localStorage.getItem("pehlakadam_student_email") || "";
+      const rawUser = localStorage.getItem("pehlakadam_user");
+      if (rawUser) {
+        const u = JSON.parse(rawUser);
+        if (u.email && !autoEmail) autoEmail = u.email;
+        if (u.name) {
+          const parts = u.name.trim().split(" ");
+          autoFirst = parts[0] || "";
+          autoLast = parts.slice(1).join(" ") || "";
+        }
+      }
+    } catch (e) {}
+
     setFormData((prev) => ({
       ...prev,
-      role: defaultProgram ? normalizeProgram(defaultProgram) : prev.role || "6-8 Grade Student",
-      plan: defaultPlan ? normalizePlan(defaultPlan) : prev.plan || "Basic"
+      firstName: prev.firstName || autoFirst,
+      lastName: prev.lastName || autoLast,
+      email: prev.email || autoEmail,
+      number: prev.number || autoPhone,
+      role: targetProg || prev.role || "6-8 Grade Student",
+      plan: targetPlan || prev.plan || "Basic"
     }));
-  }, [defaultProgram, defaultPlan]);
 
-  const [file, setFile] = useState<File | null>(null);
-  const [fileData, setFileData] = useState<string>("");
-  const [fileName, setFileName] = useState<string>("");
-  const [isDragOver, setIsDragOver] = useState(false);
+    if (planPrice) {
+      const parsed = parsePriceValue(planPrice);
+      setSyncedPlanPrices((prev) => ({
+        ...prev,
+        [targetPlan]: parsed
+      }));
+    }
+  }, [defaultProgram, defaultPlan, planName, planPrice, isOpen]);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [whatsappUrl, setWhatsappUrl] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [copiedUpi, setCopiedUpi] = useState(false);
+  const [copiedAmount, setCopiedAmount] = useState(false);
+  const [utrPastedNotice, setUtrPastedNotice] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
 
   const [shakeFields, setShakeFields] = useState<Record<string, boolean>>({});
@@ -114,8 +220,6 @@ export default function PaymentModal({
     },
     default: { x: 0 }
   };
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [upiId, setUpiId] = useState("nrjstudywrk@okicici");
   const [merchantName, setMerchantName] = useState("Niranjan Singh (Pehlakadam)");
@@ -146,18 +250,13 @@ export default function PaymentModal({
       .catch((err) => console.error("[PaymentModal] Error fetching payment config:", err));
   }, []);
 
-  // 🎯 Compute dynamic pricing details strictly based on Plan Tier selection (Basic, Standard, Premium Pro)
+  // 🎯 Compute dynamically synchronized pricing details based on selected Plan Tier
   const selectedProgram = normalizeProgram(formData.role) || "6-8 Grade Student";
   const selectedPlan = normalizePlan(formData.plan);
 
-  const calculatedPriceInfo = PLAN_PRICES[selectedPlan] || {
-    price: selectedPlan === "Premium Pro" ? 35000 : selectedPlan === "Standard" ? 18500 : 8500,
-    displayPrice: selectedPlan === "Premium Pro" ? "₹35,000" : selectedPlan === "Standard" ? "₹18,500" : "₹8,500"
-  };
-
-  const basePriceStr = calculatedPriceInfo.displayPrice;
-  const numericAmount = calculatedPriceInfo.price;
-  const currentPlanLabel = `${selectedProgram} (${selectedPlan} Plan)`;
+  const currentPlanPricing = syncedPlanPrices[selectedPlan] || PLAN_PRICES[selectedPlan] || { price: 8500, displayPrice: "₹8,500" };
+  const basePriceStr = currentPlanPricing.displayPrice;
+  const numericAmount = currentPlanPricing.price;
 
   // Calculate discounted price if coupon applied
   const effectiveAmount = appliedCoupon ? appliedCoupon.finalPrice : numericAmount;
@@ -201,78 +300,68 @@ export default function PaymentModal({
 
   // 🚀 Generate standard dynamic UPI payload string and real-time QR code
   const upiUri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(merchantName)}&am=${effectiveAmount}&cu=INR&tn=${encodeURIComponent(`Pehlakadam Enrollment - ${selectedProgram} [${selectedPlan}]`)}`;
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(upiUri)}`;
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiUri)}`;
+
+  // Specific UPI App Intent URLs for 100% Free Mobile Automation
+  const gpayUri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(merchantName)}&am=${effectiveAmount}&cu=INR&tn=${encodeURIComponent(`Pehlakadam - ${selectedPlan}`)}`;
+  const phonepeUri = `phonepe://pay?pa=${upiId}&pn=${encodeURIComponent(merchantName)}&am=${effectiveAmount}&cu=INR&tn=${encodeURIComponent(`Pehlakadam - ${selectedPlan}`)}`;
+  const paytmUri = `paytmmp://pay?pa=${upiId}&pn=${encodeURIComponent(merchantName)}&am=${effectiveAmount}&cu=INR&tn=${encodeURIComponent(`Pehlakadam - ${selectedPlan}`)}`;
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => {
-      const updated = { ...prev, [name]: value };
-      // When program or plan changes, reset coupon if active so discount can be recomputed cleanly
-      return updated;
-    });
+    
+    // Auto-extract 12-digit UTR if user pastes an entire bank SMS into the transaction ID field
+    if (name === "transactionId") {
+      const match = value.match(/\b\d{12}\b/);
+      const cleanVal = match ? match[0] : value;
+      setFormData((prev) => ({ ...prev, transactionId: cleanVal }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
+
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
     }
   };
 
+  // Smart Clipboard Paste & Auto-Extract UTR from SMS or Transaction receipt
+  const handleSmartPasteUtr = async () => {
+    try {
+      if (!navigator.clipboard?.readText) {
+        return;
+      }
+      const text = await navigator.clipboard.readText();
+      if (!text) return;
+      
+      // Look for 12-digit UPI reference number, or transaction alphanumeric string
+      const match12 = text.match(/\b\d{12}\b/);
+      const matchAlphaNum = text.match(/(?:UTR|Ref|Txn|Reference|UPI Ref|ID)[:\s#-]*([A-Za-z0-9]{8,24})/i);
+      
+      const extracted = match12 ? match12[0] : (matchAlphaNum ? matchAlphaNum[1] : text.trim().slice(0, 30));
+      
+      if (extracted) {
+        setFormData((prev) => ({ ...prev, transactionId: extracted }));
+        setUtrPastedNotice(true);
+        if (errors.transactionId) {
+          setErrors((prev) => ({ ...prev, transactionId: undefined }));
+        }
+        setTimeout(() => setUtrPastedNotice(false), 2500);
+      }
+    } catch (e) {
+      console.warn("Could not read clipboard:", e);
+    }
+  };
+
   const handleCopyUpi = () => {
     navigator.clipboard.writeText(upiId);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedUpi(true);
+    setTimeout(() => setCopiedUpi(false), 2000);
   };
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      processFile(e.target.files[0]);
-    }
-  };
-
-  const processFile = (selectedFile: File) => {
-    const validTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
-    if (!validTypes.includes(selectedFile.type)) {
-      setSubmitError("Invalid file format. Please upload a PDF, JPEG, or PNG screenshot.");
-      return;
-    }
-    
-    // File size limit: 10MB
-    if (selectedFile.size > 10 * 1024 * 1024) {
-      setSubmitError("File is too large. Max allowed size is 10MB.");
-      return;
-    }
-
-    setSubmitError("");
-    setFile(selectedFile);
-    setFileName(selectedFile.name);
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === "string") {
-        setFileData(reader.result);
-      }
-    };
-    reader.readAsDataURL(selectedFile);
-  };
-
-  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragOver(false);
-  };
-
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      processFile(e.dataTransfer.files[0]);
-    }
-  };
-
-  const triggerFileInput = () => {
-    fileInputRef.current?.click();
+  const handleCopyAmount = () => {
+    navigator.clipboard.writeText(String(effectiveAmount));
+    setCopiedAmount(true);
+    setTimeout(() => setCopiedAmount(false), 2000);
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -281,15 +370,14 @@ export default function PaymentModal({
     setErrors({});
 
     const newErrors: Partial<Record<string, string>> = {};
-    if (!formData.firstName) { newErrors.firstName = "First name is required."; triggerShake("firstName"); }
-    if (!formData.lastName) { newErrors.lastName = "Last name is required."; triggerShake("lastName"); }
-    if (!formData.email) { newErrors.email = "Email is required."; triggerShake("email"); }
+    if (!formData.firstName.trim()) { newErrors.firstName = "First name is required."; triggerShake("firstName"); }
+    if (!formData.lastName.trim()) { newErrors.lastName = "Last name is required."; triggerShake("lastName"); }
+    if (!formData.email.trim()) { newErrors.email = "Email is required."; triggerShake("email"); }
     else if (!formData.email.includes("@")) { newErrors.email = "Please enter a valid email."; triggerShake("email"); }
-    if (!formData.number) { newErrors.number = "Contact number is required."; triggerShake("number"); }
+    if (!formData.number.trim()) { newErrors.number = "Contact number is required."; triggerShake("number"); }
     if (!formData.role) { newErrors.role = "Please select a program."; triggerShake("role"); }
     if (!formData.plan) { newErrors.plan = "Please select a plan."; triggerShake("plan"); }
-    if (!formData.transactionId) { newErrors.transactionId = "Transaction ID / UTR is required."; triggerShake("transactionId"); }
-    if (!fileData) { newErrors.screenshot = "Please upload a payment verification screenshot."; triggerShake("screenshot"); }
+    if (!formData.transactionId.trim()) { newErrors.transactionId = "Transaction ID / UTR is required."; triggerShake("transactionId"); }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -302,13 +390,30 @@ export default function PaymentModal({
 
     try {
       const payload = {
-        ...formData,
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        email: formData.email.trim().toLowerCase(),
+        number: formData.number.trim(),
         role: selectedProgram,
         plan: selectedPlan,
         amount: effectiveAmount,
-        fileData,
-        fileName,
+        transactionId: formData.transactionId.trim(),
+        couponCode: appliedCoupon?.code || "",
+        fileData: "",
+        fileName: "",
       };
+
+      // Save student credentials to local storage for automatic re-entry
+      try {
+        localStorage.setItem("pehlakadam_student_phone", formData.number.trim());
+        localStorage.setItem("pehlakadam_student_email", formData.email.trim().toLowerCase());
+        localStorage.setItem("pehlakadam_user", JSON.stringify({
+          name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
+          email: formData.email.trim().toLowerCase(),
+          number: formData.number.trim(),
+          role: selectedProgram
+        }));
+      } catch (e) {}
 
       const response = await fetch("/api/payment-submit", {
         method: "POST",
@@ -332,23 +437,20 @@ export default function PaymentModal({
           plan: defaultPlan ? normalizePlan(defaultPlan) : "Basic",
           transactionId: "",
         });
-        setFile(null);
-        setFileData("");
-        setFileName("");
 
-        // Keep modal open for 30s to allow them to click WhatsApp trigger
+        // Keep modal open to allow student to click WhatsApp trigger
         setTimeout(() => {
           setIsOpen(false);
           setSubmitSuccess(false);
           setWhatsappUrl("");
-        }, 30000);
+        }, 45000);
       } else {
         const errData = await response.json();
-        setSubmitError(errData.error || "Failed to upload payment proof.");
+        setSubmitError(errData.error || "Failed to upload payment proof. Please verify the details.");
       }
     } catch (error) {
       console.error("Error submitting payment proof:", error);
-      setSubmitError("Failed to connect to server. Please try again.");
+      setSubmitError("Failed to connect to server. Please check your internet connection.");
     } finally {
       setIsSubmitting(false);
     }
@@ -363,7 +465,10 @@ export default function PaymentModal({
     <>
       <button
         id={`open-payment-modal-${planName ? planName.replace(/\s+/g, "-").toLowerCase() : "general"}`}
-        onClick={() => setIsOpen(true)}
+        onClick={() => {
+          fetchLivePrices();
+          setIsOpen(true);
+        }}
         className={buttonClassName || defaultButtonClass}
       >
         <span className="flex items-center gap-2 whitespace-nowrap">
@@ -371,7 +476,6 @@ export default function PaymentModal({
           <span>{buttonText}</span>
         </span>
       </button>
-
 
       {typeof document !== "undefined" && createPortal(
         <AnimatePresence>
@@ -381,7 +485,7 @@ export default function PaymentModal({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[9999] flex items-start justify-center bg-black/85 p-4 py-8 overflow-y-auto backdrop-blur-md"
+              className="fixed inset-0 z-[9999] flex items-start justify-center bg-black/85 p-3 sm:p-4 py-6 sm:py-8 overflow-y-auto backdrop-blur-md"
             >
               <motion.div
                 id="payment-modal-content"
@@ -400,27 +504,27 @@ export default function PaymentModal({
                     setWhatsappUrl("");
                     setSubmitError("");
                   }}
-                  className="absolute right-5 top-5 z-20 text-zinc-400 hover:text-white bg-zinc-800/80 p-1.5 rounded-full hover:bg-zinc-800 transition-colors duration-200"
+                  className="absolute right-5 top-5 z-20 text-zinc-400 hover:text-white bg-zinc-800/80 p-1.5 rounded-full hover:bg-zinc-800 transition-colors duration-200 cursor-pointer"
                   aria-label="Close payment modal"
                 >
                   <X className="h-5 w-5" />
                 </button>
 
                 {submitSuccess ? (
-                  <div id="payment-submit-success" className="flex flex-col items-center justify-center py-16 text-center">
+                  <div id="payment-submit-success" className="flex flex-col items-center justify-center py-12 sm:py-16 text-center">
                     <motion.div
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
                       transition={{ type: "spring", stiffness: 100, delay: 0.1 }}
                     >
-                      <CheckCircle className="h-20 w-20 text-emerald-500 mb-6" />
+                      <CheckCircle className="h-16 w-16 sm:h-20 sm:w-20 text-emerald-500 mb-6" />
                     </motion.div>
-                    <h3 className="text-2xl font-bold tracking-tight mb-2 font-sans">Payment Verification Submitted!</h3>
-                    <p className="text-zinc-400 max-w-sm mb-4 text-sm leading-relaxed">
-                      Your enrollment for <span className="text-emerald-400 font-bold">{selectedProgram} ({selectedPlan})</span> for <span className="text-white font-bold">{effectivePriceStr}</span> has been securely logged.
+                    <h3 className="text-2xl font-bold tracking-tight mb-2 font-sans text-white">Payment Verification Submitted!</h3>
+                    <p className="text-zinc-300 max-w-sm mb-2 text-sm leading-relaxed">
+                      Your enrollment for <span className="text-emerald-400 font-bold">{selectedProgram} ({selectedPlan} Plan)</span> for <span className="text-white font-bold">{effectivePriceStr}</span> has been logged and whitelisted.
                     </p>
-                    <p className="text-zinc-400 max-w-sm mb-8 text-xs leading-relaxed">
-                      Click the button below to notify your career advisor on WhatsApp and fast-track your enrollment approval.
+                    <p className="text-zinc-400 max-w-sm mb-6 text-xs leading-relaxed">
+                      Instant student access is activated! Click below to send direct WhatsApp confirmation to your advisor.
                     </p>
 
                     {whatsappUrl && (
@@ -432,27 +536,37 @@ export default function PaymentModal({
                         initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{ delay: 0.25 }}
-                        className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold py-3.5 px-6 transition-all duration-300 shadow-md shadow-emerald-500/20 hover:scale-[1.02] active:scale-95 cursor-pointer text-sm animate-pulse"
+                        className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold py-3 px-6 transition-all duration-300 shadow-lg shadow-emerald-500/20 hover:scale-[1.02] active:scale-95 cursor-pointer text-sm mb-4"
                       >
                         <MessageSquare className="h-4 w-4" />
-                        Send Payment Confirmation to WhatsApp
+                        Send Payment Confirmation on WhatsApp
                       </motion.a>
                     )}
+
+                    <button
+                      onClick={() => {
+                        setIsOpen(false);
+                        window.location.href = "/student/dashboard";
+                      }}
+                      className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold underline cursor-pointer"
+                    >
+                      Go to Student Dashboard →
+                    </button>
                   </div>
                 ) : (
                   <div id="payment-submit-fields">
                     <div className="mb-6">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2 font-sans">
+                        <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2 font-sans">
                           <CreditCard className="h-6 w-6 text-emerald-500" />
-                          Verify UPI Payment & Enroll
+                          Enrollment & Instant Payment
                         </h2>
-                        <span className="text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                          Live Price Auto-Reflect
+                        <span className="text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+                          <Zap className="h-3 w-3" /> Live Updated Fee: {effectivePriceStr}
                         </span>
                       </div>
                       <p className="text-zinc-400 text-xs sm:text-sm mt-1">
-                        Select your Academic Program and Plan Tier below — the fee and UPI QR dynamically update based on your chosen Plan Tier.
+                        Select your Academic Program and Plan Tier below. The payable amount and UPI QR dynamically update in real time with the latest updated prices.
                       </p>
                     </div>
 
@@ -472,9 +586,9 @@ export default function PaymentModal({
                               name="firstName"
                               value={formData.firstName}
                               onChange={handleChange}
-                              placeholder="John"
+                              placeholder="First Name"
                               required
-                              className={`w-full rounded-xl bg-zinc-850 border px-3.5 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 bg-zinc-800 ${
+                              className={`w-full rounded-xl bg-zinc-800 border px-3.5 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
                                 errors.firstName
                                   ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
                                   : "border-zinc-700/60 focus:ring-emerald-500/30 focus:border-emerald-500"
@@ -493,9 +607,9 @@ export default function PaymentModal({
                               name="lastName"
                               value={formData.lastName}
                               onChange={handleChange}
-                              placeholder="Doe"
+                              placeholder="Last Name"
                               required
-                              className={`w-full rounded-xl bg-zinc-850 border px-3.5 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 bg-zinc-800 ${
+                              className={`w-full rounded-xl bg-zinc-800 border px-3.5 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
                                 errors.lastName
                                   ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
                                   : "border-zinc-700/60 focus:ring-emerald-500/30 focus:border-emerald-500"
@@ -518,9 +632,9 @@ export default function PaymentModal({
                               name="email"
                               value={formData.email}
                               onChange={handleChange}
-                              placeholder="john@example.com"
+                              placeholder="student@example.com"
                               required
-                              className={`w-full rounded-xl bg-zinc-850 border px-3.5 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 bg-zinc-800 ${
+                              className={`w-full rounded-xl bg-zinc-800 border px-3.5 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
                                 errors.email
                                   ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
                                   : "border-zinc-700/60 focus:ring-emerald-500/30 focus:border-emerald-500"
@@ -532,16 +646,16 @@ export default function PaymentModal({
                           </motion.div>
                           <motion.div animate={shakeFields.number ? "shake" : "default"} variants={shakeVariants}>
                             <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1 text-left">
-                              Contact Number
+                              WhatsApp / Mobile No.
                             </label>
                             <input
-                              type="text"
+                              type="tel"
                               name="number"
                               value={formData.number}
                               onChange={handleChange}
-                              placeholder="+91 98765 43210"
+                              placeholder="10-digit number"
                               required
-                              className={`w-full rounded-xl bg-zinc-850 border px-3.5 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 bg-zinc-800 ${
+                              className={`w-full rounded-xl bg-zinc-800 border px-3.5 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 ${
                                 errors.number
                                   ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
                                   : "border-zinc-700/60 focus:ring-emerald-500/30 focus:border-emerald-500"
@@ -553,7 +667,7 @@ export default function PaymentModal({
                           </motion.div>
                         </div>
 
-                        {/* 3. Program & Plan Tier Selection Dropdowns (Auto Reflects Price) */}
+                        {/* 3. Program & Plan Tier Selection Dropdowns (Live Synchronized) */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {/* Program Selection */}
                           <motion.div animate={shakeFields.role ? "shake" : "default"} variants={shakeVariants}>
@@ -566,32 +680,32 @@ export default function PaymentModal({
                               value={formData.role}
                               onChange={handleChange}
                               required
-                              className={`w-full rounded-xl bg-zinc-850 border px-3.5 py-2 text-xs sm:text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 bg-zinc-800 ${
+                              className={`w-full rounded-xl bg-zinc-800 border px-3 py-2 text-xs sm:text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 ${
                                 errors.role
                                   ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
                                   : "border-zinc-700/60 focus:ring-emerald-500/30 focus:border-emerald-500"
                               }`}
                             >
-                              <option value="Primary Kudos" className="bg-zinc-800 text-white">Primary Kudos</option>
-                              <option value="6-8 Grade Student" className="bg-zinc-800 text-white">6-8 Grade Student</option>
-                              <option value="8-10 Grade Student" className="bg-zinc-800 text-white">8-10 Grade Student</option>
-                              <option value="11-12 Grade Student" className="bg-zinc-800 text-white">11-12 Grade Student</option>
-                              <option value="UG/Graduate/PG" className="bg-zinc-800 text-white">UG/Graduate/PG</option>
-                              <option value="Generalist to Specialist" className="bg-zinc-800 text-white">Generalist to Specialist</option>
+                              <option value="Primary Kudos">Primary Kudos</option>
+                              <option value="6-8 Grade Student">6-8 Grade Student</option>
+                              <option value="8-10 Grade Student">8-10 Grade Student</option>
+                              <option value="11-12 Grade Student">11-12 Grade Student</option>
+                              <option value="UG/Graduate/PG">UG/Graduate/PG</option>
+                              <option value="Generalist to Specialist">Generalist to Specialist</option>
                             </select>
                             {errors.role && (
                               <p className="mt-1 text-[10px] text-red-500 font-semibold text-left">{errors.role}</p>
                             )}
                           </motion.div>
 
-                          {/* Plan Dropdown (Basic, Standard, Premium Pro) */}
+                          {/* Plan Dropdown with Live Synchronized Price labels */}
                           <motion.div animate={shakeFields.plan ? "shake" : "default"} variants={shakeVariants}>
                             <label className="block text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-1 text-left flex items-center justify-between">
                               <span className="flex items-center gap-1">
                                 <Sparkles className="h-3 w-3 text-emerald-400" />
                                 Plan Tier
                               </span>
-                              <span className="text-[9px] text-emerald-400/80 font-normal">Auto-Reflects</span>
+                              <span className="text-[9px] text-emerald-400 font-medium">Live Synced</span>
                             </label>
                             <select
                               id="payment-plan-dropdown"
@@ -599,15 +713,21 @@ export default function PaymentModal({
                               value={formData.plan}
                               onChange={handleChange}
                               required
-                              className={`w-full rounded-xl bg-zinc-850 border border-emerald-500/50 px-3.5 py-2 text-xs sm:text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 bg-zinc-800 font-bold ${
+                              className={`w-full rounded-xl bg-zinc-800 border border-emerald-500/50 px-3 py-2 text-xs sm:text-sm text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 font-bold ${
                                 errors.plan
                                   ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
                                   : ""
                               }`}
                             >
-                              <option value="Basic" className="bg-zinc-800 text-white">Basic</option>
-                              <option value="Standard" className="bg-zinc-800 text-white">Standard</option>
-                              <option value="Premium Pro" className="bg-zinc-800 text-white">Premium Pro</option>
+                              <option value="Basic">
+                                Basic Plan ({syncedPlanPrices["Basic"]?.displayPrice || "₹8,500"})
+                              </option>
+                              <option value="Standard">
+                                Standard Plan ({syncedPlanPrices["Standard"]?.displayPrice || "₹18,500"})
+                              </option>
+                              <option value="Premium Pro">
+                                Premium Pro ({syncedPlanPrices["Premium Pro"]?.displayPrice || "₹35,000"})
+                              </option>
                             </select>
                             {errors.plan && (
                               <p className="mt-1 text-[10px] text-red-500 font-semibold text-left">{errors.plan}</p>
@@ -615,19 +735,30 @@ export default function PaymentModal({
                           </motion.div>
                         </div>
 
-                        {/* 4. UPI Transaction ID / Ref No */}
+                        {/* 4. UPI Transaction ID with Smart Paste & Auto-Detection */}
                         <motion.div animate={shakeFields.transactionId ? "shake" : "default"} variants={shakeVariants}>
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1 text-left">
-                            UPI Transaction ID / Ref / UTR No
-                          </label>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 text-left">
+                              UPI Transaction ID / 12-Digit UTR
+                            </label>
+                            <button
+                              type="button"
+                              onClick={handleSmartPasteUtr}
+                              className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 cursor-pointer bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded-md border border-emerald-500/20 transition-colors"
+                              title="Paste from clipboard and auto-detect 12-digit UTR"
+                            >
+                              <ClipboardPaste className="h-3 w-3" />
+                              {utrPastedNotice ? "Pasted!" : "Paste & Detect UTR"}
+                            </button>
+                          </div>
                           <input
                             type="text"
                             name="transactionId"
                             value={formData.transactionId}
                             onChange={handleChange}
-                            placeholder="TXN1234567890 / 412389128392"
+                            placeholder="e.g. 412389128392 or TXN123456789"
                             required
-                            className={`w-full rounded-xl bg-zinc-850 border px-3.5 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 bg-zinc-800 ${
+                            className={`w-full rounded-xl bg-zinc-800 border px-3.5 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 font-mono ${
                               errors.transactionId
                                 ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
                                 : "border-zinc-700/60 focus:ring-emerald-500/30 focus:border-emerald-500"
@@ -641,7 +772,7 @@ export default function PaymentModal({
                         {/* 5. 🎟️ Coupon Code Discount Section */}
                         <div className="bg-zinc-850/80 p-3 rounded-2xl border border-zinc-700/80 space-y-2">
                           <label className="block text-[10px] font-bold uppercase tracking-wider text-emerald-400 text-left">
-                            Have a Coupon Code?
+                            Have a Promo / Coupon Code?
                           </label>
 
                           {appliedCoupon ? (
@@ -664,7 +795,7 @@ export default function PaymentModal({
                                 type="text"
                                 value={couponInput}
                                 onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                                placeholder="ENTER COUPON CODE"
+                                placeholder="ENTER CODE (e.g. PEHLA50)"
                                 className="flex-1 rounded-xl bg-zinc-800 border border-zinc-700 px-3 py-1.5 text-xs uppercase font-mono text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
                               />
                               <button
@@ -683,58 +814,6 @@ export default function PaymentModal({
                           )}
                         </div>
 
-                        {/* 6. Screenshot Drag and Drop Upload Zone */}
-                        <motion.div animate={shakeFields.screenshot ? "shake" : "default"} variants={shakeVariants}>
-                          <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5 text-left">
-                            Upload Payment Receipt Screenshot
-                          </label>
-                          <div
-                            id="payment-drag-drop-zone"
-                            onDragOver={handleDragOver}
-                            onDragLeave={handleDragLeave}
-                            onDrop={handleDrop}
-                            onClick={triggerFileInput}
-                            className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed py-4 px-4 text-center cursor-pointer transition-all duration-200 ${
-                              isDragOver
-                                ? "border-emerald-500 bg-emerald-500/10 text-white"
-                                : errors.screenshot
-                                ? "border-red-500/80 bg-red-50/5 text-red-500 font-semibold"
-                                : fileName
-                                ? "border-emerald-500/50 bg-zinc-800/40 text-emerald-400"
-                                : "border-zinc-700/80 bg-zinc-800/60 hover:border-zinc-600 text-zinc-400 hover:bg-zinc-800"
-                            }`}
-                          >
-                            <input
-                              type="file"
-                              ref={fileInputRef}
-                              onChange={handleFileChange}
-                              accept=".pdf, .jpeg, .jpg, .png"
-                              className="hidden"
-                            />
-                            
-                            {fileName ? (
-                              <div className="flex flex-col items-center">
-                                {file?.type === "application/pdf" ? (
-                                  <FileText className="h-7 w-7 text-emerald-500 mb-1" />
-                                ) : (
-                                  <ImageIcon className="h-7 w-7 text-emerald-500 mb-1" />
-                                )}
-                                <p className="text-xs font-semibold text-white truncate max-w-xs">{fileName}</p>
-                                <p className="text-[10px] text-zinc-400 mt-0.5">Click or drag another file to replace</p>
-                              </div>
-                            ) : (
-                              <div className="flex flex-col items-center">
-                                <Upload className="h-6 w-6 text-zinc-500 mb-1" />
-                                <p className="text-xs font-semibold text-zinc-300">Click or Drag & Drop screenshot</p>
-                                <p className="text-[10px] text-zinc-500 mt-0.5">Supports PDF, JPEG, PNG formats (Max 10MB)</p>
-                              </div>
-                            )}
-                          </div>
-                          {errors.screenshot && (
-                            <p className="mt-1 text-[10px] text-red-500 font-semibold text-left">{errors.screenshot}</p>
-                          )}
-                        </motion.div>
-
                         {submitError && (
                           <p id="payment-error-msg" className="text-red-400 text-xs font-medium">
                             {submitError}
@@ -745,29 +824,29 @@ export default function PaymentModal({
                           id="submit-payment-modal-btn"
                           type="submit"
                           disabled={isSubmitting}
-                          className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 transition-all duration-200 shadow-md hover:shadow-emerald-500/20 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-55 flex items-center justify-center gap-2 text-sm cursor-pointer"
+                          className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 transition-all duration-200 shadow-md hover:shadow-emerald-500/20 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-55 flex items-center justify-center gap-2 text-sm cursor-pointer"
                         >
-                          {isSubmitting ? "Uploading details..." : `Submit & Request Enrollment (${effectivePriceStr})`}
+                          {isSubmitting ? "Activating Enrollment..." : `Confirm & Submit Enrollment (${effectivePriceStr})`}
                         </button>
                       </form>
 
-                      {/* Right Column: Secure UPI Details Container */}
-                      <div className="md:col-span-5 bg-zinc-950/50 rounded-2xl border border-zinc-800/80 p-4 sm:p-5 flex flex-col items-center text-center">
-                        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 px-2.5 py-1 rounded-full mb-2.5 uppercase tracking-widest">
-                          <Shield className="h-3.5 w-3.5 text-emerald-400" /> Secure UPI Gateway
+                      {/* Right Column: Secure UPI Details Container with 1-Click App Launchers */}
+                      <div className="md:col-span-5 bg-zinc-950/60 rounded-2xl border border-zinc-800/80 p-4 sm:p-5 flex flex-col items-center text-center">
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 px-2.5 py-0.5 rounded-full mb-2 uppercase tracking-widest">
+                          <Shield className="h-3.5 w-3.5 text-emerald-400" /> Free UPI Direct Gateway
                         </span>
 
-                        <p className="text-[11px] text-zinc-400 font-medium">Dynamic Total Fee</p>
+                        <p className="text-[11px] text-zinc-400 font-medium">Synchronized Payable Amount</p>
                         {appliedCoupon ? (
                           <div className="mt-0.5 mb-0.5">
                             <span className="text-xs font-semibold text-zinc-500 line-through mr-2">{basePriceStr}</span>
-                            <span className="text-3xl font-black text-emerald-400 font-sans tracking-tight">{effectivePriceStr}</span>
+                            <span className="text-2xl sm:text-3xl font-black text-emerald-400 font-sans tracking-tight">{effectivePriceStr}</span>
                           </div>
                         ) : (
-                          <h3 className="text-3xl font-black text-white font-sans mt-0.5 mb-0.5 tracking-tight">{effectivePriceStr}</h3>
+                          <h3 className="text-2xl sm:text-3xl font-black text-white font-sans mt-0.5 mb-0.5 tracking-tight">{effectivePriceStr}</h3>
                         )}
                         
-                        <div className="flex items-center gap-1.5 flex-wrap justify-center mb-3">
+                        <div className="flex items-center gap-1.5 flex-wrap justify-center mb-2.5">
                           <span className="text-[10px] font-bold text-zinc-300 bg-zinc-800 px-2 py-0.5 rounded-md">
                             {selectedProgram}
                           </span>
@@ -777,12 +856,12 @@ export default function PaymentModal({
                         </div>
 
                         {/* Interactive QR Code scan area */}
-                        <div className="relative bg-white p-2.5 rounded-2xl shadow-lg border border-zinc-800 mb-3 inline-block group overflow-hidden">
+                        <div className="relative bg-white p-2.5 rounded-2xl shadow-lg border border-zinc-800 mb-2.5 inline-block group overflow-hidden">
                           <img
-                            key={qrCodeUrl}
+                            key={`${qrCodeUrl}-${effectiveAmount}`}
                             src={qrCodeUrl}
-                            alt="Secure UPI QR Code"
-                            className="h-[140px] w-[140px] block transition-transform duration-300 group-hover:scale-105"
+                            alt="Dynamic UPI QR Code"
+                            className="h-[135px] w-[135px] block transition-transform duration-300 group-hover:scale-105"
                           />
                           <div className="absolute inset-0 bg-emerald-950/5 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300">
                             <QrCode className="h-8 w-8 text-emerald-600 animate-pulse bg-white/90 p-1.5 rounded-full shadow" />
@@ -790,39 +869,80 @@ export default function PaymentModal({
                         </div>
 
                         <p className="text-[10px] text-zinc-400 max-w-xs leading-relaxed mb-3">
-                          Scan using GPay, PhonePe, Paytm, BHIM, Cred or any bank UPI app.
+                          Scan using GPay, PhonePe, Paytm, BHIM, CRED or any mobile banking app.
                         </p>
 
-                        {/* UPI Deep-link for mobile visitors */}
-                        <a
-                          id="upi-deeplink-action"
-                          href={upiUri}
-                          className="w-full inline-flex items-center justify-center gap-2 text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-emerald-400 border border-zinc-700 py-2.5 px-4 rounded-xl shadow-sm transition-all duration-200 active:scale-95 mb-3 text-center"
-                        >
-                          <Phone className="h-3.5 w-3.5 text-emerald-400" />
-                          Pay {effectivePriceStr} with UPI App
-                        </a>
+                        {/* ⚡ 1-Click Automated UPI App Launchers (100% Free Mobile Protocol) */}
+                        <div className="w-full space-y-2 mb-3">
+                          <a
+                            id="upi-deeplink-action-main"
+                            href={upiUri}
+                            className="w-full inline-flex items-center justify-center gap-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 px-3 rounded-xl shadow-md transition-all duration-200 active:scale-95 text-center cursor-pointer"
+                          >
+                            <Smartphone className="h-4 w-4" />
+                            Pay {effectivePriceStr} in 1-Click (Any UPI)
+                          </a>
+
+                          <div className="grid grid-cols-3 gap-1.5">
+                            <a
+                              href={gpayUri}
+                              className="inline-flex items-center justify-center py-1.5 px-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-[10px] font-bold text-zinc-200 hover:text-white transition-colors"
+                              title="Open Google Pay with pre-filled amount"
+                            >
+                              GPay
+                            </a>
+                            <a
+                              href={phonepeUri}
+                              className="inline-flex items-center justify-center py-1.5 px-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-[10px] font-bold text-purple-300 hover:text-white transition-colors"
+                              title="Open PhonePe with pre-filled amount"
+                            >
+                              PhonePe
+                            </a>
+                            <a
+                              href={paytmUri}
+                              className="inline-flex items-center justify-center py-1.5 px-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-[10px] font-bold text-sky-300 hover:text-white transition-colors"
+                              title="Open Paytm with pre-filled amount"
+                            >
+                              Paytm
+                            </a>
+                          </div>
+                        </div>
 
                         {/* Text copyable details */}
-                        <div className="w-full space-y-2 border-t border-zinc-800/80 pt-3 text-left">
-                          <div>
-                            <span className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">UPI ID Address</span>
-                            <div className="flex items-center justify-between bg-zinc-900/80 px-3 py-1.5 rounded-lg border border-zinc-800/50 mt-1">
+                        <div className="w-full space-y-1.5 border-t border-zinc-800/80 pt-2.5 text-left text-xs">
+                          <div className="flex items-center justify-between bg-zinc-900/80 px-2.5 py-1 rounded-lg border border-zinc-800/50">
+                            <div>
+                              <span className="block text-[9px] font-semibold text-zinc-500 uppercase">UPI ID</span>
                               <code className="text-xs font-mono text-emerald-400 select-all">{upiId}</code>
-                              <button
-                                type="button"
-                                onClick={handleCopyUpi}
-                                className="text-zinc-400 hover:text-white transition-colors p-1"
-                                title="Copy UPI ID"
-                              >
-                                {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                              </button>
                             </div>
+                            <button
+                              type="button"
+                              onClick={handleCopyUpi}
+                              className="text-zinc-400 hover:text-white transition-colors p-1 cursor-pointer"
+                              title="Copy UPI ID"
+                            >
+                              {copiedUpi ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                            </button>
                           </div>
 
-                          <div className="flex items-baseline justify-between text-xs pt-0.5">
-                            <span className="text-zinc-500 text-[11px]">Payee:</span>
-                            <span className="text-zinc-300 font-medium text-[11px] truncate max-w-[150px]">{merchantName}</span>
+                          <div className="flex items-center justify-between bg-zinc-900/80 px-2.5 py-1 rounded-lg border border-zinc-800/50">
+                            <div>
+                              <span className="block text-[9px] font-semibold text-zinc-500 uppercase">Exact Amount</span>
+                              <span className="text-xs font-mono text-white font-bold">{effectivePriceStr}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleCopyAmount}
+                              className="text-zinc-400 hover:text-white transition-colors p-1 cursor-pointer"
+                              title="Copy Exact Amount"
+                            >
+                              {copiedAmount ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                            </button>
+                          </div>
+
+                          <div className="flex items-baseline justify-between text-[10px] pt-1 text-zinc-400">
+                            <span>Verified Payee:</span>
+                            <span className="text-zinc-200 font-medium truncate max-w-[160px]">{merchantName}</span>
                           </div>
                         </div>
 
@@ -840,3 +960,4 @@ export default function PaymentModal({
     </>
   );
 }
+

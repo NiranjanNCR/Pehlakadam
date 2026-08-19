@@ -1,8 +1,8 @@
-import React, { useState, useEffect, ChangeEvent, FormEvent, DragEvent, useRef } from "react";
+import React, { useState, useEffect, ChangeEvent, FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { 
   X, Sparkles, CheckCircle2, ShieldCheck, Copy, Check, 
-  Upload, FileText, ImageIcon, QrCode, Phone, BookOpen, AlertCircle, ArrowRight, MessageSquare
+  QrCode, Phone, BookOpen, AlertCircle, ArrowRight, MessageSquare
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Course } from "../types";
@@ -43,12 +43,6 @@ export default function CourseCheckoutModal({
   const [couponError, setCouponError] = useState("");
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
 
-  // Screenshot upload state
-  const [file, setFile] = useState<File | null>(null);
-  const [fileData, setFileData] = useState<string>("");
-  const [fileName, setFileName] = useState<string>("");
-  const [isDragOver, setIsDragOver] = useState(false);
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [enrollSuccessData, setEnrollSuccessData] = useState<{
@@ -59,8 +53,6 @@ export default function CourseCheckoutModal({
     tier: string;
     whatsappUrl?: string;
   } | null>(null);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch UPI configs
   useEffect(() => {
@@ -158,36 +150,6 @@ export default function CourseCheckoutModal({
     setCouponError("");
   };
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      processFile(e.target.files[0]);
-    }
-  };
-
-  const processFile = (selectedFile: File) => {
-    const validTypes = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
-    if (!validTypes.includes(selectedFile.type)) {
-      setSubmitError("Please upload a PDF or image (JPEG, PNG) receipt screenshot.");
-      return;
-    }
-    if (selectedFile.size > 10 * 1024 * 1024) {
-      setSubmitError("File is too large. Max allowed size is 10MB.");
-      return;
-    }
-
-    setSubmitError("");
-    setFile(selectedFile);
-    setFileName(selectedFile.name);
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === "string") {
-        setFileData(reader.result);
-      }
-    };
-    reader.readAsDataURL(selectedFile);
-  };
-
   const handleSubmitEnrollment = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitError("");
@@ -225,8 +187,8 @@ export default function CourseCheckoutModal({
         amount: effectivePrice,
         transactionId: formData.transactionId.trim(),
         couponCode: appliedCoupon?.code || "",
-        fileName: fileName || "",
-        fileData: fileData || ""
+        fileName: "",
+        fileData: ""
       };
 
       const res = await fetch("/api/courses/enroll", {
@@ -468,47 +430,6 @@ export default function CourseCheckoutModal({
                           </div>
                         )}
                         {couponError && <p className="text-red-400 text-[10px]">{couponError}</p>}
-                      </div>
-
-                      {/* Optional Receipt Screenshot Upload */}
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">
-                          Payment Screenshot (Optional / For Faster Verification)
-                        </label>
-                        <div
-                          onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-                          onDragLeave={(e) => { e.preventDefault(); setIsDragOver(false); }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            setIsDragOver(false);
-                            if (e.dataTransfer.files?.[0]) processFile(e.dataTransfer.files[0]);
-                          }}
-                          onClick={() => fileInputRef.current?.click()}
-                          className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed py-3 px-4 text-center cursor-pointer transition-all ${
-                            isDragOver ? "border-emerald-500 bg-emerald-500/10" :
-                            fileName ? "border-emerald-500/40 bg-zinc-900" :
-                            "border-zinc-800 bg-zinc-900/50 hover:border-zinc-700"
-                          }`}
-                        >
-                          <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleFileChange}
-                            accept=".pdf, .jpeg, .jpg, .png"
-                            className="hidden"
-                          />
-                          {fileName ? (
-                            <div className="flex items-center gap-2 text-emerald-400 text-xs">
-                              <CheckCircle2 className="h-4 w-4" />
-                              <span className="font-semibold truncate max-w-xs">{fileName}</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2 text-zinc-400 text-xs">
-                              <Upload className="h-4 w-4 text-zinc-500" />
-                              <span>Click or Drag & drop receipt image/PDF</span>
-                            </div>
-                          )}
-                        </div>
                       </div>
 
                       {submitError && (
