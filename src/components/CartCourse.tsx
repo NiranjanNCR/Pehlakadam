@@ -21,8 +21,15 @@ export default function CartCourse() {
     setVideoUrl("");
   };
 
-  useEffect(() => {
-    fetch("/api/programs-config")
+  const loadConfigs = () => {
+    fetch(`/api/programs-config?_t=${Date.now()}`, {
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
+      }
+    })
       .then((res) => {
         if (res.ok) return res.json();
         throw new Error("Failed to load configs");
@@ -35,6 +42,42 @@ export default function CartCourse() {
         console.error("Error loading pricing card configs:", err);
         setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    // Immediate fetch on mount
+    loadConfigs();
+
+    // Listen for custom event triggered upon admin update
+    const handleConfigUpdated = () => {
+      loadConfigs();
+    };
+
+    // Listen for storage events across tabs
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "pehlakadam_programs_config_timestamp") {
+        loadConfigs();
+      }
+    };
+
+    // Refresh when user returns to tab
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        loadConfigs();
+      }
+    };
+
+    window.addEventListener("pehlakadam_programs_config_updated", handleConfigUpdated);
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleConfigUpdated);
+
+    return () => {
+      window.removeEventListener("pehlakadam_programs_config_updated", handleConfigUpdated);
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleConfigUpdated);
+    };
   }, []);
 
   const getCardDetails = (

@@ -24,7 +24,14 @@ export default function ProgramMediaSection({ programKey }: ProgramMediaSectionP
   useEffect(() => {
     async function fetchConfig() {
       try {
-        const response = await fetch("/api/programs-config");
+        const response = await fetch(`/api/programs-config?_t=${Date.now()}`, {
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+          }
+        });
         if (response.ok) {
           const data = await response.json();
           const match = data.find((c: any) => c.programKey === programKey);
@@ -39,6 +46,15 @@ export default function ProgramMediaSection({ programKey }: ProgramMediaSectionP
       }
     }
     fetchConfig();
+
+    const handleUpdate = () => {
+      fetchConfig();
+    };
+
+    window.addEventListener("pehlakadam_programs_config_updated", handleUpdate);
+    return () => {
+      window.removeEventListener("pehlakadam_programs_config_updated", handleUpdate);
+    };
   }, [programKey]);
 
   // View brochure in secure PDF viewer modal

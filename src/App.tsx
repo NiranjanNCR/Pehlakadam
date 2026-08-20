@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useEffect } from "react";
+import ScrollToTop from "./components/ScrollToTop";
 import Home from "./components/page/Home";
 import About from "./components/page/About";
 import Explore from "./components/page/Explore";
@@ -55,6 +56,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <div id="pehlakadam-app-root" className="flex flex-col min-h-screen">
         <AnnouncementBanner />
         <Routes>

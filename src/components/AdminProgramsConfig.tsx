@@ -169,6 +169,10 @@ export default function AdminProgramsConfig({ configs, onRefresh }: AdminProgram
 
       if (response.ok) {
         setSuccessStates(prev => ({ ...prev, [programKey]: true }));
+        try {
+          localStorage.setItem("pehlakadam_programs_config_timestamp", Date.now().toString());
+          window.dispatchEvent(new CustomEvent("pehlakadam_programs_config_updated", { detail: { programKey } }));
+        } catch (e) {}
         onRefresh(); // Pull refreshed data
         setTimeout(() => {
           setSuccessStates(prev => ({ ...prev, [programKey]: false }));

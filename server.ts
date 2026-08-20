@@ -2146,6 +2146,10 @@ app.delete("/api/payments/:id", verifyAdmin, async (req, res) => {
 // =========================================================================================
 app.get("/api/programs-config", async (req, res) => {
   try {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+
     const keys = ["6-8", "9-10", "11-12", "graduate", "kudos", "generalist", "card_basic", "card_standard", "card_premium"];
     const defaults: Record<string, any> = {
       "6-8": { programKey: "6-8", brochureUrl: "", brochureFileName: "", brochureFileData: "", videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ" },
@@ -2161,7 +2165,7 @@ app.get("/api/programs-config", async (req, res) => {
         subtitle: "For Right Subjects & Insights",
         originalPrice: "₹15,000",
         currentPrice: "₹8,500",
-        features: "Intro session\n1 Counselling Session\nDetailed Career Report\nCareer Path Recommendation\nAccess Career bank\n1 Follow up Call\nCollege & Courses"
+        features: "Intro session\n1 Counselling Session\nDetailed Career Report\nCareer Path Recommendation\nAccess Career bank\n1 Follow up Call\nCollege & Courses\n- Psychologist session"
       },
       "card_standard": {
         programKey: "card_standard",
@@ -2170,7 +2174,7 @@ app.get("/api/programs-config", async (req, res) => {
         subtitle: "For Optimal Career Decisions",
         originalPrice: "₹25,000",
         currentPrice: "₹18,500",
-        features: "Intro session\n2 Counselling Sessions\nDetailed Career Report\nCareer Path Recommendation\nAccess Career bank\n2 Follow up Calls\nCollege & Courses"
+        features: "Intro session\n2 Counselling Sessions\nDetailed Career Report\nCareer Path Recommendation\nAccess Career bank\n2 Follow up Calls\nCollege & Courses\n- Psychologist session"
       },
       "card_premium": {
         programKey: "card_premium",
@@ -2185,28 +2189,31 @@ app.get("/api/programs-config", async (req, res) => {
 
     let rawConfigs: any[] = [];
     if (isMongoConnected) {
-      rawConfigs = await ProgramConfigModel.find();
-    } else {
-      rawConfigs = JSON.parse(fs.readFileSync(PROGRAMS_CONFIG_FILE, "utf-8"));
+      const docs = await ProgramConfigModel.find();
+      rawConfigs = docs.map(d => d.toObject ? d.toObject() : d);
+    } else if (fs.existsSync(PROGRAMS_CONFIG_FILE)) {
+      try {
+        rawConfigs = JSON.parse(fs.readFileSync(PROGRAMS_CONFIG_FILE, "utf-8"));
+      } catch (e) {
+        rawConfigs = [];
+      }
     }
 
     // Merge raw database configs with defaults
-    const merged = [...rawConfigs];
+    const resultConfigs: any[] = [];
     keys.forEach((key) => {
-      const idx = merged.findIndex((c) => c.programKey === key);
-      if (idx === -1) {
-        merged.push(defaults[key]);
+      const found = rawConfigs.find((c) => c.programKey === key);
+      if (!found) {
+        resultConfigs.push(defaults[key]);
       } else {
-        // Ensure standard keys also have default fields populated if blank
-        const dbVal = isMongoConnected ? merged[idx].toObject() : merged[idx];
-        merged[idx] = {
+        resultConfigs.push({
           ...defaults[key],
-          ...dbVal
-        };
+          ...found
+        });
       }
     });
 
-    return res.status(200).json(merged);
+    return res.status(200).json(resultConfigs);
   } catch (error) {
     console.error("[Pehlakadam API] Error reading program configs:", error);
     return res.status(500).json({ error: "Failed to fetch program configurations" });
@@ -2224,53 +2231,57 @@ app.post("/api/programs-config/update", verifyAdmin, async (req, res) => {
       return res.status(400).json({ error: "programKey is required" });
     }
 
+    const payload = {
+      programKey,
+      brochureUrl: brochureUrl || "",
+      brochureFileName: brochureFileName || "",
+      brochureFileData: brochureFileData || "",
+      videoUrl: videoUrl || "",
+      title: title || "",
+      subtitle: subtitle || "",
+      originalPrice: originalPrice || "",
+      currentPrice: currentPrice || "",
+      features: features || "",
+      updatedAt: new Date()
+    };
+
+    // 1. Always update MongoDB if available
+    let updatedDoc: any = null;
     if (isMongoConnected) {
-      const updated = await ProgramConfigModel.findOneAndUpdate(
+      updatedDoc = await ProgramConfigModel.findOneAndUpdate(
         { programKey },
-        {
-          brochureUrl: brochureUrl || "",
-          brochureFileName: brochureFileName || "",
-          brochureFileData: brochureFileData || "",
-          videoUrl: videoUrl || "",
-          title: title || "",
-          subtitle: subtitle || "",
-          originalPrice: originalPrice || "",
-          currentPrice: currentPrice || "",
-          features: features || "",
-          updatedAt: new Date()
-        },
+        payload,
         { new: true, upsert: true }
       );
       console.log(`[Pehlakadam MongoDB] Updated program config for ${programKey}`);
-      return res.status(200).json({ success: true, config: updated });
-    } else {
-      const configs = JSON.parse(fs.readFileSync(PROGRAMS_CONFIG_FILE, "utf-8"));
-      const idx = configs.findIndex((c: any) => c.programKey === programKey);
-      
-      const newConfig = {
-        programKey,
-        brochureUrl: brochureUrl || "",
-        brochureFileName: brochureFileName || "",
-        brochureFileData: brochureFileData || "",
-        videoUrl: videoUrl || "",
-        title: title || "",
-        subtitle: subtitle || "",
-        originalPrice: originalPrice || "",
-        currentPrice: currentPrice || "",
-        features: features || "",
-        updatedAt: new Date().toISOString()
-      };
-
-      if (idx !== -1) {
-        configs[idx] = newConfig;
-      } else {
-        configs.push(newConfig);
-      }
-
-      fs.writeFileSync(PROGRAMS_CONFIG_FILE, JSON.stringify(configs, null, 2));
-      console.log(`[Pehlakadam JSON] Updated program config for ${programKey}`);
-      return res.status(200).json({ success: true, config: newConfig });
     }
+
+    // 2. Always update flat JSON file simultaneously for instant sync
+    let fileConfigs: any[] = [];
+    try {
+      if (fs.existsSync(PROGRAMS_CONFIG_FILE)) {
+        fileConfigs = JSON.parse(fs.readFileSync(PROGRAMS_CONFIG_FILE, "utf-8"));
+      }
+    } catch (e) {
+      fileConfigs = [];
+    }
+
+    const idx = fileConfigs.findIndex((c: any) => c.programKey === programKey);
+    const jsonItem = {
+      ...payload,
+      updatedAt: new Date().toISOString()
+    };
+
+    if (idx !== -1) {
+      fileConfigs[idx] = jsonItem;
+    } else {
+      fileConfigs.push(jsonItem);
+    }
+
+    fs.writeFileSync(PROGRAMS_CONFIG_FILE, JSON.stringify(fileConfigs, null, 2));
+    console.log(`[Pehlakadam JSON] Updated program config for ${programKey}`);
+
+    return res.status(200).json({ success: true, config: updatedDoc || jsonItem });
   } catch (error) {
     console.error("[Pehlakadam API] Error updating program config:", error);
     return res.status(500).json({ error: "Failed to update program configuration" });

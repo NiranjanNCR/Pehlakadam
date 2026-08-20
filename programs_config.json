@@ -1,0 +1,71 @@
+[
+  {
+    "programKey": "6-8",
+    "brochureUrl": "",
+    "brochureFileName": "",
+    "brochureFileData": "",
+    "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ"
+  },
+  {
+    "programKey": "9-10",
+    "brochureUrl": "",
+    "brochureFileName": "",
+    "brochureFileData": "",
+    "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ"
+  },
+  {
+    "programKey": "11-12",
+    "brochureUrl": "",
+    "brochureFileName": "",
+    "brochureFileData": "",
+    "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ"
+  },
+  {
+    "programKey": "graduate",
+    "brochureUrl": "",
+    "brochureFileName": "",
+    "brochureFileData": "",
+    "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ"
+  },
+  {
+    "programKey": "kudos",
+    "brochureUrl": "",
+    "brochureFileName": "",
+    "brochureFileData": "",
+    "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ"
+  },
+  {
+    "programKey": "generalist",
+    "brochureUrl": "",
+    "brochureFileName": "",
+    "brochureFileData": "",
+    "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ"
+  },
+  {
+    "programKey": "card_basic",
+    "videoUrl": "https://www.youtube.com/embed/WfvZ2NsThws?si=dhmxlQYloLZYa08Q",
+    "title": "Basic Career Success",
+    "subtitle": "For Right Subjects & Insights",
+    "originalPrice": "₹15,000",
+    "currentPrice": "₹8,500",
+    "features": "Intro session\n1 Counselling Session\nDetailed Career Report\nCareer Path Recommendation\nAccess Career bank\n1 Follow up Call\nCollege & Courses\n- Psychologist session"
+  },
+  {
+    "programKey": "card_standard",
+    "videoUrl": "https://www.youtube.com/embed/WfvZ2NsThws?si=dhmxlQYloLZYa08Q",
+    "title": "Advanced Career Success",
+    "subtitle": "For Optimal Career Decisions",
+    "originalPrice": "₹25,000",
+    "currentPrice": "₹18,500",
+    "features": "Intro session\n2 Counselling Sessions\nDetailed Career Report\nCareer Path Recommendation\nAccess Career bank\n2 Follow up Calls\nCollege & Courses\n- Psychologist session"
+  },
+  {
+    "programKey": "card_premium",
+    "videoUrl": "https://www.youtube.com/embed/WfvZ2NsThws?si=dhmxlQYloLZYa08Q",
+    "title": "Full Career Coaching",
+    "subtitle": "Complete Personal Excellence",
+    "originalPrice": "₹45,000",
+    "currentPrice": "₹35,000",
+    "features": "Intro session\n3+ Counselling Sessions\nDetailed Career Report\nCareer Path Recommendation\nAccess Career bank\nUnlimited Follow up Calls\nCollege & Courses / Admissions\nPsychologist session"
+  }
+]
