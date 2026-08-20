@@ -1,18 +1,19 @@
 import { useState, useEffect, FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { 
   PlayCircle, CheckCircle, Lock, ShieldCheck, FileText, Download, 
   Search, ChevronRight, Sparkles, GraduationCap, Clock, BookOpen, 
-  UserCheck, X, Tag, ExternalLink, ArrowRight, Video, Layers, ChevronDown, Check
+  UserCheck, X, ExternalLink, ArrowRight, Video, Layers, ChevronDown
 } from "lucide-react";
 import NavigationBar from "../NavigationBar";
 import Footer from "../Footer";
 import PaymentModal from "../PaymentModal";
 import CourseCheckoutModal from "../CourseCheckoutModal";
-import { Course, Lesson, UserTier } from "../../types";
+import { Course, UserTier } from "../../types";
 
 export default function Courses() {
+  const navigate = useNavigate();
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -23,6 +24,10 @@ export default function Courses() {
   // Course Direct Checkout Modal
   const [checkoutCourse, setCheckoutCourse] = useState<Course | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+
+  // Curriculum Syllabus Preview Modal (Preview without video playback)
+  const [previewCurriculumCourse, setPreviewCurriculumCourse] = useState<Course | null>(null);
+  const [expandedSyllabusChapters, setExpandedSyllabusChapters] = useState<Record<string, boolean>>({});
 
   // Student Auth State
   const [studentPhone, setStudentPhone] = useState("");
@@ -40,14 +45,6 @@ export default function Courses() {
     message: "",
   });
   const [isVerifying, setIsVerifying] = useState(false);
-
-  // LMS Player State
-  const [activeCourse, setActiveCourse] = useState<Course | null>(null);
-  const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
-  const [activeChapterId, setActiveChapterId] = useState<string>("");
-  const [completedLessons, setCompletedLessons] = useState<Record<string, boolean>>({});
-  const [activeTab, setActiveTab] = useState<"summary" | "attachments" | "notes">("summary");
-  const [expandedChapters, setExpandedChapters] = useState<Record<string, boolean>>({});
 
   // Check saved student phone on mount
   useEffect(() => {
@@ -86,7 +83,6 @@ export default function Courses() {
             });
             setStudentPhone("");
             setStudentSessionId("");
-            setActiveCourse(null);
             localStorage.removeItem("pehlakadam_student_phone");
             localStorage.removeItem("pehlakadam_student_session_id");
           }
@@ -94,7 +90,7 @@ export default function Courses() {
       } catch (err) {
         // Transient network or server reconnect — silently ignore to prevent false log noise
       }
-    }, 12000); // Check every 12 seconds for reliable session tracking
+    }, 12000);
 
     return () => clearInterval(interval);
   }, [authStatus.authorized, studentPhone, studentSessionId]);
@@ -220,47 +216,22 @@ export default function Courses() {
     return userLevel >= requiredLevel;
   };
 
-  const openCoursePlayer = (course: Course) => {
-    setActiveCourse(course);
-    if (course.chapters.length > 0 && course.chapters[0].lessons.length > 0) {
-      setActiveLesson(course.chapters[0].lessons[0]);
-      setActiveChapterId(course.chapters[0].id);
-    }
-    // Expand all chapters by default
-    const expanded: Record<string, boolean> = {};
-    course.chapters.forEach(c => { expanded[c.id] = true; });
-    setExpandedChapters(expanded);
+  // Deep-link to student dashboard for unified LMS player
+  const handleOpenCourseInDashboard = (course: Course) => {
+    const phoneParam = studentPhone ? `&phone=${encodeURIComponent(studentPhone)}` : "";
+    navigate(`/dashboard?courseId=${encodeURIComponent(course.id)}${phoneParam}`);
   };
 
-  const toggleChapter = (chapterId: string) => {
-    setExpandedChapters(prev => ({ ...prev, [chapterId]: !prev[chapterId] }));
+  // Open Curriculum Syllabus Preview
+  const handleOpenSyllabusPreview = (course: Course) => {
+    setPreviewCurriculumCourse(course);
+    const exp: Record<string, boolean> = {};
+    (course.chapters || []).forEach(ch => { exp[ch.id] = true; });
+    setExpandedSyllabusChapters(exp);
   };
 
-  const toggleLessonCompletion = (lessonId: string) => {
-    setCompletedLessons(prev => ({ ...prev, [lessonId]: !prev[lessonId] }));
-  };
-
-  // Format embeddable video URL (e.g. YouTube watch URL to embed URL)
-  const formatEmbedUrl = (url: string) => {
-    if (!url) return "";
-    if (url.includes("youtube.com/watch?v=")) {
-      const id = url.split("v=")[1]?.split("&")[0];
-      return `https://www.youtube.com/embed/${id}?autoplay=1`;
-    }
-    if (url.includes("youtu.be/")) {
-      const id = url.split("youtu.be/")[1]?.split("?")[0];
-      return `https://www.youtube.com/embed/${id}?autoplay=1`;
-    }
-    return url;
-  };
-
-  // Helper to guarantee external URLs open with protocol in new tabs
-  const formatExternalUrl = (url?: string) => {
-    if (!url) return "#";
-    if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) {
-      return url;
-    }
-    return `https://${url}`;
+  const toggleSyllabusChapter = (chapterId: string) => {
+    setExpandedSyllabusChapters(prev => ({ ...prev, [chapterId]: !prev[chapterId] }));
   };
 
   const filteredCourses = courses.filter(course => {
@@ -288,13 +259,13 @@ export default function Courses() {
             <div className="max-w-2xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1 text-xs font-semibold text-emerald-400 mb-4">
                 <GraduationCap className="h-4 w-4" />
-                PEHLAKADAM INTERACTIVE LMS ACADEMY
+                PEHLAKADAM COURSE CATALOG & SYLLABUS DISCOVERY
               </div>
               <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-white mb-4 leading-tight">
                 Master Your Future with <span className="text-emerald-400">Structured Video Modules</span>
               </h1>
               <p className="text-zinc-400 text-sm md:text-base leading-relaxed">
-                Step-by-step video masterclasses, chapter worksheets, and psychometric stream-selection blueprints created by senior advisors from BITS Pilani.
+                Explore comprehensive curriculum masterclasses, chapter worksheets, and career blueprints designed by senior mentors from BITS Pilani. Enrolled learners can launch their unified workspace directly in the Student Dashboard.
               </p>
 
               {/* Tier Legend Badges */}
@@ -305,7 +276,7 @@ export default function Courses() {
                 </span>
                 <span className="px-3 py-1.5 rounded-xl bg-purple-950/80 border border-purple-500/30 text-purple-300 flex items-center gap-1.5">
                   <PlayCircle className="h-3.5 w-3.5" />
-                  Advance Tier: Interactive LMS Video Courses
+                  Advance Tier: Interactive Video Courses
                 </span>
                 <span className="px-3 py-1.5 rounded-xl bg-amber-950/80 border border-amber-500/30 text-amber-300 flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5" />
@@ -314,12 +285,12 @@ export default function Courses() {
               </div>
             </div>
 
-            {/* 🔑 STUDENT AUTHORIZATION LOGIN CARD */}
+            {/* 🔑 STUDENT AUTHORIZATION STATUS / LOGIN CARD */}
             <div className="w-full md:w-96 rounded-3xl border border-zinc-800 bg-zinc-950/90 p-6 shadow-2xl backdrop-blur-xl shrink-0">
               <div className="flex items-center justify-between mb-4 border-b border-zinc-800/80 pb-3">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="h-5 w-5 text-emerald-400" />
-                  <h3 className="text-sm font-bold text-white">Student Access Verification</h3>
+                  <h3 className="text-sm font-bold text-white">Student Portal Access</h3>
                 </div>
                 {authStatus.authorized && (
                   <button
@@ -338,7 +309,7 @@ export default function Courses() {
                     Access Verified!
                   </div>
                   <p className="text-[11px] text-emerald-200/90">
-                    Authorized Mobile: <span className="font-mono text-white">{studentPhone}</span>
+                    Authorized Mobile: <span className="font-mono text-white font-bold">{studentPhone}</span>
                   </p>
                   <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 font-bold uppercase text-[10px] border border-emerald-500/40">
@@ -348,18 +319,18 @@ export default function Courses() {
 
                     <Link
                       to={`/dashboard?phone=${studentPhone}`}
-                      className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold px-3 py-1.5 rounded-xl transition-all shadow-md shadow-emerald-900/40"
+                      className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-md shadow-emerald-900/40 cursor-pointer"
                     >
-                      <GraduationCap className="h-3.5 w-3.5" />
+                      <GraduationCap className="h-4 w-4" />
                       Open My Dashboard
+                      <ArrowRight className="h-3.5 w-3.5" />
                     </Link>
                   </div>
                 </div>
               ) : (
-
                 <form onSubmit={handlePhoneSubmit} className="space-y-3">
                   <p className="text-xs text-zinc-400">
-                    Enter your registered student mobile number to unlock your video courses & downloadable chapters:
+                    Enter your registered student mobile number to verify your courses and open your dashboard:
                   </p>
                   <div>
                     <input
@@ -474,7 +445,7 @@ export default function Courses() {
             <p className="text-xs text-zinc-400 mb-4">Try adjusting your search query or filters.</p>
             <button
               onClick={() => { setSearchQuery(""); setSelectedTier("all"); setSelectedCategory("all"); setSelectedBatch("all"); }}
-              className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-white transition-all"
+              className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-white transition-all cursor-pointer"
             >
               Reset Filters
             </button>
@@ -490,7 +461,7 @@ export default function Courses() {
                   key={course.id}
                   className={`group relative flex flex-col rounded-3xl border transition-all duration-300 overflow-hidden ${
                     hasAccess
-                      ? "border-emerald-500/30 bg-zinc-950 hover:border-emerald-500/60 shadow-xl shadow-emerald-950/20"
+                      ? "border-emerald-500/40 bg-zinc-950 hover:border-emerald-500 shadow-xl shadow-emerald-950/20"
                       : "border-zinc-800 bg-zinc-950/80 hover:border-zinc-700"
                   }`}
                 >
@@ -563,33 +534,45 @@ export default function Courses() {
                       </div>
                     </div>
 
-                    {/* Pricing & Unlock Action */}
-                    <div className="flex items-center justify-between gap-3 pt-1">
+                    {/* Pricing & Deep-Link Action */}
+                    <div className="flex items-center justify-between gap-2 pt-1">
                       <div>
                         <div className="text-[10px] text-zinc-500 line-through">₹{course.originalPrice.toLocaleString("en-IN")}</div>
                         <div className="text-base font-black text-emerald-400">₹{course.discountPrice.toLocaleString("en-IN")}</div>
                       </div>
 
-                      {hasAccess ? (
+                      <div className="flex items-center gap-1.5">
+                        {/* Curriculum Syllabus Preview Button */}
                         <button
-                          onClick={() => openCoursePlayer(course)}
-                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-900/30 flex items-center gap-1.5 transition-all cursor-pointer"
+                          onClick={() => handleOpenSyllabusPreview(course)}
+                          className="px-2.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700/80 text-xs font-semibold transition-all cursor-pointer"
+                          title="Preview Syllabus & Chapters"
                         >
-                          <PlayCircle className="h-4 w-4" />
-                          Start Course
+                          <BookOpen className="h-3.5 w-3.5" />
                         </button>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setCheckoutCourse(course);
-                            setIsCheckoutOpen(true);
-                          }}
-                          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500/80 text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-emerald-950/40 hover:scale-[1.02] cursor-pointer"
-                        >
-                          <ShieldCheck className="h-4 w-4" />
-                          Enroll Now ({course.tier.toUpperCase()})
-                        </button>
-                      )}
+
+                        {hasAccess ? (
+                          <button
+                            onClick={() => handleOpenCourseInDashboard(course)}
+                            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-900/30 flex items-center gap-1.5 transition-all cursor-pointer hover:scale-[1.02]"
+                          >
+                            <PlayCircle className="h-4 w-4" />
+                            Resume in Dashboard
+                            <ArrowRight className="h-3 w-3" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setCheckoutCourse(course);
+                              setIsCheckoutOpen(true);
+                            }}
+                            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500/80 text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-emerald-950/40 hover:scale-[1.02] cursor-pointer"
+                          >
+                            <ShieldCheck className="h-4 w-4" />
+                            Enroll Now ({course.tier.toUpperCase()})
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -599,243 +582,116 @@ export default function Courses() {
         )}
       </main>
 
-      {/* 🎥 UDEMY-STYLE LMS INTERACTIVE VIDEO LEARNING PLAYER MODAL */}
-      {activeCourse && typeof document !== "undefined" && createPortal(
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/90 backdrop-blur-md p-2 pt-14 pb-3 md:p-6 overflow-hidden">
-          <div className="relative flex flex-col h-[calc(100dvh-4.5rem)] md:h-full w-full max-w-7xl bg-zinc-950 border border-zinc-800 rounded-2xl md:rounded-3xl overflow-hidden shadow-2xl">
-            {/* Player Header */}
-            <header className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/90 px-3 md:px-6 py-2.5 md:py-3.5 shrink-0">
-              <div className="flex items-center gap-2.5 md:gap-3 min-w-0">
-                <button
-                  onClick={() => setActiveCourse(null)}
-                  className="rounded-xl border border-zinc-700 bg-zinc-800 p-1.5 md:p-2 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-all cursor-pointer shrink-0"
-                  aria-label="Close Course Player"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 md:gap-2 mb-0.5">
-                    <span className="px-1.5 md:px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[9px] md:text-[10px] font-bold uppercase border border-emerald-500/30">
-                      {activeCourse.tier} Tier
-                    </span>
-                    <span className="text-[10px] md:text-xs text-zinc-400 font-medium truncate">{activeCourse.category}</span>
-                  </div>
-                  <h2 className="text-xs md:text-base font-bold text-white truncate leading-tight">{activeCourse.title}</h2>
+      {/* 📖 SYLLABUS / CURRICULUM PREVIEW MODAL */}
+      {previewCurriculumCourse && typeof document !== "undefined" && createPortal(
+        <div 
+          onClick={() => setPreviewCurriculumCourse(null)}
+          className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-2xl bg-zinc-950 border border-zinc-800 rounded-3xl p-6 shadow-2xl overflow-hidden text-zinc-100 max-h-[90vh] flex flex-col"
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-zinc-800 pb-4 mb-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase border border-emerald-500/30">
+                    {previewCurriculumCourse.tier} Tier Course
+                  </span>
+                  <span className="text-xs text-zinc-400">{previewCurriculumCourse.category}</span>
                 </div>
+                <h3 className="text-xl font-bold text-white">{previewCurriculumCourse.title}</h3>
+                <p className="text-xs text-zinc-400 mt-1 line-clamp-2">{previewCurriculumCourse.description}</p>
+              </div>
+              <button
+                onClick={() => setPreviewCurriculumCourse(null)}
+                className="rounded-full bg-zinc-900 p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer border border-zinc-800"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Chapters & Lesson Breakdown */}
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              <div className="flex items-center justify-between text-xs text-zinc-400 mb-2 font-medium">
+                <span>{previewCurriculumCourse.chapters?.length || 0} Chapters in this Masterclass</span>
+                <span>Total Duration: {previewCurriculumCourse.duration || "Self-Paced"}</span>
               </div>
 
-              <div className="hidden md:flex items-center gap-2 shrink-0">
-                <span className="text-xs text-zinc-400 font-medium">Logged in student:</span>
-                <span className="text-xs font-mono font-bold text-emerald-400 bg-zinc-800 px-2.5 py-1 rounded-lg border border-zinc-700">
-                  {studentPhone || "Admin Preview Mode"}
-                </span>
-              </div>
-            </header>
-
-            {/* Main Workspace Layout */}
-            <div className="flex flex-1 flex-col lg:flex-row overflow-hidden">
-              {/* Left Screen: Video Player & Tabs */}
-              <div className="flex flex-1 flex-col overflow-y-auto border-r border-zinc-800 bg-zinc-950 p-4 md:p-6">
-                {activeLesson ? (
-                  <>
-                    {/* Video Window */}
-                    <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl mb-2">
-                      {activeLesson.videoUrl ? (
-                        <iframe
-                          src={formatEmbedUrl(activeLesson.videoUrl)}
-                          title={activeLesson.title}
-                          className="h-full w-full border-0"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                        ></iframe>
-                      ) : (
-                        <div className="h-full w-full flex flex-col items-center justify-center bg-zinc-900 p-6 text-center">
-                          <Video className="h-16 w-16 text-zinc-700 mb-2" />
-                          <p className="text-sm font-bold text-zinc-300">No Video Stream Attached Yet</p>
-                          <p className="text-xs text-zinc-500">Admin will update video link for this chapter lesson.</p>
+              {previewCurriculumCourse.chapters && previewCurriculumCourse.chapters.length > 0 ? (
+                previewCurriculumCourse.chapters.map((ch, chIdx) => (
+                  <div key={ch.id || chIdx} className="rounded-2xl bg-zinc-900/60 border border-zinc-800 overflow-hidden">
+                    <button
+                      onClick={() => toggleSyllabusChapter(ch.id)}
+                      className="w-full flex items-center justify-between p-3.5 text-left hover:bg-zinc-800/40 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex items-center justify-center h-6 w-6 rounded-lg bg-emerald-500/10 text-emerald-400 font-mono text-xs font-bold">
+                          {chIdx + 1}
+                        </span>
+                        <div>
+                          <h4 className="text-xs font-bold text-white">{ch.title}</h4>
+                          <span className="text-[10px] text-zinc-400">{ch.lessons?.length || 0} Lessons</span>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                      <ChevronDown className={`h-4 w-4 text-zinc-400 transition-transform ${expandedSyllabusChapters[ch.id] ? "rotate-180" : ""}`} />
+                    </button>
 
-                    {activeLesson.videoUrl && (
-                      <div className="flex justify-end mb-4">
-                        <a
-                          href={formatExternalUrl(activeLesson.videoUrl)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-3.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-emerald-400 hover:text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition-colors border border-zinc-800"
-                        >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                          Open Video Link in New Window / App ↗
-                        </a>
+                    {expandedSyllabusChapters[ch.id] && (
+                      <div className="bg-zinc-950/70 border-t border-zinc-800/60 divide-y divide-zinc-800/40">
+                        {ch.lessons?.map((les, lIdx) => (
+                          <div key={les.id || lIdx} className="p-3 pl-11 flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <PlayCircle className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                              <span className="text-zinc-300">{les.title}</span>
+                            </div>
+                            <span className="text-[10px] text-zinc-500 font-mono">{les.duration}</span>
+                          </div>
+                        ))}
                       </div>
                     )}
-
-                    {/* Lesson Title & Completion Toggle */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800/80 pb-4 mb-4">
-                      <div>
-                        <h3 className="text-lg font-bold text-white mb-1">{activeLesson.title}</h3>
-                        <div className="flex items-center gap-3 text-xs text-zinc-400">
-                          <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-emerald-400" /> {activeLesson.duration}</span>
-                          <span className="flex items-center gap-1"><Layers className="h-3.5 w-3.5 text-emerald-400" /> Active Chapter Lesson</span>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => toggleLessonCompletion(activeLesson.id)}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border ${
-                          completedLessons[activeLesson.id]
-                            ? "bg-emerald-950/80 border-emerald-500/50 text-emerald-300"
-                            : "bg-zinc-800 hover:bg-zinc-700 border-zinc-700 text-zinc-200"
-                        }`}
-                      >
-                        <CheckCircle className={`h-4 w-4 ${completedLessons[activeLesson.id] ? "text-emerald-400" : "text-zinc-500"}`} />
-                        {completedLessons[activeLesson.id] ? "Completed ✓" : "Mark as Complete"}
-                      </button>
-                    </div>
-
-                    {/* Tabs Navigation */}
-                    <div className="flex items-center gap-2 border-b border-zinc-800 mb-4">
-                      <button
-                        onClick={() => setActiveTab("summary")}
-                        className={`px-4 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-                          activeTab === "summary"
-                            ? "border-emerald-500 text-emerald-400"
-                            : "border-transparent text-zinc-400 hover:text-white"
-                        }`}
-                      >
-                        Overview & Summary
-                      </button>
-                      <button
-                        onClick={() => setActiveTab("attachments")}
-                        className={`px-4 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
-                          activeTab === "attachments"
-                            ? "border-emerald-500 text-emerald-400"
-                            : "border-transparent text-zinc-400 hover:text-white"
-                        }`}
-                      >
-                        <FileText className="h-3.5 w-3.5" />
-                        Chapter Attachments ({activeLesson.attachments?.length || 0})
-                      </button>
-                    </div>
-
-                    {/* Tab Contents */}
-                    <div className="text-xs text-zinc-300 leading-relaxed">
-                      {activeTab === "summary" && (
-                        <div className="bg-zinc-900/60 p-4 rounded-2xl border border-zinc-800">
-                          <p className="whitespace-pre-line">{activeLesson.summary || "No specific lesson summary provided."}</p>
-                        </div>
-                      )}
-
-                      {activeTab === "attachments" && (
-                        <div className="space-y-3">
-                          {activeLesson.attachments && activeLesson.attachments.length > 0 ? (
-                            activeLesson.attachments.map((att) => (
-                              <div
-                                key={att.id}
-                                className="flex items-center justify-between p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-emerald-500/40 transition-all"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
-                                    <FileText className="h-4 w-4" />
-                                  </div>
-                                  <div>
-                                    <h5 className="font-bold text-white text-xs">{att.title}</h5>
-                                    <p className="text-[10px] text-zinc-500 uppercase">{att.type || "PDF Guide"}</p>
-                                  </div>
-                                </div>
-                                {att.fileUrl ? (
-                                  <a
-                                    href={formatExternalUrl(att.fileUrl)}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1.5 transition-all"
-                                  >
-                                    <Download className="h-3.5 w-3.5" />
-                                    Download PDF
-                                  </a>
-                                ) : (
-                                  <span className="text-[10px] text-zinc-500 italic">No URL linked</span>
-                                )}
-                              </div>
-                            ))
-                          ) : (
-                            <p className="text-xs text-zinc-500 italic p-4">No attachments linked for this lesson.</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-center py-20">
-                    <BookOpen className="h-12 w-12 text-zinc-700 mb-2" />
-                    <p className="text-sm font-bold text-zinc-300">Select a lesson from the chapter curriculum on the right to start playing.</p>
                   </div>
-                )}
+                ))
+              ) : (
+                <p className="text-xs text-zinc-500 italic p-4 text-center">Curriculum details being updated by advisors.</p>
+              )}
+            </div>
+
+            {/* Footer Action */}
+            <div className="border-t border-zinc-800 pt-4 mt-4 flex items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] text-zinc-500 block">Complete Access</span>
+                <span className="text-lg font-black text-emerald-400">₹{previewCurriculumCourse.discountPrice.toLocaleString("en-IN")}</span>
               </div>
 
-              {/* Right Sidebar: Chapter Accordion & Lesson Navigation */}
-              <div className="w-full lg:w-96 bg-zinc-900/80 overflow-y-auto flex flex-col border-t lg:border-t-0 border-zinc-800">
-                <div className="p-4 border-b border-zinc-800 bg-zinc-900 sticky top-0 z-10">
-                  <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-1">Course Curriculum</h4>
-                  <p className="text-[11px] text-zinc-400">
-                    {activeCourse.chapters?.length || 0} Chapters • {activeCourse.duration}
-                  </p>
-                </div>
-
-                <div className="divide-y divide-zinc-800/80">
-                  {activeCourse.chapters?.map((chapter, cIdx) => (
-                    <div key={chapter.id} className="bg-zinc-900/40">
-                      <button
-                        onClick={() => toggleChapter(chapter.id)}
-                        className="w-full flex items-center justify-between p-4 text-left hover:bg-zinc-800/50 transition-colors"
-                      >
-                        <div>
-                          <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wide">Chapter {cIdx + 1}</span>
-                          <h5 className="text-xs font-bold text-white">{chapter.title}</h5>
-                        </div>
-                        <ChevronDown className={`h-4 w-4 text-zinc-400 transition-transform ${expandedChapters[chapter.id] ? "rotate-180" : ""}`} />
-                      </button>
-
-                      {expandedChapters[chapter.id] && (
-                        <div className="bg-zinc-950/60 divide-y divide-zinc-800/40">
-                          {chapter.lessons?.map((lesson) => {
-                            const isActive = activeLesson?.id === lesson.id;
-                            const isCompleted = completedLessons[lesson.id];
-
-                            return (
-                              <button
-                                key={lesson.id}
-                                onClick={() => {
-                                  setActiveLesson(lesson);
-                                  setActiveChapterId(chapter.id);
-                                }}
-                                className={`w-full flex items-center justify-between p-3.5 text-left transition-all ${
-                                  isActive
-                                    ? "bg-emerald-950/40 border-l-4 border-emerald-500 text-emerald-300"
-                                    : "hover:bg-zinc-800/40 text-zinc-300"
-                                }`}
-                              >
-                                <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                                  {isCompleted ? (
-                                    <CheckCircle className="h-4 w-4 text-emerald-400 shrink-0" />
-                                  ) : isActive ? (
-                                    <PlayCircle className="h-4 w-4 text-emerald-400 shrink-0 animate-pulse" />
-                                  ) : (
-                                    <PlayCircle className="h-4 w-4 text-zinc-500 shrink-0" />
-                                  )}
-                                  <span className="text-xs font-medium truncate">{lesson.title}</span>
-                                </div>
-                                <span className="text-[10px] text-zinc-500 shrink-0 font-mono">{lesson.duration}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              {canAccessCourse(previewCurriculumCourse.tier) ? (
+                <button
+                  onClick={() => {
+                    const c = previewCurriculumCourse;
+                    setPreviewCurriculumCourse(null);
+                    handleOpenCourseInDashboard(c);
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-lg shadow-emerald-900/30 cursor-pointer"
+                >
+                  <PlayCircle className="h-4 w-4" />
+                  Resume in Dashboard
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    const c = previewCurriculumCourse;
+                    setPreviewCurriculumCourse(null);
+                    setCheckoutCourse(c);
+                    setIsCheckoutOpen(true);
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-lg shadow-emerald-900/30 cursor-pointer"
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  Enroll in Course ({previewCurriculumCourse.tier.toUpperCase()})
+                </button>
+              )}
             </div>
           </div>
         </div>,
@@ -859,10 +715,6 @@ export default function Courses() {
             tier: (tier as UserTier) || "advance",
             message: `Instant access activated for +91 ${phone} (${tier.toUpperCase()} Tier)`
           });
-          // Also if checkoutCourse is set, optionally open player
-          if (checkoutCourse) {
-            openCoursePlayer(checkoutCourse);
-          }
         }}
       />
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, ChangeEvent, FormEvent } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import { 
   X, Sparkles, CheckCircle2, ShieldCheck, Copy, Check, 
   QrCode, Phone, BookOpen, AlertCircle, ArrowRight, MessageSquare
@@ -20,6 +21,7 @@ export default function CourseCheckoutModal({
   onClose,
   onEnrollSuccess
 }: CourseCheckoutModalProps) {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -282,10 +284,16 @@ export default function CourseCheckoutModal({
 
                   <div className="flex flex-col sm:flex-row items-center gap-3 pt-2 w-full max-w-md">
                     <button
-                      onClick={onClose}
+                      onClick={() => {
+                        onClose();
+                        const targetUrl = course?.id 
+                          ? `/dashboard?courseId=${encodeURIComponent(course.id)}&phone=${encodeURIComponent(enrollSuccessData.phone)}`
+                          : `/dashboard?phone=${encodeURIComponent(enrollSuccessData.phone)}`;
+                        navigate(targetUrl);
+                      }}
                       className="w-full sm:flex-1 py-3 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/40 transition-all cursor-pointer"
                     >
-                      <BookOpen className="h-4 w-4" /> Start Learning Now
+                      <BookOpen className="h-4 w-4" /> Start Learning in Dashboard
                     </button>
 
                     {enrollSuccessData.whatsappUrl && (

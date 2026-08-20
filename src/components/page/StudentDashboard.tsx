@@ -45,6 +45,17 @@ export default function StudentDashboard() {
   // Active Main Tab
   const [activeTab, setActiveTab] = useState<"courses" | "programs" | "diagnostics" | "resources">("courses");
 
+  // Synchronize tab and course from query params
+  useEffect(() => {
+    const urlTab = searchParams.get("tab");
+    const urlCourseId = searchParams.get("courseId");
+    if (urlTab && ["courses", "programs", "diagnostics", "resources"].includes(urlTab)) {
+      setActiveTab(urlTab as any);
+    } else if (urlCourseId) {
+      setActiveTab("courses");
+    }
+  }, [searchParams]);
+
   // State for user identity
   const [phoneInput, setPhoneInput] = useState("");
   const [emailInput, setEmailInput] = useState("");
@@ -117,15 +128,28 @@ export default function StudentDashboard() {
           setCompletedLessonsByCourse(data.completedLessons);
         }
 
-        // Pre-select first course if available
-        if (data.enrolledCourses && data.enrolledCourses.length > 0 && !selectedCourse) {
-          const firstCourse = data.enrolledCourses[0];
-          setSelectedCourse(firstCourse);
-          if (firstCourse.chapters && firstCourse.chapters.length > 0) {
-            setSelectedChapterId(firstCourse.chapters[0].id);
-            if (firstCourse.chapters[0].lessons && firstCourse.chapters[0].lessons.length > 0) {
-              setSelectedLessonId(firstCourse.chapters[0].lessons[0].id);
+        // Pre-select course matching courseId from URL, or first course if available
+        if (data.enrolledCourses && data.enrolledCourses.length > 0) {
+          const targetCourseId = searchParams.get("courseId");
+          const targetCourse = targetCourseId 
+            ? data.enrolledCourses.find(c => c.id === targetCourseId || c.slug === targetCourseId) 
+            : null;
+          const courseToSelect = targetCourse || selectedCourse || data.enrolledCourses[0];
+
+          setSelectedCourse(courseToSelect);
+          if (courseToSelect.chapters && courseToSelect.chapters.length > 0) {
+            setSelectedChapterId(courseToSelect.chapters[0].id);
+            if (courseToSelect.chapters[0].lessons && courseToSelect.chapters[0].lessons.length > 0) {
+              setSelectedLessonId(courseToSelect.chapters[0].lessons[0].id);
             }
+          }
+
+          if (targetCourseId) {
+            setActiveTab("courses");
+            setTimeout(() => {
+              const el = document.getElementById("lms-active-player");
+              if (el) el.scrollIntoView({ behavior: "smooth" });
+            }, 300);
           }
         }
       } else {
@@ -630,7 +654,7 @@ export default function StudentDashboard() {
                       </div>
 
                       {/* Right Column: In-Dashboard Interactive Course Player & Syllabus */}
-                      <div className="lg:col-span-8 space-y-6">
+                      <div id="lms-active-player" className="lg:col-span-8 space-y-6 scroll-mt-24">
                         {selectedCourse ? (
                           <div className="bg-white rounded-3xl border border-zinc-200 shadow-sm overflow-hidden">
                             {/* Course Header Banner */}
