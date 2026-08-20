@@ -60,7 +60,7 @@ export default function StudentDashboard() {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [selectedChapterId, setSelectedChapterId] = useState<string>("");
   const [selectedLessonId, setSelectedLessonId] = useState<string>("");
-  const [completedLessonIds, setCompletedLessonIds] = useState<string[]>([]);
+  const [completedLessonsByCourse, setCompletedLessonsByCourse] = useState<Record<string, string[]>>({});
 
   // Modals for Resource Viewing
   const [selectedPdf, setSelectedPdf] = useState<{ title: string; category?: string; pdfUrl?: string; fileData?: string } | null>(null);
@@ -112,6 +112,10 @@ export default function StudentDashboard() {
       if (res.ok) {
         const data: StudentDashboardData = await res.json();
         setDashboardData(data);
+
+        if (data.completedLessons) {
+          setCompletedLessonsByCourse(data.completedLessons);
+        }
 
         // Pre-select first course if available
         if (data.enrolledCourses && data.enrolledCourses.length > 0 && !selectedCourse) {
@@ -190,21 +194,42 @@ export default function StudentDashboard() {
 
   // Toggle Lesson Completion
   const handleToggleLessonComplete = async (courseId: string, lessonId: string) => {
-    const isCompleted = completedLessonIds.includes(lessonId);
-    const updated = isCompleted 
-      ? completedLessonIds.filter(id => id !== lessonId)
-      : [...completedLessonIds, lessonId];
-    
-    setCompletedLessonIds(updated);
+    if (!courseId || !lessonId) return;
 
-    // Calculate percentage
+    const currentCourseLessons = completedLessonsByCourse[courseId] || [];
+    const isCompleted = currentCourseLessons.includes(lessonId);
+    const updatedForCourse = isCompleted 
+      ? currentCourseLessons.filter(id => id !== lessonId)
+      : [...currentCourseLessons, lessonId];
+    
+    setCompletedLessonsByCourse(prev => ({
+      ...prev,
+      [courseId]: updatedForCourse
+    }));
+
+    // Calculate percentage strictly against this specific course's lessons
     let totalLessons = 0;
-    if (selectedCourse?.chapters) {
-      selectedCourse.chapters.forEach(c => {
+    const targetCourse = dashboardData?.enrolledCourses.find(c => c.id === courseId) || selectedCourse;
+    if (targetCourse?.chapters) {
+      targetCourse.chapters.forEach(c => {
         totalLessons += c.lessons ? c.lessons.length : 0;
       });
     }
-    const pct = totalLessons > 0 ? Math.round((updated.length / totalLessons) * 100) : 0;
+    const pct = totalLessons > 0 ? Math.round((updatedForCourse.length / totalLessons) * 100) : 0;
+
+    if (dashboardData) {
+      setDashboardData({
+        ...dashboardData,
+        progress: {
+          ...dashboardData.progress,
+          [courseId]: pct
+        },
+        completedLessons: {
+          ...(dashboardData.completedLessons || {}),
+          [courseId]: updatedForCourse
+        }
+      });
+    }
 
     try {
       const creds = getStoredCredentials();
@@ -217,20 +242,10 @@ export default function StudentDashboard() {
           courseId,
           lessonId,
           completed: !isCompleted,
-          completedLessons: updated,
+          completedLessons: updatedForCourse,
           progressPercentage: pct
         })
       });
-
-      if (dashboardData) {
-        setDashboardData({
-          ...dashboardData,
-          progress: {
-            ...dashboardData.progress,
-            [courseId]: pct
-          }
-        });
-      }
     } catch (e) {
       console.error("Error syncing lesson progress:", e);
     }
@@ -654,13 +669,13 @@ export default function StudentDashboard() {
                                     <button
                                       onClick={() => handleToggleLessonComplete(selectedCourse.id, currentLesson.id)}
                                       className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                        completedLessonIds.includes(currentLesson.id)
+                                        (completedLessonsByCourse[selectedCourse.id] || []).includes(currentLesson.id)
                                           ? "bg-emerald-600 text-white shadow-sm"
                                           : "bg-zinc-100 hover:bg-zinc-200 text-zinc-700"
                                       }`}
                                     >
                                       <CheckCircle2 className="h-4 w-4" />
-                                      {completedLessonIds.includes(currentLesson.id) ? "Completed" : "Mark as Complete"}
+                                      {(completedLessonsByCourse[selectedCourse.id] || []).includes(currentLesson.id) ? "Completed" : "Mark as Complete"}
                                     </button>
                                   </div>
 
@@ -750,7 +765,7 @@ export default function StudentDashboard() {
                                       <div className="divide-y divide-zinc-100 bg-white">
                                         {ch.lessons?.map((les, lesIdx) => {
                                           const isCur = currentLesson?.id === les.id;
-                                          const isDone = completedLessonIds.includes(les.id);
+                                          const isDone = (completedLessonsByCourse[selectedCourse.id] || []).includes(les.id);
                                           return (
                                             <div
                                               key={les.id ? `les-${ch.id || chIdx}-${les.id}` : `les-${chIdx}-${lesIdx}`}

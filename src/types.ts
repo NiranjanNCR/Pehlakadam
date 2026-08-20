@@ -207,6 +207,7 @@ export interface StudentDashboardData {
   diagnosticHistory: DiagnosticRecord[];
   resourceHistory: ResourceHistoryItem[];
   progress: Record<string, number>; // courseId -> completion percentage
+  completedLessons?: Record<string, string[]>; // courseId -> array of completed lesson IDs
 }
 
 

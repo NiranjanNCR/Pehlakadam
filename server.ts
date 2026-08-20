@@ -5696,8 +5696,13 @@ app.post("/api/student/update-course-progress", async (req, res) => {
     const pct = progressPercentage !== undefined ? Number(progressPercentage) : 0;
 
     if (isMongoConnected) {
+      const conditions: any[] = [];
+      if (cleanPhone) conditions.push({ phone: cleanPhone });
+      if (cleanEmail) conditions.push({ email: cleanEmail });
+
+      const matchQuery = conditions.length > 0 ? { $or: conditions, courseId } : { courseId };
       await CourseProgressModel.findOneAndUpdate(
-        { $or: [{ phone: cleanPhone }, { email: cleanEmail }], courseId },
+        matchQuery,
         {
           phone: cleanPhone,
           email: cleanEmail,
@@ -5788,7 +5793,7 @@ app.get("/api/student/dashboard-data", async (req, res) => {
     let submissions: any[] = [];
     let diagnosticSubmissions: any[] = [];
     let resourceHistoryList: any[] = [];
-    let allCoursesList: any[] = [];
+    let rawCoursesList: any[] = [];
 
     // Load Payments
     if (isMongoConnected) {
@@ -5851,15 +5856,37 @@ app.get("/api/student/dashboard-data", async (req, res) => {
       studentRole = matchedDiag.user?.role || studentRole;
     }
 
-    // 3. Load Courses
+    // 3. Load Courses with guaranteed non-null IDs
     if (isMongoConnected) {
-      allCoursesList = await CourseModel.find({ published: true }).lean();
+      rawCoursesList = await CourseModel.find({ published: true }).lean();
     } else if (fs.existsSync(COURSES_FILE)) {
-      allCoursesList = JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8"));
+      rawCoursesList = JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8"));
     }
-    if (!allCoursesList || allCoursesList.length === 0) {
-      allCoursesList = defaultCourses;
+    if (!rawCoursesList || rawCoursesList.length === 0) {
+      rawCoursesList = defaultCourses;
     }
+
+    const allCoursesList = rawCoursesList.map((doc: any, docIdx: number) => {
+      const cId = (doc.id || (doc._id ? doc._id.toString() : "") || doc.slug || `course-${docIdx + 1}`).trim();
+      return {
+        ...doc,
+        id: cId,
+        chapters: (doc.chapters || []).map((ch: any, chIdx: number) => {
+          const chId = (ch.id || (ch._id ? ch._id.toString() : "") || `ch-${cId}-${chIdx}`).trim();
+          return {
+            ...ch,
+            id: chId,
+            lessons: (ch.lessons || []).map((les: any, lesIdx: number) => {
+              const lesId = (les.id || (les._id ? les._id.toString() : "") || `les-${chId}-${lesIdx}`).trim();
+              return {
+                ...les,
+                id: lesId
+              };
+            })
+          };
+        })
+      };
+    });
 
     // Determine Enrolled Courses
     const tierOrder: Record<string, number> = { basic: 1, advance: 2, pro: 3 };
@@ -5988,15 +6015,37 @@ app.get("/api/student/dashboard-data", async (req, res) => {
       accessedAt: r.accessedAt ? new Date(r.accessedAt).toISOString() : new Date().toISOString()
     }));
 
-    // 7. Course Progress
+    // 7. Course Progress & Completed Lessons Isolated per Course
     let progressMap: Record<string, number> = {};
+    let completedLessonsMap: Record<string, string[]> = {};
     const key = cleanPhone || cleanEmail;
+
+    if (isMongoConnected) {
+      const conditions: any[] = [];
+      if (cleanPhone) conditions.push({ phone: { $regex: new RegExp(`${cleanPhone}$`, "i") } });
+      if (cleanEmail) conditions.push({ email: { $regex: new RegExp(`^${cleanEmail}$`, "i") } });
+      if (conditions.length > 0) {
+        const dbProgress = await CourseProgressModel.find({ $or: conditions }).lean();
+        (dbProgress || []).forEach((cp: any) => {
+          if (cp.courseId) {
+            progressMap[cp.courseId] = Number(cp.progressPercentage) || 0;
+            completedLessonsMap[cp.courseId] = Array.isArray(cp.completedLessons) ? cp.completedLessons : [];
+          }
+        });
+      }
+    }
+
     if (fs.existsSync(COURSE_PROGRESS_FILE)) {
       try {
         const fileMap = JSON.parse(fs.readFileSync(COURSE_PROGRESS_FILE, "utf-8"));
-        const userProgress = fileMap[key] || fileMap[cleanPhone] || fileMap[cleanEmail] || {};
+        const userProgress = fileMap[key] || (cleanPhone ? fileMap[cleanPhone] : null) || (cleanEmail ? fileMap[cleanEmail] : null) || {};
         Object.keys(userProgress).forEach(cId => {
-          progressMap[cId] = userProgress[cId]?.progressPercentage || 0;
+          if (progressMap[cId] === undefined) {
+            progressMap[cId] = Number(userProgress[cId]?.progressPercentage) || 0;
+          }
+          if (completedLessonsMap[cId] === undefined) {
+            completedLessonsMap[cId] = Array.isArray(userProgress[cId]?.completedLessons) ? userProgress[cId].completedLessons : [];
+          }
         });
       } catch (e) {}
     }
@@ -6014,7 +6063,8 @@ app.get("/api/student/dashboard-data", async (req, res) => {
       enrolledPrograms,
       diagnosticHistory: userDiagRecords,
       resourceHistory: formattedResourceHistory,
-      progress: progressMap
+      progress: progressMap,
+      completedLessons: completedLessonsMap
     });
   } catch (error) {
     console.error("[Pehlakadam API] Error compiling student dashboard data:", error);
