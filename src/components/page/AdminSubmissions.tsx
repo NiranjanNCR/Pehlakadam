@@ -49,7 +49,8 @@ import {
   GraduationCap,
   BookMarked,
   UserCheck,
-  Filter
+  Filter,
+  Image as ImageIcon
 } from "lucide-react";
 import { Submission, ResourceMaterial, SessionUpdate, Testimonial } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
@@ -156,6 +157,8 @@ export default function AdminSubmissions() {
     seoDescription: "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.",
     seoKeywords: "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam",
     seoAuthor: "Pehlakadam",
+    faviconUrl: "",
+    faviconData: "",
     termsContent: "",
     privacyContent: "",
     refundContent: "",
@@ -163,6 +166,104 @@ export default function AdminSubmissions() {
   });
   const [updatingStats, setUpdatingStats] = useState(false);
   const [updateStatsSuccess, setUpdateStatsSuccess] = useState(false);
+  const [faviconMode, setFaviconMode] = useState<"presets" | "upload" | "url">("presets");
+
+  // 🌟 BRAND FAVICON PRESET PACKAGES
+  const DEFAULT_FAVICON_EMBLEM = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23059669' stroke='%23047857' stroke-width='4'/%3E%3Ctext x='50' y='63' font-family='system-ui, -apple-system, sans-serif' font-size='42' font-weight='900' fill='white' text-anchor='middle'%3EPK%3C/text%3E%3C/svg%3E";
+
+  const FAVICON_PRESETS = [
+    {
+      id: "pk-emblem",
+      name: "PK Official Emblem",
+      desc: "Brand signature emerald circular badge with PK monogram",
+      svgData: DEFAULT_FAVICON_EMBLEM
+    },
+    {
+      id: "career-rocket",
+      name: "Career Launch Rocket",
+      desc: "High-contrast indigo rocket symbolizing speed & career growth",
+      svgData: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%234F46E5'/%3E%3Cpath d='M50 18 C62 30 68 46 66 63 L34 63 C32 46 38 30 50 18 Z' fill='%23FFFFFF'/%3E%3Ccircle cx='50' cy='42' r='7' fill='%234F46E5'/%3E%3Cpath d='M34 63 L22 75 L38 75 Z' fill='%23F59E0B'/%3E%3Cpath d='M66 63 L78 75 L62 75 Z' fill='%23F59E0B'/%3E%3Cpath d='M44 75 L50 86 L56 75 Z' fill='%23EF4444'/%3E%3C/svg%3E"
+    },
+    {
+      id: "grad-cap",
+      name: "Academic Graduation Cap",
+      desc: "Classic mortarboard and gold tassel on emerald tile",
+      svgData: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%23047857'/%3E%3Cpolygon points='50,22 86,38 50,54 14,38' fill='%23FFFFFF'/%3E%3Cpath d='M26 48 L26 66 C26 76 74 76 74 66 L74 48' fill='none' stroke='%23FFFFFF' stroke-width='6' stroke-linecap='round'/%3E%3Cpath d='M80 40 L80 62' stroke='%23FCD34D' stroke-width='4' stroke-linecap='round'/%3E%3Ccircle cx='80' cy='65' r='4' fill='%23FCD34D'/%3E%3C/svg%3E"
+    },
+    {
+      id: "mind-spark",
+      name: "Psychometric Mind & Assessment",
+      desc: "Cognitive spark & assessment compass on vibrant sky tile",
+      svgData: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%230284C7'/%3E%3Cpath d='M35 32 C26 32 20 40 22 50 C20 58 26 66 34 66 C36 74 44 78 50 78 C56 78 64 74 66 66 C74 66 80 58 78 50 C80 40 74 32 65 32 C60 24 40 24 35 32 Z' fill='%23FFFFFF'/%3E%3Ccircle cx='50' cy='50' r='6' fill='%230284C7'/%3E%3Cpath d='M50 36 L50 42 M50 58 L50 64 M36 50 L42 50 M58 50 L64 50' stroke='%230284C7' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E"
+    },
+    {
+      id: "golden-star",
+      name: "Prestige Star of Excellence",
+      desc: "Gold faceted star on deep carbon tile",
+      svgData: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%2318181B'/%3E%3Cpolygon points='50,15 61,38 86,40 66,58 72,83 50,70 28,83 34,58 14,40 39,38' fill='%23F59E0B' stroke='%23FCD34D' stroke-width='2'/%3E%3C/svg%3E"
+    },
+    {
+      id: "open-book",
+      name: "Academy Knowledge Book",
+      desc: "Open study manual and guidance roadmap on teal tile",
+      svgData: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%230D9488'/%3E%3Cpath d='M50 35 C42 26 26 28 20 30 L20 74 C26 72 42 70 50 78 C58 70 74 72 80 74 L80 30 C74 28 58 26 50 35 Z' fill='%23FFFFFF'/%3E%3Cline x1='50' y1='35' x2='50' y2='78' stroke='%230D9488' stroke-width='3'/%3E%3C/svg%3E"
+    }
+  ];
+
+  const applyLiveFavicon = (iconSrc: string) => {
+    if (!iconSrc) return;
+    const links = document.querySelectorAll<HTMLLinkElement>("link[rel*='icon']");
+    if (links.length > 0) {
+      links.forEach((l) => {
+        l.href = iconSrc;
+      });
+    } else {
+      const newLink = document.createElement("link");
+      newLink.rel = "icon";
+      newLink.href = iconSrc;
+      document.head.appendChild(newLink);
+    }
+  };
+
+  const handleFaviconFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Favicon file must be less than 2MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (loadEvt) => {
+      const result = loadEvt.target?.result as string;
+      if (result) {
+        setAdminStats((prev) => ({
+          ...prev,
+          faviconData: result,
+          faviconUrl: ""
+        }));
+        applyLiveFavicon(result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSelectPresetFavicon = (presetSvgData: string) => {
+    setAdminStats((prev) => ({
+      ...prev,
+      faviconData: presetSvgData,
+      faviconUrl: ""
+    }));
+    applyLiveFavicon(presetSvgData);
+  };
+
+  const handleResetFavicon = () => {
+    setAdminStats((prev) => ({
+      ...prev,
+      faviconData: DEFAULT_FAVICON_EMBLEM,
+      faviconUrl: ""
+    }));
+    applyLiveFavicon(DEFAULT_FAVICON_EMBLEM);
+  };
   
   // 🔒 ADMIN AUTHENTICATION STATES
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -3316,6 +3417,289 @@ export default function AdminSubmissions() {
                             </p>
                           </div>
                         </div>
+                      </div>
+
+                      {/* 🌟 WEBSITE FAVICON & BROWSER TAB BRANDING */}
+                      <div className="border-t border-zinc-100 pt-6 mt-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                          <div>
+                            <h3 className="text-sm font-bold text-zinc-900 flex items-center gap-2">
+                              <ImageIcon className="h-4 w-4 text-emerald-600" />
+                              Website Favicon & Browser Tab Branding
+                            </h3>
+                            <p className="text-xs text-zinc-500 mt-0.5">
+                              Customize the icon that appears in browser tabs, bookmark bars, and mobile shortcuts for Pehlakadam.
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const current = adminStats.faviconData || adminStats.faviconUrl || DEFAULT_FAVICON_EMBLEM;
+                                applyLiveFavicon(current);
+                                alert("Favicon applied live to your current browser tab!");
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer"
+                              title="Test current favicon immediately in your browser tab without saving"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              Test Live in Tab
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={handleResetFavicon}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                              Reset Default
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 🖥️ LIVE BROWSER TAB SIMULATION */}
+                        <div className="bg-zinc-900 rounded-xl p-4 mb-6 border border-zinc-800 shadow-inner">
+                          <div className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+                            <span>Live Browser Tab Simulation</span>
+                            <span className="text-emerald-400 font-mono text-[10px]">Real-Time Preview</span>
+                          </div>
+                          
+                          {/* Realistic Chrome Tab Bar */}
+                          <div className="bg-zinc-800/80 rounded-t-lg p-2 flex items-center gap-2 border-b border-zinc-700">
+                            {/* Active Tab */}
+                            <div className="bg-zinc-900 border-t-2 border-emerald-500 rounded-t-md px-3 py-1.5 flex items-center gap-2.5 max-w-xs sm:max-w-md shadow-md">
+                              <img
+                                src={adminStats.faviconData || adminStats.faviconUrl || DEFAULT_FAVICON_EMBLEM}
+                                alt="Favicon Preview"
+                                className="w-4 h-4 rounded-sm object-contain shrink-0 bg-white/10 p-0.5"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = DEFAULT_FAVICON_EMBLEM;
+                                }}
+                              />
+                              <span className="text-xs font-medium text-zinc-200 truncate max-w-[200px] sm:max-w-[280px]">
+                                {adminStats.seoTitle || "Pehlakadam - Best Career Counselling"}
+                              </span>
+                              <X className="w-3 h-3 text-zinc-400 hover:text-white shrink-0 ml-auto" />
+                            </div>
+                            
+                            <div className="text-zinc-500 text-xs px-2 select-none">+</div>
+                          </div>
+
+                          {/* Multi-Size Context Badges */}
+                          <div className="bg-zinc-950/60 rounded-b-lg p-3 flex flex-wrap items-center justify-around gap-4 border-t border-zinc-800 text-zinc-300">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-4 h-4 bg-zinc-800 rounded border border-zinc-700 flex items-center justify-center p-0.5">
+                                <img
+                                  src={adminStats.faviconData || adminStats.faviconUrl || DEFAULT_FAVICON_EMBLEM}
+                                  alt="16x16"
+                                  className="w-full h-full object-contain"
+                                />
+                              </div>
+                              <span className="text-[11px] text-zinc-400">16×16 px (Browser Tab)</span>
+                            </div>
+
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-6 h-6 bg-zinc-800 rounded border border-zinc-700 flex items-center justify-center p-0.5">
+                                <img
+                                  src={adminStats.faviconData || adminStats.faviconUrl || DEFAULT_FAVICON_EMBLEM}
+                                  alt="32x32"
+                                  className="w-full h-full object-contain"
+                                />
+                              </div>
+                              <span className="text-[11px] text-zinc-400">32×32 px (Bookmark Bar)</span>
+                            </div>
+
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 bg-zinc-800 rounded-lg border border-zinc-700 flex items-center justify-center p-1">
+                                <img
+                                  src={adminStats.faviconData || adminStats.faviconUrl || DEFAULT_FAVICON_EMBLEM}
+                                  alt="48x48"
+                                  className="w-full h-full object-contain"
+                                />
+                              </div>
+                              <span className="text-[11px] text-zinc-400">48×48 px (Mobile Shortcut)</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* MODE SELECTOR */}
+                        <div className="flex items-center gap-2 mb-4 bg-zinc-100 p-1 rounded-xl w-fit">
+                          <button
+                            type="button"
+                            onClick={() => setFaviconMode("presets")}
+                            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                              faviconMode === "presets"
+                                ? "bg-white text-zinc-900 shadow-sm"
+                                : "text-zinc-600 hover:text-zinc-900"
+                            }`}
+                          >
+                            ⭐ Preset Icons ({FAVICON_PRESETS.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setFaviconMode("upload")}
+                            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                              faviconMode === "upload"
+                                ? "bg-white text-zinc-900 shadow-sm"
+                                : "text-zinc-600 hover:text-zinc-900"
+                            }`}
+                          >
+                            📤 Upload File (PNG / SVG / ICO)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setFaviconMode("url")}
+                            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                              faviconMode === "url"
+                                ? "bg-white text-zinc-900 shadow-sm"
+                                : "text-zinc-600 hover:text-zinc-900"
+                            }`}
+                          >
+                            🔗 Direct Image URL
+                          </button>
+                        </div>
+
+                        {/* MODE 1: PRESET ICONS */}
+                        {faviconMode === "presets" && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+                            {FAVICON_PRESETS.map((preset) => {
+                              const isSelected =
+                                adminStats.faviconData === preset.svgData ||
+                                (!adminStats.faviconData && !adminStats.faviconUrl && preset.id === "pk-emblem");
+                              return (
+                                <div
+                                  key={preset.id}
+                                  onClick={() => handleSelectPresetFavicon(preset.svgData)}
+                                  className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center gap-3.5 ${
+                                    isSelected
+                                      ? "border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/20 shadow-sm"
+                                      : "border-zinc-200 bg-zinc-50/60 hover:bg-zinc-100/80 hover:border-zinc-300"
+                                  }`}
+                                >
+                                  <div className="w-10 h-10 rounded-xl bg-white border border-zinc-200/80 flex items-center justify-center p-1 shrink-0 shadow-sm">
+                                    <img
+                                      src={preset.svgData}
+                                      alt={preset.name}
+                                      className="w-full h-full object-contain"
+                                    />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between">
+                                      <p className="text-xs font-bold text-zinc-900 truncate">
+                                        {preset.name}
+                                      </p>
+                                      {isSelected && (
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                      )}
+                                    </div>
+                                    <p className="text-[11px] text-zinc-500 line-clamp-1 mt-0.5">
+                                      {preset.desc}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* MODE 2: FILE UPLOAD */}
+                        {faviconMode === "upload" && (
+                          <div className="bg-zinc-50 border border-dashed border-zinc-300 rounded-xl p-6 mb-4 text-center hover:border-emerald-500 transition-colors">
+                            <input
+                              type="file"
+                              id="admin-favicon-upload-input"
+                              accept=".ico,.png,.svg,.jpg,.jpeg,.webp,image/*"
+                              onChange={handleFaviconFileUpload}
+                              className="hidden"
+                            />
+                            <div className="flex flex-col items-center justify-center">
+                              <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 mb-3">
+                                <Upload className="w-6 h-6" />
+                              </div>
+                              <h4 className="text-sm font-bold text-zinc-800 mb-1">
+                                Click or drag a favicon image to upload
+                              </h4>
+                              <p className="text-xs text-zinc-500 mb-4 max-w-md">
+                                Supported formats: .ico, .png, .svg, .webp. Recommended dimensions: square aspect ratio (e.g., 64×64, 128×128, 256×256 px). Maximum file size: 2MB.
+                              </p>
+                              <label
+                                htmlFor="admin-favicon-upload-input"
+                                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm cursor-pointer transition-colors"
+                              >
+                                <Upload className="w-4 h-4" />
+                                Choose Image File
+                              </label>
+
+                              {adminStats.faviconData && !FAVICON_PRESETS.some((p) => p.svgData === adminStats.faviconData) && (
+                                <div className="mt-4 pt-4 border-t border-zinc-200 flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-lg bg-white border border-zinc-200 p-1 flex items-center justify-center">
+                                    <img
+                                      src={adminStats.faviconData}
+                                      alt="Uploaded preview"
+                                      className="w-full h-full object-contain"
+                                    />
+                                  </div>
+                                  <span className="text-xs font-semibold text-emerald-700">
+                                    Custom file uploaded and loaded in preview!
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={handleResetFavicon}
+                                    className="text-xs text-red-600 hover:underline ml-2"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* MODE 3: DIRECT URL */}
+                        {faviconMode === "url" && (
+                          <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 mb-4">
+                            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                              External Favicon / Icon URL
+                            </label>
+                            <div className="flex gap-2">
+                              <input
+                                type="url"
+                                value={adminStats.faviconUrl || ""}
+                                onChange={(e) => {
+                                  const url = e.target.value;
+                                  setAdminStats({
+                                    ...adminStats,
+                                    faviconUrl: url,
+                                    faviconData: ""
+                                  });
+                                  if (url) applyLiveFavicon(url);
+                                }}
+                                className="flex-1 bg-white border border-zinc-200 rounded-xl px-4 py-2.5 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all"
+                                placeholder="https://example.com/assets/favicon.png"
+                              />
+                              {adminStats.faviconUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAdminStats({
+                                      ...adminStats,
+                                      faviconUrl: "",
+                                      faviconData: ""
+                                    });
+                                    handleResetFavicon();
+                                  }}
+                                  className="px-3 py-2 text-xs font-semibold text-zinc-600 bg-zinc-200 hover:bg-zinc-300 rounded-xl transition-colors"
+                                >
+                                  Clear
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-zinc-400 mt-1.5">
+                              Enter a direct HTTPS image URL. Ensure CORS or public access is allowed by the host.
+                            </p>
+                          </div>
+                        )}
                       </div>
 
                       <div className="border-t border-zinc-100 pt-6 mt-6">

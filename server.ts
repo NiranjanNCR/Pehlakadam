@@ -575,6 +575,8 @@ const SystemStatsSchema = new mongoose.Schema({
   seoDescription: { type: String, default: "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips." },
   seoKeywords: { type: String, default: "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam" },
   seoAuthor: { type: String, default: "Pehlakadam" },
+  faviconUrl: { type: String, default: "" },
+  faviconData: { type: String, default: "" },
   termsContent: { type: String, default: "" },
   privacyContent: { type: String, default: "" },
   refundContent: { type: String, default: "" },
@@ -6113,6 +6115,8 @@ app.get("/api/system-stats", async (req, res) => {
         seoDescription: stats.seoDescription || "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.",
         seoKeywords: stats.seoKeywords || "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam",
         seoAuthor: stats.seoAuthor || "Pehlakadam",
+        faviconUrl: stats.faviconUrl || "",
+        faviconData: stats.faviconData || "",
         termsContent: stats.termsContent || "",
         privacyContent: stats.privacyContent || "",
         refundContent: stats.refundContent || "",
@@ -6139,6 +6143,8 @@ app.get("/api/system-stats", async (req, res) => {
           seoDescription: "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.",
           seoKeywords: "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam",
           seoAuthor: "Pehlakadam",
+          faviconUrl: "",
+          faviconData: "",
           termsContent: "",
           privacyContent: "",
           refundContent: "",
@@ -6160,6 +6166,8 @@ app.get("/api/system-stats", async (req, res) => {
         seoDescription: stats.seoDescription || "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.",
         seoKeywords: stats.seoKeywords || "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam",
         seoAuthor: stats.seoAuthor || "Pehlakadam",
+        faviconUrl: stats.faviconUrl || "",
+        faviconData: stats.faviconData || "",
         termsContent: stats.termsContent || "",
         privacyContent: stats.privacyContent || "",
         refundContent: stats.refundContent || "",
@@ -6183,6 +6191,8 @@ app.get("/api/system-stats", async (req, res) => {
       seoDescription: "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.",
       seoKeywords: "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam",
       seoAuthor: "Pehlakadam",
+      faviconUrl: "",
+      faviconData: "",
       termsContent: "",
       privacyContent: "",
       refundContent: "",
@@ -6208,6 +6218,8 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
       seoDescription,
       seoKeywords,
       seoAuthor,
+      faviconUrl,
+      faviconData,
       termsContent,
       privacyContent,
       refundContent,
@@ -6229,6 +6241,8 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
     const finalSeoDescription = seoDescription || "Unlock your potential with Pehlakadam. We provide professional career counseling, psychometric personality diagnostics (DISC, MBTI, 16PF), and weekly tips.";
     const finalSeoKeywords = seoKeywords || "career counselling, personality development, psychometric test, MBTI, DISC assessment, Pehlakadam";
     const finalSeoAuthor = seoAuthor || "Pehlakadam";
+    const finalFaviconUrl = faviconUrl !== undefined ? faviconUrl : "";
+    const finalFaviconData = faviconData !== undefined ? faviconData : "";
     const finalTermsContent = termsContent !== undefined ? termsContent : "";
     const finalPrivacyContent = privacyContent !== undefined ? privacyContent : "";
     const finalRefundContent = refundContent !== undefined ? refundContent : "";
@@ -6253,6 +6267,8 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
       stats.seoDescription = finalSeoDescription;
       stats.seoKeywords = finalSeoKeywords;
       stats.seoAuthor = finalSeoAuthor;
+      stats.faviconUrl = finalFaviconUrl;
+      stats.faviconData = finalFaviconData;
       stats.termsContent = finalTermsContent;
       stats.privacyContent = finalPrivacyContent;
       stats.refundContent = finalRefundContent;
@@ -6277,6 +6293,8 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
       seoDescription: finalSeoDescription,
       seoKeywords: finalSeoKeywords,
       seoAuthor: finalSeoAuthor,
+      faviconUrl: finalFaviconUrl,
+      faviconData: finalFaviconData,
       termsContent: finalTermsContent,
       privacyContent: finalPrivacyContent,
       refundContent: finalRefundContent,
@@ -6284,7 +6302,7 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
     }, null, 2));
 
     return res.status(200).json({
-      message: "System stats and payment/social/SEO/policies config updated successfully.",
+      message: "System stats and payment/social/SEO/favicon/policies config updated successfully.",
       stats: {
         studentsCount,
         expertsCount,
@@ -6300,6 +6318,8 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
         seoDescription: finalSeoDescription,
         seoKeywords: finalSeoKeywords,
         seoAuthor: finalSeoAuthor,
+        faviconUrl: finalFaviconUrl,
+        faviconData: finalFaviconData,
         termsContent: finalTermsContent,
         privacyContent: finalPrivacyContent,
         refundContent: finalRefundContent,

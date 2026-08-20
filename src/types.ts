@@ -210,4 +210,27 @@ export interface StudentDashboardData {
   completedLessons?: Record<string, string[]>; // courseId -> array of completed lesson IDs
 }
 
+export interface SystemStats {
+  studentsCount: string;
+  expertsCount: string;
+  successRate: string;
+  upiId: string;
+  merchantName: string;
+  instagramUrl: string;
+  youtubeUrl: string;
+  whatsappSupportUrl: string;
+  whatsappGroupUrl: string;
+  forumJoinUrl: string;
+  seoTitle: string;
+  seoDescription: string;
+  seoKeywords: string;
+  seoAuthor: string;
+  faviconUrl?: string;
+  faviconData?: string;
+  termsContent?: string;
+  privacyContent?: string;
+  refundContent?: string;
+  disclaimerContent?: string;
+}
+
 

@@ -29,6 +29,25 @@ export default function App() {
 
           document.title = title;
 
+          // 🌟 Dynamic Favicon Update
+          const favicon = data.faviconData || data.faviconUrl;
+          if (favicon) {
+            const updateFavicon = (iconHref: string) => {
+              const links = document.querySelectorAll<HTMLLinkElement>("link[rel*='icon']");
+              if (links.length > 0) {
+                links.forEach((link) => {
+                  link.href = iconHref;
+                });
+              } else {
+                const newLink = document.createElement("link");
+                newLink.rel = "icon";
+                newLink.href = iconHref;
+                document.head.appendChild(newLink);
+              }
+            };
+            updateFavicon(favicon);
+          }
+
           const updateMeta = (name: string, value: string, isProperty = false) => {
             const selector = isProperty ? `meta[property="${name}"]` : `meta[name="${name}"]`;
             let element = document.querySelector(selector);
