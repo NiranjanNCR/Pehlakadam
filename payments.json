@@ -1,0 +1,21 @@
+[
+  {
+    "id": "pay-1787314065685",
+    "firstName": "Test",
+    "lastName": "Student",
+    "email": "test.student@example.com",
+    "number": "9876543210",
+    "role": "Pro Mentorship Program",
+    "plan": "Pro",
+    "amount": 1999,
+    "transactionId": "UTR5592375227",
+    "fileName": "screenshot.png",
+    "fileUrl": "payment_1787314065685_screenshot.png",
+    "status": "auto_approved",
+    "autoVerified": true,
+    "verificationMethod": "AUTO_UTR_OCR",
+    "verifiedAt": "2026-08-21T12:07:45.685Z",
+    "couponCode": "",
+    "createdAt": "2026-08-21T12:07:45.685Z"
+  }
+]

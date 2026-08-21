@@ -151,21 +151,31 @@ export default function AdminCourses() {
   };
 
   const handleDeleteCourse = async (courseId: string, title: string) => {
-    if (!confirm(`Are you sure you want to delete course: ${title}?`)) return;
+    if (!confirm(`Are you sure you want to permanently delete course:\n"${title}"?`)) return;
+    
+    // Optimistic UI update
+    setCourses(prev => prev.filter(c => c.id !== courseId));
+    if (selectedCourseForCurriculum?.id === courseId) {
+      setSelectedCourseForCurriculum(null);
+    }
+
     try {
       const token = localStorage.getItem("pehlakadam_admin_token");
-      const res = await fetch(`/api/courses/${courseId}`, {
+      const res = await fetch(`/api/courses/${encodeURIComponent(courseId)}`, {
         method: "DELETE",
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
-        fetchCourses();
-        if (selectedCourseForCurriculum?.id === courseId) {
-          setSelectedCourseForCurriculum(null);
-        }
+        await fetchCourses();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.error || "Failed to delete course from server.");
+        await fetchCourses();
       }
     } catch (err) {
       console.error("Error deleting course:", err);
+      alert("Network error occurred while attempting to delete course.");
+      await fetchCourses();
     }
   };
 

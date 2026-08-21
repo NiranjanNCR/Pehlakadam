@@ -108,5 +108,27 @@
     "format": "YouTube Video",
     "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
     "createdAt": "2026-07-08T05:51:05.360Z"
+  },
+  {
+    "id": "1787314021496",
+    "title": "Automated Engineering Handbook Video",
+    "category": "Career Guides",
+    "description": "Complete guide to top engineering careers in India",
+    "type": "video",
+    "format": "YouTube Video",
+    "videoUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "isPaid": false,
+    "createdAt": "2026-08-21T12:07:01.497Z"
+  },
+  {
+    "id": "1787314065688",
+    "title": "Automated Engineering Handbook Video",
+    "category": "Career Guides",
+    "description": "Complete guide to top engineering careers in India",
+    "type": "video",
+    "format": "YouTube Video",
+    "videoUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "isPaid": false,
+    "createdAt": "2026-08-21T12:07:45.688Z"
   }
 ]

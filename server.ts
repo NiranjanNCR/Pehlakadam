@@ -577,6 +577,24 @@ const verifyAdmin = (req: any, res: any, next: any) => {
   return res.status(401).json({ error: "Unauthorized access. Invalid admin credentials." });
 };
 
+app.get("/api/health", (req, res) => {
+  return res.status(200).json({
+    status: "ok",
+    healthy: true,
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    storageMode: isMongoConnected ? "mongodb" : "local-json"
+  });
+});
+
+app.get("/api/admin/verify", verifyAdmin, (req, res) => {
+  return res.status(200).json({
+    authorized: true,
+    success: true,
+    message: "Admin credentials verified successfully."
+  });
+});
+
 app.post("/api/admin/login", authLimiter, (req, res) => {
   const { email, phone } = req.body;
   if (!email || !phone) {
@@ -1100,7 +1118,7 @@ async function safeMongoQuery<T>(
       msg.includes("buffering timed out")
     ) {
       isMongoConnected = false;
-      console.warn(`⚠️ [Pehlakadam Server] MongoDB connection timeout/drop: ${msg}. Seamlessly switched to local JSON mode.`);
+      console.warn(`⚠️ [Pehlakadam Server] MongoDB query notice: ${msg}. Seamlessly switched to local fallback mode.`);
     }
     return fallbackFn ? await fallbackFn() : null;
   }
@@ -1118,7 +1136,7 @@ mongoose.connection.on("reconnected", () => {
 
 mongoose.connection.on("disconnected", () => {
   isMongoConnected = false;
-  console.log("⚠️ [Pehlakadam Server] MongoDB connection lost. Operating in JSON fallback mode.");
+  console.log("⚠️ [Pehlakadam Server] MongoDB connection disconnected. Operating in resilient JSON fallback mode.");
 });
 
 mongoose.connection.on("error", (err) => {
@@ -1134,12 +1152,15 @@ if (hasValidScheme) {
   console.log(`   Target URI (Masked): ${maskUri(MONGODB_URI)}`);
   
   mongoose.connect(MONGODB_URI, {
-    serverSelectionTimeoutMS: 2500,
-    connectTimeoutMS: 4000,
-    socketTimeoutMS: 4000,
-    maxPoolSize: 5,
-    minPoolSize: 0,
-    retryWrites: false,
+    serverSelectionTimeoutMS: 15000,
+    connectTimeoutMS: 15000,
+    socketTimeoutMS: 30000,
+    maxPoolSize: 10,
+    minPoolSize: 1,
+    maxIdleTimeMS: 45000,
+    heartbeatFrequencyMS: 10000,
+    retryWrites: true,
+    w: "majority"
   })
     .then(() => {
       isMongoConnected = true;
@@ -1747,40 +1768,46 @@ app.post("/api/submit", async (req, res) => {
     const plan = req.body.plan || "Basic";
 
     // =========================================================================================
-    // 💾 STEP 1: DATABASE TRANSACTION PHASE (MONGODB OR JSON LOCAL FALLBACK DEPOSITORY)
+    // 💾 STEP 1: DATABASE TRANSACTION PHASE (MONGODB AND JSON LOCAL FALLBACK DEPOSITORY)
     // =========================================================================================
-    if (isMongoConnected) {
-      // Create a Mongoose document instance and save it to the MongoDB Atlas cluster
-      const newSubDoc = new SubmissionModel({
-        firstName,
-        lastName,
-        email,
-        number,
-        role,
-        plan,
-        message
-      });
-      await newSubDoc.save();
-      console.log(`[Pehlakadam MongoDB] Saved submission for ${firstName} ${lastName} (${role} - ${plan})`);
-    } else {
-      // Fallback: Read and write JSON arrays to preserve user registrations when offline
-      const newSubmission = {
-        id: Date.now().toString(),
-        firstName,
-        lastName,
-        email,
-        number,
-        role,
-        plan,
-        message,
-        createdAt: new Date().toISOString(),
-      };
+    const newSubmission = {
+      id: Date.now().toString(),
+      firstName,
+      lastName,
+      email,
+      number,
+      role,
+      plan,
+      message,
+      createdAt: new Date().toISOString(),
+    };
 
-      const fileData = fs.readFileSync(SUBMISSIONS_FILE, "utf-8");
-      const submissions = JSON.parse(fileData);
+    try {
+      const fileData = fs.existsSync(SUBMISSIONS_FILE) ? fs.readFileSync(SUBMISSIONS_FILE, "utf-8") : "[]";
+      const submissions = JSON.parse(fileData || "[]");
       submissions.push(newSubmission);
       fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(submissions, null, 2));
       console.log(`[Pehlakadam JSON] Saved submission for ${firstName} ${lastName} (${role} - ${plan})`);
+    } catch (fsErr) {
+      console.warn("⚠️ [Pehlakadam File Storage] Notice saving submission to file:", fsErr);
+    }
+
+    if (isMongoLive()) {
+      try {
+        const newSubDoc = new SubmissionModel({
+          firstName,
+          lastName,
+          email,
+          number,
+          role,
+          plan,
+          message
+        });
+        await newSubDoc.save();
+        console.log(`[Pehlakadam MongoDB] Saved submission for ${firstName} ${lastName} (${role} - ${plan})`);
+      } catch (mErr: any) {
+        console.warn("⚠️ [Pehlakadam API] Mongo save submission notice:", mErr?.message);
+      }
     }
 
     // =========================================================================================
@@ -4436,43 +4463,65 @@ app.post("/api/resources", verifyAdmin, async (req, res) => {
 app.delete("/api/resources/:id", verifyAdmin, async (req, res) => {
   try {
     const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ error: "Resource ID is required for deletion." });
+    }
     apiCache.invalidate("resources");
 
-    if (isMongoConnected) {
-      const resource = await ResourceModel.findById(id);
-      if (!resource) {
-        return res.status(404).json({ error: "Resource not found" });
-      }
-
-      // Delete physical file
-      if (resource.type === "pdf" && resource.fileUrl && !resource.fileUrl.startsWith("placeholder")) {
-        const filePath = path.join(UPLOADS_DIR, resource.fileUrl);
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
+    if (isMongoLive()) {
+      try {
+        let resource: any = null;
+        if (mongoose.Types.ObjectId.isValid(id)) {
+          resource = await ResourceModel.findById(id);
         }
-      }
-
-      await ResourceModel.findByIdAndDelete(id);
-      return res.status(200).json({ success: true });
-    } else {
-      const resources = JSON.parse(fs.readFileSync(RESOURCES_FILE, "utf-8"));
-      const resource = resources.find((r: any) => r.id === id);
-      if (!resource) {
-        return res.status(404).json({ error: "Resource not found" });
-      }
-
-      // Delete physical file
-      if (resource.type === "pdf" && resource.fileUrl && !resource.fileUrl.startsWith("placeholder")) {
-        const filePath = path.join(UPLOADS_DIR, resource.fileUrl);
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
+        if (!resource) {
+          resource = await ResourceModel.findOne({ $or: [{ title: id }, { fileUrl: id }] });
         }
-      }
 
-      const filtered = resources.filter((r: any) => r.id !== id);
-      fs.writeFileSync(RESOURCES_FILE, JSON.stringify(filtered, null, 2));
-      return res.status(200).json({ success: true });
+        if (resource) {
+          if (resource.type === "pdf" && resource.fileUrl && !resource.fileUrl.startsWith("placeholder")) {
+            const filePath = path.join(UPLOADS_DIR, resource.fileUrl);
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
+            }
+          }
+        }
+
+        if (mongoose.Types.ObjectId.isValid(id)) {
+          await ResourceModel.findByIdAndDelete(id);
+        }
+        await ResourceModel.deleteMany({
+          $or: [
+            { title: id },
+            { fileUrl: id },
+            ...(mongoose.Types.ObjectId.isValid(id) ? [{ _id: id }] : [])
+          ]
+        });
+      } catch (mErr: any) {
+        console.warn("⚠️ [Pehlakadam API] Mongo resource deletion notice:", mErr?.message);
+      }
     }
+
+    // Keep JSON file in sync
+    let resources: any[] = [];
+    try {
+      if (fs.existsSync(RESOURCES_FILE)) {
+        resources = JSON.parse(fs.readFileSync(RESOURCES_FILE, "utf-8"));
+      }
+    } catch (e) {}
+
+    const resource = resources.find((r: any) => r.id === id || (r._id && r._id.toString() === id) || r.title === id);
+    if (resource && resource.type === "pdf" && resource.fileUrl && !resource.fileUrl.startsWith("placeholder")) {
+      const filePath = path.join(UPLOADS_DIR, resource.fileUrl);
+      if (fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); } catch (e) {}
+      }
+    }
+
+    const filtered = resources.filter((r: any) => !(r.id === id || (r._id && r._id.toString() === id) || r.title === id));
+    fs.writeFileSync(RESOURCES_FILE, JSON.stringify(filtered, null, 2));
+
+    return res.status(200).json({ success: true, message: "Resource deleted successfully." });
   } catch (error) {
     console.error("[Pehlakadam API] Error deleting resource:", error);
     return res.status(500).json({ error: "Failed to delete resource" });
@@ -5445,15 +5494,21 @@ app.post("/api/courses", verifyAdmin, async (req, res) => {
 
     let newCourse: any = null;
 
-    if (isMongoConnected) {
-      const created = new CourseModel(courseData);
-      await created.save();
-      newCourse = {
-        id: created._id.toString(),
-        ...courseData,
-        createdAt: created.createdAt.toISOString()
-      };
-    } else {
+    if (isMongoLive()) {
+      try {
+        const created = new CourseModel(courseData);
+        await created.save();
+        newCourse = {
+          id: created._id.toString(),
+          ...courseData,
+          createdAt: created.createdAt ? created.createdAt.toISOString() : new Date().toISOString()
+        };
+      } catch (mErr: any) {
+        console.warn("⚠️ [Pehlakadam API] Mongo create course warning:", mErr?.message);
+      }
+    }
+
+    if (!newCourse) {
       newCourse = {
         id: "course-" + Date.now(),
         ...courseData,
@@ -5484,31 +5539,38 @@ app.put("/api/courses/:id", verifyAdmin, async (req, res) => {
     apiCache.invalidate("courses");
     let updatedCourse: any = null;
 
-    if (isMongoConnected) {
-      let doc = await CourseModel.findById(id);
-      if (!doc) {
-        doc = await CourseModel.findOne({ slug: id });
-      }
-      if (doc) {
-        Object.assign(doc, req.body);
-        await doc.save();
-        updatedCourse = {
-          id: doc._id.toString(),
-          title: doc.title,
-          slug: doc.slug,
-          description: doc.description,
-          thumbnailUrl: doc.thumbnailUrl,
-          tier: doc.tier,
-          category: doc.category,
-          originalPrice: doc.originalPrice,
-          discountPrice: doc.discountPrice,
-          duration: doc.duration,
-          level: doc.level,
-          batch: doc.batch,
-          published: doc.published,
-          chapters: doc.chapters,
-          createdAt: doc.createdAt
-        };
+    if (isMongoLive()) {
+      try {
+        let doc: any = null;
+        if (mongoose.Types.ObjectId.isValid(id)) {
+          doc = await CourseModel.findById(id);
+        }
+        if (!doc) {
+          doc = await CourseModel.findOne({ $or: [{ slug: id }, { title: id }] });
+        }
+        if (doc) {
+          Object.assign(doc, req.body);
+          await doc.save();
+          updatedCourse = {
+            id: doc._id.toString(),
+            title: doc.title,
+            slug: doc.slug,
+            description: doc.description,
+            thumbnailUrl: doc.thumbnailUrl,
+            tier: doc.tier,
+            category: doc.category,
+            originalPrice: doc.originalPrice,
+            discountPrice: doc.discountPrice,
+            duration: doc.duration,
+            level: doc.level,
+            batch: doc.batch,
+            published: doc.published,
+            chapters: doc.chapters,
+            createdAt: doc.createdAt
+          };
+        }
+      } catch (mErr: any) {
+        console.warn("⚠️ [Pehlakadam API] Mongo update course warning:", mErr?.message);
       }
     }
 
@@ -5519,14 +5581,25 @@ app.put("/api/courses/:id", verifyAdmin, async (req, res) => {
         courses = JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8"));
       }
     } catch (e) {}
-    const index = courses.findIndex((c: any) => c.id === id || c.slug === id);
+    const index = courses.findIndex((c: any) => c.id === id || c.slug === id || (c._id && c._id.toString() === id));
     if (index !== -1) {
       courses[index] = { ...courses[index], ...req.body };
       fs.writeFileSync(COURSES_FILE, JSON.stringify(courses, null, 2));
       if (!updatedCourse) updatedCourse = courses[index];
     }
 
-    if (!updatedCourse) return res.status(404).json({ error: "Course not found" });
+    if (!updatedCourse) {
+      // If updating a course that didn't exist yet in storage, create it
+      const fallbackCourse = {
+        id,
+        ...req.body,
+        updatedAt: new Date().toISOString()
+      };
+      courses.push(fallbackCourse);
+      fs.writeFileSync(COURSES_FILE, JSON.stringify(courses, null, 2));
+      updatedCourse = fallbackCourse;
+    }
+
     return res.status(200).json(updatedCourse);
   } catch (err) {
     console.error("[Pehlakadam API] Error updating course:", err);
@@ -5537,9 +5610,26 @@ app.put("/api/courses/:id", verifyAdmin, async (req, res) => {
 app.delete("/api/courses/:id", verifyAdmin, async (req, res) => {
   try {
     const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ error: "Course ID is required for deletion." });
+    }
     apiCache.invalidate("courses");
-    if (isMongoConnected) {
-      await CourseModel.findByIdAndDelete(id);
+
+    if (isMongoLive()) {
+      try {
+        if (mongoose.Types.ObjectId.isValid(id)) {
+          await CourseModel.findByIdAndDelete(id);
+        }
+        await CourseModel.deleteMany({
+          $or: [
+            { slug: id },
+            { title: id },
+            ...(mongoose.Types.ObjectId.isValid(id) ? [{ _id: id }] : [])
+          ]
+        });
+      } catch (mongoErr: any) {
+        console.warn("⚠️ [Pehlakadam API] Mongo course deletion notice:", mongoErr?.message);
+      }
     }
 
     let courses: any[] = [];
@@ -5548,10 +5638,14 @@ app.delete("/api/courses/:id", verifyAdmin, async (req, res) => {
         courses = JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8"));
       }
     } catch (e) {}
-    courses = courses.filter((c: any) => c.id !== id);
+    
+    courses = courses.filter((c: any) => {
+      const matchId = c.id === id || (c._id && c._id.toString() === id) || c.slug === id || c.title === id;
+      return !matchId;
+    });
     fs.writeFileSync(COURSES_FILE, JSON.stringify(courses, null, 2));
 
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ success: true, message: "Course deleted successfully." });
   } catch (err) {
     console.error("[Pehlakadam API] Error deleting course:", err);
     return res.status(500).json({ error: "Failed to delete course." });
@@ -5864,25 +5958,35 @@ app.put("/api/coupons/:id", verifyAdmin, async (req, res) => {
     apiCache.invalidate("coupons");
     let updated: any = null;
 
-    if (isMongoConnected) {
-      const doc = await CouponModel.findById(id);
-      if (doc) {
-        Object.assign(doc, req.body);
-        await doc.save();
-        updated = {
-          id: doc._id.toString(),
-          code: doc.code,
-          discountType: doc.discountType,
-          discountValue: doc.discountValue,
-          minOrderAmount: doc.minOrderAmount,
-          active: doc.active,
-          createdAt: doc.createdAt
-        };
+    if (isMongoLive()) {
+      try {
+        let doc: any = null;
+        if (mongoose.Types.ObjectId.isValid(id)) {
+          doc = await CouponModel.findById(id);
+        }
+        if (!doc) {
+          doc = await CouponModel.findOne({ $or: [{ code: id.toUpperCase() }, { code: id }] });
+        }
+        if (doc) {
+          Object.assign(doc, req.body);
+          await doc.save();
+          updated = {
+            id: doc._id.toString(),
+            code: doc.code,
+            discountType: doc.discountType,
+            discountValue: doc.discountValue,
+            minOrderAmount: doc.minOrderAmount,
+            active: doc.active,
+            createdAt: doc.createdAt
+          };
+        }
+      } catch (mErr: any) {
+        console.warn("⚠️ [Pehlakadam API] Mongo coupon update notice:", mErr?.message);
       }
     }
 
     const coupons = fs.existsSync(COUPONS_FILE) ? JSON.parse(fs.readFileSync(COUPONS_FILE, "utf-8")) : [];
-    const index = coupons.findIndex((c: any) => c.id === id);
+    const index = coupons.findIndex((c: any) => c.id === id || (c._id && c._id.toString() === id) || c.code?.toUpperCase() === id.toUpperCase());
     if (index !== -1) {
       coupons[index] = { ...coupons[index], ...req.body };
       fs.writeFileSync(COUPONS_FILE, JSON.stringify(coupons, null, 2));
@@ -5899,14 +6003,32 @@ app.put("/api/coupons/:id", verifyAdmin, async (req, res) => {
 app.delete("/api/coupons/:id", verifyAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    apiCache.invalidate("coupons");
-    if (isMongoConnected) {
-      await CouponModel.findByIdAndDelete(id);
+    if (!id) {
+      return res.status(400).json({ error: "Coupon ID is required for deletion." });
     }
+    apiCache.invalidate("coupons");
+
+    if (isMongoLive()) {
+      try {
+        if (mongoose.Types.ObjectId.isValid(id)) {
+          await CouponModel.findByIdAndDelete(id);
+        }
+        await CouponModel.deleteMany({
+          $or: [
+            { code: id.toUpperCase() },
+            { code: id },
+            ...(mongoose.Types.ObjectId.isValid(id) ? [{ _id: id }] : [])
+          ]
+        });
+      } catch (mErr: any) {
+        console.warn("⚠️ [Pehlakadam API] Mongo coupon deletion notice:", mErr?.message);
+      }
+    }
+
     let coupons = fs.existsSync(COUPONS_FILE) ? JSON.parse(fs.readFileSync(COUPONS_FILE, "utf-8")) : [];
-    coupons = coupons.filter((c: any) => c.id !== id);
+    coupons = coupons.filter((c: any) => !(c.id === id || (c._id && c._id.toString() === id) || c.code?.toUpperCase() === id.toUpperCase()));
     fs.writeFileSync(COUPONS_FILE, JSON.stringify(coupons, null, 2));
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ success: true, message: "Coupon deleted successfully." });
   } catch (err) {
     return res.status(500).json({ error: "Failed to delete coupon." });
   }
@@ -6755,33 +6877,37 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
     const finalRefundContent = refundContent !== undefined ? refundContent : "";
     const finalDisclaimerContent = disclaimerContent !== undefined ? disclaimerContent : "";
 
-    if (isMongoConnected) {
-      let stats = await SystemStatsModel.findOne();
-      if (!stats) {
-        stats = new SystemStatsModel();
+    if (isMongoLive()) {
+      try {
+        let stats = await SystemStatsModel.findOne();
+        if (!stats) {
+          stats = new SystemStatsModel();
+        }
+        stats.studentsCount = studentsCount;
+        stats.expertsCount = expertsCount;
+        stats.successRate = successRate;
+        stats.upiId = finalUpiId;
+        stats.merchantName = finalMerchantName;
+        stats.instagramUrl = finalInstagram;
+        stats.youtubeUrl = finalYoutube;
+        stats.whatsappSupportUrl = finalWhatsappSupport;
+        stats.whatsappGroupUrl = finalWhatsappGroup;
+        stats.forumJoinUrl = finalForumJoin;
+        stats.seoTitle = finalSeoTitle;
+        stats.seoDescription = finalSeoDescription;
+        stats.seoKeywords = finalSeoKeywords;
+        stats.seoAuthor = finalSeoAuthor;
+        stats.faviconUrl = finalFaviconUrl;
+        stats.faviconData = finalFaviconData;
+        stats.termsContent = finalTermsContent;
+        stats.privacyContent = finalPrivacyContent;
+        stats.refundContent = finalRefundContent;
+        stats.disclaimerContent = finalDisclaimerContent;
+        stats.updatedAt = new Date();
+        await stats.save();
+      } catch (mErr: any) {
+        console.warn("⚠️ [Pehlakadam API] Mongo save stats notice:", mErr?.message);
       }
-      stats.studentsCount = studentsCount;
-      stats.expertsCount = expertsCount;
-      stats.successRate = successRate;
-      stats.upiId = finalUpiId;
-      stats.merchantName = finalMerchantName;
-      stats.instagramUrl = finalInstagram;
-      stats.youtubeUrl = finalYoutube;
-      stats.whatsappSupportUrl = finalWhatsappSupport;
-      stats.whatsappGroupUrl = finalWhatsappGroup;
-      stats.forumJoinUrl = finalForumJoin;
-      stats.seoTitle = finalSeoTitle;
-      stats.seoDescription = finalSeoDescription;
-      stats.seoKeywords = finalSeoKeywords;
-      stats.seoAuthor = finalSeoAuthor;
-      stats.faviconUrl = finalFaviconUrl;
-      stats.faviconData = finalFaviconData;
-      stats.termsContent = finalTermsContent;
-      stats.privacyContent = finalPrivacyContent;
-      stats.refundContent = finalRefundContent;
-      stats.disclaimerContent = finalDisclaimerContent;
-      stats.updatedAt = new Date();
-      await stats.save();
     }
 
     // Always keep system_stats.json in sync
@@ -6912,17 +7038,21 @@ app.post("/api/policies", verifyAdmin, async (req, res) => {
     const finalRefund = refundContent !== undefined ? refundContent : "";
     const finalDisclaimer = disclaimerContent !== undefined ? disclaimerContent : "";
 
-    if (isMongoConnected) {
-      let stats = await SystemStatsModel.findOne();
-      if (!stats) {
-        stats = new SystemStatsModel();
+    if (isMongoLive()) {
+      try {
+        let stats = await SystemStatsModel.findOne();
+        if (!stats) {
+          stats = new SystemStatsModel();
+        }
+        stats.termsContent = finalTerms;
+        stats.privacyContent = finalPrivacy;
+        stats.refundContent = finalRefund;
+        stats.disclaimerContent = finalDisclaimer;
+        stats.updatedAt = new Date();
+        await stats.save();
+      } catch (mErr: any) {
+        console.warn("⚠️ [Pehlakadam API] Mongo save policy stats notice:", mErr?.message);
       }
-      stats.termsContent = finalTerms;
-      stats.privacyContent = finalPrivacy;
-      stats.refundContent = finalRefund;
-      stats.disclaimerContent = finalDisclaimer;
-      stats.updatedAt = new Date();
-      await stats.save();
     }
 
     let existingFileStats: any = {};
@@ -7055,8 +7185,25 @@ app.get("/api/career-tips-subscribers", verifyAdmin, async (req, res) => {
 app.delete("/api/career-tips-subscribers/:id", verifyAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    if (isMongoConnected) {
-      await CareerTipSubscriberModel.findByIdAndDelete(id);
+    if (!id) {
+      return res.status(400).json({ error: "Subscriber ID is required for deletion." });
+    }
+
+    if (isMongoLive()) {
+      try {
+        if (mongoose.Types.ObjectId.isValid(id)) {
+          await CareerTipSubscriberModel.findByIdAndDelete(id);
+        }
+        await CareerTipSubscriberModel.deleteMany({
+          $or: [
+            { email: id.toLowerCase() },
+            { phone: id },
+            ...(mongoose.Types.ObjectId.isValid(id) ? [{ _id: id }] : [])
+          ]
+        });
+      } catch (mErr: any) {
+        console.warn("⚠️ [Pehlakadam API] Mongo delete subscriber notice:", mErr?.message);
+      }
     }
 
     // Keep JSON file in sync
@@ -7067,10 +7214,10 @@ app.delete("/api/career-tips-subscribers/:id", verifyAdmin, async (req, res) => 
       }
     } catch (e) {}
 
-    subscribers = subscribers.filter(s => s.id !== id);
+    subscribers = subscribers.filter(s => !(s.id === id || (s._id && s._id.toString() === id) || s.email?.toLowerCase() === id.toLowerCase() || s.phone === id));
     fs.writeFileSync(CAREER_TIPS_SUBSCRIBERS_FILE, JSON.stringify(subscribers, null, 2));
 
-    return res.status(200).json({ message: "Subscriber removed successfully." });
+    return res.status(200).json({ success: true, message: "Subscriber removed successfully." });
   } catch (error) {
     console.error("[Pehlakadam API] Error deleting subscriber:", error);
     return res.status(500).json({ error: "Failed to delete subscriber." });
@@ -7083,20 +7230,27 @@ app.delete("/api/career-tips-subscribers/:id", verifyAdmin, async (req, res) => 
 // =========================================================================================
 app.get("/api/testimonials", async (req, res) => {
   try {
-    if (isMongoConnected) {
-      const items = await TestimonialModel.find().sort({ createdAt: -1 });
-      const formatted = items.map(item => ({
-        id: item._id.toString(),
-        studentName: item.studentName,
-        stream: item.stream,
-        achievement: item.achievement,
-        story: item.story,
-        fileName: item.fileName,
-        fileData: item.fileData,
-        createdAt: item.createdAt
-      }));
-      return res.status(200).json(formatted);
-    } else {
+    let formatted: any[] = [];
+    if (isMongoLive()) {
+      try {
+        const items = await TestimonialModel.find().sort({ createdAt: -1 });
+        formatted = items.map(item => ({
+          id: item._id.toString(),
+          studentName: item.studentName,
+          stream: item.stream,
+          achievement: item.achievement,
+          story: item.story,
+          fileName: item.fileName,
+          fileData: item.fileData,
+          createdAt: item.createdAt
+        }));
+      } catch (err: any) {
+        console.warn("⚠️ [Pehlakadam API] Mongo query notice on Testimonials:", err?.message);
+        formatted = [];
+      }
+    }
+
+    if (formatted.length === 0) {
       let items: any[] = [];
       try {
         if (fs.existsSync(TESTIMONIALS_FILE)) {
@@ -7104,11 +7258,19 @@ app.get("/api/testimonials", async (req, res) => {
         }
       } catch (e) {}
       items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      return res.status(200).json(items);
+      formatted = items;
     }
+
+    return res.status(200).json(formatted);
   } catch (error) {
     console.error("[Pehlakadam API] Error fetching testimonials:", error);
-    return res.status(500).json({ error: "Failed to fetch testimonials." });
+    let fallbackItems: any[] = [];
+    try {
+      if (fs.existsSync(TESTIMONIALS_FILE)) {
+        fallbackItems = JSON.parse(fs.readFileSync(TESTIMONIALS_FILE, "utf-8"));
+      }
+    } catch (e) {}
+    return res.status(200).json(fallbackItems);
   }
 });
 
@@ -7131,17 +7293,21 @@ app.post("/api/testimonials", verifyAdmin, async (req, res) => {
       createdAt: new Date().toISOString()
     };
 
-    if (isMongoConnected) {
-      const dbItem = new TestimonialModel({
-        studentName,
-        stream,
-        achievement,
-        story,
-        fileName: fileName || "",
-        fileData: fileData || ""
-      });
-      await dbItem.save();
-      newItem.id = dbItem._id.toString();
+    if (isMongoLive()) {
+      try {
+        const dbItem = new TestimonialModel({
+          studentName,
+          stream,
+          achievement,
+          story,
+          fileName: fileName || "",
+          fileData: fileData || ""
+        });
+        await dbItem.save();
+        newItem.id = dbItem._id.toString();
+      } catch (mErr: any) {
+        console.warn("⚠️ [Pehlakadam API] Mongo save testimonial notice:", mErr?.message);
+      }
     }
 
     // Keep JSON file in sync
@@ -7164,8 +7330,24 @@ app.post("/api/testimonials", verifyAdmin, async (req, res) => {
 app.delete("/api/testimonials/:id", verifyAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    if (isMongoConnected) {
-      await TestimonialModel.findByIdAndDelete(id);
+    if (!id) {
+      return res.status(400).json({ error: "Testimonial ID is required for deletion." });
+    }
+
+    if (isMongoLive()) {
+      try {
+        if (mongoose.Types.ObjectId.isValid(id)) {
+          await TestimonialModel.findByIdAndDelete(id);
+        }
+        await TestimonialModel.deleteMany({
+          $or: [
+            { studentName: id },
+            ...(mongoose.Types.ObjectId.isValid(id) ? [{ _id: id }] : [])
+          ]
+        });
+      } catch (mErr: any) {
+        console.warn("⚠️ [Pehlakadam API] Mongo delete testimonial notice:", mErr?.message);
+      }
     }
 
     // Keep JSON file in sync
@@ -7176,10 +7358,10 @@ app.delete("/api/testimonials/:id", verifyAdmin, async (req, res) => {
       }
     } catch (e) {}
 
-    items = items.filter(item => item.id !== id);
+    items = items.filter(item => !(item.id === id || (item._id && item._id.toString() === id) || item.studentName === id));
     fs.writeFileSync(TESTIMONIALS_FILE, JSON.stringify(items, null, 2));
 
-    return res.status(200).json({ message: "Testimonial deleted successfully." });
+    return res.status(200).json({ success: true, message: "Testimonial deleted successfully." });
   } catch (error) {
     console.error("[Pehlakadam API] Error deleting testimonial:", error);
     return res.status(500).json({ error: "Failed to delete testimonial." });

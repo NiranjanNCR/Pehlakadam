@@ -1,0 +1,62 @@
+[
+  {
+    "_id": "1787314014081",
+    "id": "1787314014081",
+    "user": {
+      "name": "Test Student",
+      "email": "test.student@example.com",
+      "phone": "9876543210",
+      "classGrade": "10th",
+      "school": "Pehlakadam Academy"
+    },
+    "testKey": "stream-selector",
+    "testTitle": "Scientific Diagnostics Evaluation",
+    "answers": {
+      "1": "A",
+      "2": "B",
+      "3": "A",
+      "4": "C"
+    },
+    "score": {
+      "breakdown": {
+        "A": 50,
+        "B": 25,
+        "C": 25
+      },
+      "dominant": "A",
+      "summary": "Your assessment shows a dominant preference for the A dimension. This represents your primary behavior, analytical approach, and thinking pattern.",
+      "title": "A Dimension Profile"
+    },
+    "createdAt": "2026-08-21T12:06:54.081Z"
+  },
+  {
+    "_id": "1787314021467",
+    "id": "1787314021467",
+    "user": {
+      "name": "Test Student",
+      "email": "test.student@example.com",
+      "phone": "9876543210",
+      "classGrade": "10th",
+      "school": "Pehlakadam Academy"
+    },
+    "testKey": "stream-selector",
+    "testTitle": "Scientific Diagnostics Evaluation",
+    "answers": {
+      "1": "A",
+      "2": "B",
+      "3": "A",
+      "4": "C"
+    },
+    "score": {
+      "breakdown": {
+        "A": 50,
+        "B": 25,
+        "C": 25
+      },
+      "dominant": "A",
+      "summary": "Your assessment shows a dominant preference for the A dimension. This represents your primary behavior, analytical approach, and thinking pattern.",
+      "title": "A Dimension Profile"
+    },
+    "createdAt": "2026-08-21T12:07:01.467Z"
+  }
+]
