@@ -59,8 +59,7 @@
   button,
   .no-print,
   #navigation-bar-container,
-  #admin-sidebar,
-  .print\\:hidden {
+  #admin-sidebar {
     display: none !important;
   }
 
