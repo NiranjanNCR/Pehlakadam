@@ -3700,6 +3700,124 @@ export default function AdminSubmissions() {
                             </p>
                           </div>
                         )}
+
+                        {/* 🎨 BRAND LOGO ASSETS & VECTOR DOWNLOADS */}
+                        <div className="mt-6 bg-gradient-to-br from-emerald-50/70 via-white to-zinc-50 border border-emerald-100 rounded-2xl p-5 shadow-sm">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                            <div>
+                              <h4 className="text-sm font-bold text-zinc-900 flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-emerald-600" />
+                                Official Pehlakadam Brand Logos & Assets
+                              </h4>
+                              <p className="text-xs text-zinc-500 mt-0.5">
+                                High-definition vector SVG and standalone branding assets identical to the website header.
+                              </p>
+                            </div>
+
+                            <a
+                              href="/api/download/brand-logos-zip"
+                              download="pehlakadam-brand-logos.zip"
+                              className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm rounded-xl transition-all cursor-pointer shrink-0"
+                            >
+                              <Download className="w-4 h-4" />
+                              Download Both (.ZIP)
+                            </a>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* LOGO 1: SEPARATE PK EMBLEM */}
+                            <div className="bg-white border border-zinc-200/80 rounded-xl p-4 flex flex-col justify-between hover:border-emerald-300 transition-all shadow-xs">
+                              <div>
+                                <div className="flex items-center justify-between mb-3">
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 rounded-md border border-emerald-200">
+                                    Logo 1: Separate PK Emblem
+                                  </span>
+                                  <span className="text-[10px] font-mono text-zinc-400">Vector SVG • 1:1 Icon</span>
+                                </div>
+
+                                <div className="bg-zinc-900/5 rounded-lg p-6 flex items-center justify-center min-h-[120px] mb-3 border border-zinc-100">
+                                  <div className="w-20 h-20">
+                                    <img
+                                      src="/pk-logo-icon.svg"
+                                      alt="PK Separate Emblem Logo"
+                                      className="w-full h-full object-contain"
+                                    />
+                                  </div>
+                                </div>
+
+                                <p className="text-xs text-zinc-600 mb-4">
+                                  Standalone circular emerald badge with glowing outer ring and bold &quot;PK&quot; monogram. Perfect for avatars, app icons, and favicons.
+                                </p>
+                              </div>
+
+                              <div className="flex items-center gap-2 pt-2 border-t border-zinc-100">
+                                <a
+                                  href="/pk-logo-icon.svg"
+                                  download="pehlakadam-pk-icon.svg"
+                                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  Download SVG
+                                </a>
+                                <a
+                                  href="/pk-logo-icon.svg"
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center justify-center p-2 text-xs font-semibold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors"
+                                  title="Open in new tab"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                              </div>
+                            </div>
+
+                            {/* LOGO 2: FULL BRAND LOCKUP */}
+                            <div className="bg-white border border-zinc-200/80 rounded-xl p-4 flex flex-col justify-between hover:border-emerald-300 transition-all shadow-xs">
+                              <div>
+                                <div className="flex items-center justify-between mb-3">
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 rounded-md border border-emerald-200">
+                                    Logo 2: Full Brand Lockup
+                                  </span>
+                                  <span className="text-[10px] font-mono text-zinc-400">PK + PEHLAKADAM + Tagline</span>
+                                </div>
+
+                                <div className="bg-zinc-900/5 rounded-lg p-6 flex items-center justify-center min-h-[120px] mb-3 border border-zinc-100">
+                                  <div className="w-full max-w-[280px]">
+                                    <img
+                                      src="/pk-logo-full.svg"
+                                      alt="Pehlakadam Full Brand Logo"
+                                      className="w-full h-auto object-contain"
+                                    />
+                                  </div>
+                                </div>
+
+                                <p className="text-xs text-zinc-600 mb-4">
+                                  Complete horizontal brand identity: PK circular badge, bold <strong>PEHLAKADAM</strong> wordmark, and the italic tagline <em>&quot;Choose best Get best&quot;</em> with gradient guide arrows.
+                                </p>
+                              </div>
+
+                              <div className="flex items-center gap-2 pt-2 border-t border-zinc-100">
+                                <a
+                                  href="/pk-logo-full.svg"
+                                  download="pehlakadam-full-brand-logo.svg"
+                                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  Download SVG
+                                </a>
+                                <a
+                                  href="/pk-logo-full.svg"
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center justify-center p-2 text-xs font-semibold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors"
+                                  title="Open in new tab"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                       <div className="border-t border-zinc-100 pt-6 mt-6">

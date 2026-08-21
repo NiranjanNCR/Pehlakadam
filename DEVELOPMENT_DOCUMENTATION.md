@@ -6,18 +6,20 @@ This document is the definitive engineering reference manual covering the system
 
 ## Table of Contents
 1. [System Overview & Architecture](#1-system-overview--architecture)
-2. [Security & Session Concurrency Engine](#2-security--session-concurrency-engine)
-3. [Payment & Checkout Architecture](#3-payment--checkout-architecture)
-4. [LMS Video & Interactive Curriculum Portal](#4-lms-video--interactive-curriculum-portal)
-5. [Psychometric & Diagnostic Assessment Suite](#5-psychometric--diagnostic-assessment-suite)
-6. [Promo Coupon & Dynamic Pricing Engine](#6-promo-coupon--dynamic-pricing-engine)
-7. [1-on-1 Counseling & Lead Management System](#7-1-on-1-counseling--lead-management-system)
-8. [Admin Governance Control Room](#8-admin-governance-control-room)
-9. [Complete REST API Reference](#9-complete-rest-api-reference)
-10. [Database Schemas & Data Models](#10-database-schemas--data-models)
-11. [PDF Handbook & Rendering System](#11-pdf-handbook--rendering-system)
-12. [SEO & Head Hydration Architecture](#12-seo--head-hydration-architecture)
-13. [Deployment, Build & Environment Configuration](#13-deployment-build--environment-configuration)
+2. [Enterprise Security & Defensive Hardening Suite](#2-enterprise-security--defensive-hardening-suite)
+3. [High-Speed Data Delivery & In-Memory Caching Engine](#3-high-speed-data-delivery--in-memory-caching-engine)
+4. [Session Concurrency & Single-Device Control](#4-session-concurrency--single-device-control)
+5. [Payment & Checkout Architecture](#5-payment--checkout-architecture)
+6. [LMS Video & Interactive Curriculum Portal](#6-lms-video--interactive-curriculum-portal)
+7. [Psychometric & Diagnostic Assessment Suite](#7-psychometric--diagnostic-assessment-suite)
+8. [Promo Coupon & Dynamic Pricing Engine](#8-promo-coupon--dynamic-pricing-engine)
+9. [1-on-1 Counseling & Lead Management System](#9-1-on-1-counseling--lead-management-system)
+10. [Admin Governance Control Room](#10-admin-governance-control-room)
+11. [Complete REST API Reference](#11-complete-rest-api-reference)
+12. [Database Schemas & Data Models](#12-database-schemas--data-models)
+13. [PDF Handbook & Rendering System](#13-pdf-handbook--rendering-system)
+14. [SEO & Head Hydration Architecture](#14-seo--head-hydration-architecture)
+15. [Deployment, Build & Environment Configuration](#15-deployment-build--environment-configuration)
 
 ---
 
@@ -28,14 +30,70 @@ Pehlakadam is a high-performance, full-stack educational and career counseling e
 ### Technology Stack
 *   **Frontend**: React 18, Vite, TypeScript, Tailwind CSS, Lucide Icons, Motion (`motion/react`).
 *   **Backend Server**: Express.js (Node.js runtime with `tsx` development runner and `esbuild` production bundling to `dist/server.cjs`).
+*   **Performance & Security**: Gzip Compression, In-Memory Multi-Tier Cache with ETag validation, Token-Bucket Rate Limiters, OWASP Defensive Security Headers, Recursive XSS & NoSQL sanitization.
 *   **Persistence Layer**: Dual-Persistence Architecture:
-    *   **Primary Cloud Database**: MongoDB via Mongoose ORM.
+    *   **Primary Cloud Database**: MongoDB via Mongoose ORM with non-blocking 2.5s timeout boundaries.
     *   **Resilient JSON Flat-File Fallback**: Synchronized JSON storage files (`system_stats.json`, `courses.json`, `course_progress.json`, `coupons.json`, `authorized_numbers.json`, `submissions.json`, `diagnostic_tests.json`, `diagnostic_submissions.json`, `resources.json`, `resource_history.json`, `testimonials.json`, `updates.json`, `programs_config.json`).
 *   **Networking & Port Routing**: The dev and production servers strictly bind to `0.0.0.0:3000` behind the reverse-proxy environment.
 
 ---
 
-## 2. Security & Session Concurrency Engine
+## 2. Enterprise Security & Defensive Hardening Suite
+
+The application incorporates defense-in-depth security mechanisms designed to mitigate OWASP Top 10 vulnerabilities:
+
+### 1. HTTP Defensive Security Headers
+Every outgoing HTTP response is configured with protective browser headers:
+*   `Content-Security-Policy (CSP)`: Strict source restrictions allowing verified external media (YouTube embeds, font CDNs, and API services) while preventing inline script injection.
+*   `X-Content-Type-Options: nosniff`: Prevents MIME-type sniffing exploits.
+*   `X-Frame-Options: SAMEORIGIN`: Protects against clickjacking attacks.
+*   `X-XSS-Protection: 1; mode=block`: Activates active browser XSS filters.
+*   `Referrer-Policy: strict-origin-when-cross-origin`: Restricts sensitive referrer leakage.
+*   `Permissions-Policy`: Restricts unauthorized client hardware access (`camera=(), microphone=(), geolocation=()`).
+*   `X-Download-Options: noopen`: Prevents direct execution of downloaded HTML/scripts in older clients.
+*   `X-Powered-By`: Stripped to prevent server fingerprinting.
+
+### 2. Multi-Tier Token-Bucket Rate Limiting
+Granular in-memory rate limiting shields server endpoints against DoS, brute-force, and spam attacks:
+*   **Global Limiter**: Caps general IP activity to 500 requests / minute.
+*   **Authentication Limiter**: Restricts admin login (`/api/admin/login`) to 20 attempts per 5 minutes with automatic `Retry-After` calculation.
+*   **Lead & Submission Limiter**: Caps consultation inquiries and checkout submissions to 40 attempts per 5 minutes.
+*   **Automatic Memory Pruning**: Stale IP entries are garbage-collected every 60 seconds to maintain minimal RAM usage.
+
+### 3. Deep Recursive Input Sanitization
+*   All incoming payloads (`req.body` and `req.query`) are recursively inspected.
+*   **NoSQL Injection Prevention**: Strips dangerous MongoDB operator keys starting with `$` or containing `.` delimiters.
+*   **Cross-Site Scripting (XSS) Stripping**: Strips embedded `<script>` blocks, `javascript:` pseudoprotocols, and malicious DOM `on*` event attributes.
+
+### 4. Admin Timing-Attack & Access Verification
+*   Constant-time credential comparisons protect the administrative panel against side-channel analysis.
+*   Whitelisted emails and phone numbers are verified on every protected API endpoint (`verifyAdmin` middleware).
+
+---
+
+## 3. High-Speed Data Delivery & In-Memory Caching Engine
+
+To ensure sub-millisecond response times (<2ms) and minimize backend query overhead:
+
+### 1. Multi-Tier In-Memory Caching (`apiCache`)
+*   Frequently requested public datasets (`/api/programs-config`, `/api/diagnostic-tests`, `/api/resources`, `/api/courses`, `/api/coupons`, `/api/system-stats`, `/api/policies`) are cached in an optimized in-memory store.
+*   **Instant Cache Invalidation**: Any administrator mutation (`POST`, `PUT`, `DELETE`) automatically invalidates matching cache keys, guaranteeing that students always receive up-to-date data without manual cache flushing.
+
+### 2. HTTP Conditional Caching & ETags
+*   Endpoints generate MD5-hashed ETags for each cached payload.
+*   If the client sends an `If-None-Match` header matching the current ETag, the server returns an ultra-fast `304 Not Modified` status code with zero payload body transfer.
+*   Configured with modern `Cache-Control: public, max-age=60, stale-while-revalidate=120` directives.
+
+### 3. Dynamic Gzip Payload Compression
+*   Built-in Gzip/Deflate compression automatically compresses all JSON payloads, reducing bandwidth usage by up to 90%.
+
+### 4. Non-Blocking MongoDB Resilience (`safeMongoQuery`)
+*   All database interactions run through an isolated 2.5-second timeout wrapper.
+*   If MongoDB is unreachable or experiencing network latency, the server instantly serves data from local JSON flat-files without stalling user requests or freezing the UI.
+
+---
+
+## 4. Session Concurrency & Single-Device Control
 
 ### Single-Device Parallel Access Concurrency Control
 To prevent unauthorized account sharing across multiple users or pirate devices:
