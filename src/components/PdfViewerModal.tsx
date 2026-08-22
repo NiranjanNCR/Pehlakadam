@@ -17,14 +17,14 @@ import {
   Minimize2,
   BookOpen,
   Layers,
-  RefreshCw
+  RefreshCw,
+  ExternalLink
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import * as pdfjsLib from "pdfjs-dist";
 
 // Initialize PDF.js worker
 if (typeof window !== "undefined") {
-  // Use cloudflare CDN worker matching the installed version, or unpkg
   const version = pdfjsLib.version || "4.10.38";
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${version}/pdf.worker.min.mjs`;
 }
@@ -36,6 +36,71 @@ interface PdfViewerModalProps {
   category?: string;
   pdfUrl?: string;
   fileData?: string;
+}
+
+// Helper to detect and extract Google Drive & Docs embed info
+export function extractDriveEmbedInfo(url?: string): { isDrive: boolean; embedUrl: string; directUrl: string; type: string } | null {
+  if (!url) return null;
+  const trimmed = url.trim();
+
+  // 1. Google Drive /file/d/{FILE_ID}
+  const driveFileMatch = trimmed.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
+  if (driveFileMatch && driveFileMatch[1]) {
+    const fileId = driveFileMatch[1];
+    return {
+      isDrive: true,
+      embedUrl: `https://drive.google.com/file/d/${fileId}/preview`,
+      directUrl: `https://drive.google.com/file/d/${fileId}/view?usp=sharing`,
+      type: "Google Drive Cloud Document"
+    };
+  }
+
+  // 2. Google Drive /open?id={FILE_ID} or /uc?id={FILE_ID}
+  const driveIdMatch = trimmed.match(/drive\.google\.com\/(?:open|uc)\?(?:.*&)?id=([a-zA-Z0-9_-]+)/i);
+  if (driveIdMatch && driveIdMatch[1]) {
+    const fileId = driveIdMatch[1];
+    return {
+      isDrive: true,
+      embedUrl: `https://drive.google.com/file/d/${fileId}/preview`,
+      directUrl: `https://drive.google.com/file/d/${fileId}/view?usp=sharing`,
+      type: "Google Drive Cloud Document"
+    };
+  }
+
+  // 3. Google Docs
+  const docMatch = trimmed.match(/docs\.google\.com\/document\/d\/([a-zA-Z0-9_-]+)/i);
+  if (docMatch && docMatch[1]) {
+    return {
+      isDrive: true,
+      embedUrl: `https://docs.google.com/document/d/${docMatch[1]}/preview`,
+      directUrl: trimmed,
+      type: "Google Docs Document"
+    };
+  }
+
+  // 4. Google Spreadsheets
+  const sheetMatch = trimmed.match(/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/i);
+  if (sheetMatch && sheetMatch[1]) {
+    return {
+      isDrive: true,
+      embedUrl: `https://docs.google.com/spreadsheets/d/${sheetMatch[1]}/preview`,
+      directUrl: trimmed,
+      type: "Google Sheets"
+    };
+  }
+
+  // 5. Google Presentations / Slides
+  const slideMatch = trimmed.match(/docs\.google\.com\/presentation\/d\/([a-zA-Z0-9_-]+)/i);
+  if (slideMatch && slideMatch[1]) {
+    return {
+      isDrive: true,
+      embedUrl: `https://docs.google.com/presentation/d/${slideMatch[1]}/preview`,
+      directUrl: trimmed,
+      type: "Google Slides"
+    };
+  }
+
+  return null;
 }
 
 export default function PdfViewerModal({
@@ -50,6 +115,10 @@ export default function PdfViewerModal({
   const [loadingProgress, setLoadingProgress] = useState("Initializing secure document stream...");
   const [error, setError] = useState<string | null>(null);
   
+  // Google Drive & Cloud Iframe Embed Mode State
+  const [driveEmbed, setDriveEmbed] = useState<{ embedUrl: string; directUrl: string; type: string } | null>(null);
+  const [iframeLoading, setIframeLoading] = useState(true);
+
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -84,6 +153,8 @@ export default function PdfViewerModal({
       setCurrentPage(1);
       setError(null);
       setRawTextFallback(null);
+      setDriveEmbed(null);
+      setIframeLoading(true);
       return;
     }
 
@@ -91,7 +162,12 @@ export default function PdfViewerModal({
     setLoading(true);
     setError(null);
     setRawTextFallback(null);
-    setLoadingProgress("Loading document bytes...");
+    setDriveEmbed(null);
+    setIframeLoading(true);
+    setLoadingProgress("Checking document stream format...");
+
+    // Check if Google Drive / Google Docs info is present for metadata and direct links
+    const detectedDrive = extractDriveEmbedInfo(pdfUrl);
 
     async function loadPdfDocument() {
       try {
@@ -99,6 +175,7 @@ export default function PdfViewerModal({
 
         // Case A: Direct Base64 provided
         if (fileData && fileData.trim().length > 0) {
+          setLoadingProgress("Decoding document data...");
           try {
             let base64 = fileData;
             if (base64.includes("base64,")) {
@@ -115,16 +192,41 @@ export default function PdfViewerModal({
           }
         }
 
-        // Case B: Fetch from URL
+        // Case B: Fetch from URL (Uses Backend PDF Proxy for Google Drive & external URLs)
         if (!uint8Data && pdfUrl) {
-          setLoadingProgress("Fetching document stream from server...");
-          const res = await fetch(pdfUrl, {
-            headers: {
-              "Accept": "application/pdf, application/octet-stream, */*"
-            }
-          });
-          
+          setLoadingProgress(detectedDrive ? "Streaming document from Google Cloud..." : "Fetching document stream from server...");
+          let res: Response;
+
+          // For external URLs or Google Drive URLs, immediately route through the proxy
+          const isExternalOrDrive = !!detectedDrive || pdfUrl.startsWith("http://") || pdfUrl.startsWith("https://");
+          const targetFetchUrl = isExternalOrDrive 
+            ? `/api/pdf-proxy?url=${encodeURIComponent(pdfUrl)}` 
+            : pdfUrl;
+
+          try {
+            res = await fetch(targetFetchUrl, {
+              headers: {
+                "Accept": "application/pdf, application/octet-stream, */*"
+              }
+            });
+          } catch (corsErr) {
+            console.warn("[PdfViewer] Primary fetch failed, trying direct/proxy alternative...", corsErr);
+            res = await fetch(`/api/pdf-proxy?url=${encodeURIComponent(pdfUrl)}`);
+          }
+
           if (!res.ok) {
+            // If proxy fails and we have a Google Drive link, offer direct open / cloud embed
+            if (detectedDrive) {
+              if (isMounted) {
+                setDriveEmbed({
+                  embedUrl: detectedDrive.embedUrl,
+                  directUrl: detectedDrive.directUrl,
+                  type: detectedDrive.type
+                });
+                setLoading(false);
+              }
+              return;
+            }
             throw new Error(`Server returned HTTP ${res.status}: ${res.statusText}`);
           }
 
@@ -139,9 +241,41 @@ export default function PdfViewerModal({
         // Check if data starts with %PDF-
         const header = String.fromCharCode(...uint8Data.slice(0, 5));
         if (header !== "%PDF-") {
-          // If it's a text-based handbook
           const decoder = new TextDecoder("utf-8");
           const textContent = decoder.decode(uint8Data);
+
+          // If it looks like HTML or script tags from Google Drive or webpage
+          if (
+            textContent.includes("<html") || 
+            textContent.includes("<!DOCTYPE") || 
+            textContent.includes("window['_DRIVE_VIEWER") || 
+            textContent.includes("<script")
+          ) {
+            // Check if there's any file ID inside the URL or content
+            const foundDrive = extractDriveEmbedInfo(pdfUrl);
+            if (foundDrive) {
+              if (isMounted) {
+                setDriveEmbed({
+                  embedUrl: foundDrive.embedUrl,
+                  directUrl: foundDrive.directUrl,
+                  type: foundDrive.type
+                });
+                setLoading(false);
+              }
+              return;
+            }
+            if (pdfUrl && isMounted) {
+              setDriveEmbed({
+                embedUrl: pdfUrl,
+                directUrl: pdfUrl,
+                type: "Web Document"
+              });
+              setLoading(false);
+              return;
+            }
+          }
+
+          // If it's genuine text-based handbook / study notes
           if (isMounted) {
             setRawTextFallback(textContent);
             setLoading(false);
@@ -149,7 +283,7 @@ export default function PdfViewerModal({
           return;
         }
 
-        setLoadingProgress("Parsing PDF document structure...");
+        setLoadingProgress("Rendering high-resolution document pages...");
         const loadingTask = pdfjsLib.getDocument({
           data: uint8Data,
           cMapUrl: "https://unpkg.com/pdfjs-dist@4.10.38/cmaps/",
@@ -167,8 +301,24 @@ export default function PdfViewerModal({
       } catch (err: any) {
         console.error("[PdfViewer] Error loading PDF:", err);
         if (isMounted) {
-          setError(err.message || "Failed to render PDF document.");
-          setLoading(false);
+          if (detectedDrive) {
+            setDriveEmbed({
+              embedUrl: detectedDrive.embedUrl,
+              directUrl: detectedDrive.directUrl,
+              type: detectedDrive.type
+            });
+            setLoading(false);
+          } else if (pdfUrl) {
+            setDriveEmbed({
+              embedUrl: pdfUrl,
+              directUrl: pdfUrl,
+              type: "Document Viewer"
+            });
+            setLoading(false);
+          } else {
+            setError(err.message || "Failed to render PDF document.");
+            setLoading(false);
+          }
         }
       }
     }
@@ -177,7 +327,6 @@ export default function PdfViewerModal({
 
     return () => {
       isMounted = false;
-      // Cancel active renders
       renderTasksRef.current.forEach(task => {
         try { task.cancel(); } catch (_) {}
       });
@@ -185,11 +334,10 @@ export default function PdfViewerModal({
     };
   }, [isOpen, pdfUrl, fileData]);
 
-  // 2. Render Page onto Canvas
+  // 2. Render Page onto Canvas (for PDF.js mode)
   const renderPage = useCallback(async (pageNum: number, canvas: HTMLCanvasElement) => {
     if (!pdfDoc) return;
 
-    // Cancel existing render task for this page if running
     if (renderTasksRef.current.has(pageNum)) {
       try {
         renderTasksRef.current.get(pageNum).cancel();
@@ -199,7 +347,6 @@ export default function PdfViewerModal({
 
     try {
       const page = await pdfDoc.getPage(pageNum);
-      // Use higher DPR for Retina/Super AMOLED phone screens to eliminate all blur
       const dpr = Math.max(window.devicePixelRatio || 1, 2);
       const viewport = page.getViewport({ scale: scale * dpr, rotation });
       
@@ -213,7 +360,6 @@ export default function PdfViewerModal({
       const ctx = canvas.getContext("2d", { alpha: false });
       if (!ctx) return;
 
-      // Enable high-quality image smoothing
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
 
@@ -236,7 +382,7 @@ export default function PdfViewerModal({
 
   // Trigger render when scale, rotation, viewMode or doc changes
   useEffect(() => {
-    if (!pdfDoc || loading) return;
+    if (!pdfDoc || loading || driveEmbed) return;
 
     if (viewMode === "single") {
       const canvas = canvasRefs.current.get(currentPage);
@@ -244,7 +390,6 @@ export default function PdfViewerModal({
         renderPage(currentPage, canvas);
       }
     } else {
-      // Continuous: render all visible pages
       for (let p = 1; p <= numPages; p++) {
         const canvas = canvasRefs.current.get(p);
         if (canvas) {
@@ -252,15 +397,13 @@ export default function PdfViewerModal({
         }
       }
     }
-  }, [pdfDoc, scale, rotation, viewMode, currentPage, numPages, loading, renderPage]);
+  }, [pdfDoc, scale, rotation, viewMode, currentPage, numPages, loading, driveEmbed, renderPage]);
 
-  // Scroll listener for continuous mode to update page indicator accurately
+  // Scroll listener for continuous mode
   const handleScroll = useCallback(() => {
     if (viewMode !== "continuous" || !containerRef.current || isScrollingProgrammatically.current) return;
     const container = containerRef.current;
     const containerRect = container.getBoundingClientRect();
-    
-    // Viewport target line: 60px below top bar
     const targetY = containerRect.top + 70;
     
     let activePage = 1;
@@ -269,7 +412,6 @@ export default function PdfViewerModal({
     pageCardRefs.current.forEach((cardEl, pageNum) => {
       if (cardEl) {
         const rect = cardEl.getBoundingClientRect();
-        // If the card is currently visible crossing the target view line
         if (rect.top <= targetY && rect.bottom >= containerRect.top + 40) {
           activePage = pageNum;
         } else {
@@ -370,7 +512,7 @@ export default function PdfViewerModal({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
                     <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full">
-                      {category || "In-App Reader"}
+                      {driveEmbed ? (driveEmbed.type || "Google Drive Document") : (category || "In-App Reader")}
                     </span>
                     <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
                       <Lock className="h-2.5 w-2.5" /> Read-Only
@@ -382,7 +524,21 @@ export default function PdfViewerModal({
                 </div>
               </div>
 
-              <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                {/* External Link if Google Drive or web link */}
+                {(driveEmbed || pdfUrl) && (
+                  <a
+                    href={driveEmbed?.directUrl || pdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 sm:p-2 text-zinc-400 hover:text-emerald-400 bg-zinc-900 hover:bg-zinc-800 rounded-lg sm:rounded-xl border border-zinc-800 transition-all cursor-pointer flex items-center gap-1 text-[10px] sm:text-xs font-semibold"
+                    title="Open in new window"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    <span className="hidden md:inline">Open Drive</span>
+                  </a>
+                )}
+
                 <button
                   onClick={() => setIsFullscreen(prev => !prev)}
                   className="p-1.5 sm:p-2 text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 rounded-lg sm:rounded-xl border border-zinc-800 transition-all cursor-pointer hidden sm:flex items-center justify-center"
@@ -401,110 +557,107 @@ export default function PdfViewerModal({
               </div>
             </div>
 
-            {/* 2. Interactive Reader Toolbar */}
-            <div className="bg-zinc-900 border-b border-zinc-800 px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-300 shrink-0">
-              {/* Pagination Controls */}
-              <form onSubmit={handlePageInputSubmit} className="flex items-center gap-1 sm:gap-1.5">
-                <button
-                  type="button"
-                  onClick={handlePrevPage}
-                  disabled={currentPage <= 1 || loading}
-                  className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:pointer-events-none text-white transition-all cursor-pointer"
-                  title="Previous Page"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                </button>
-                
-                <div className="flex items-center gap-1 font-mono text-[11px] sm:text-xs text-zinc-300 font-semibold px-1">
-                  <span>Page</span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={pageInput}
-                    onChange={(e) => setPageInput(e.target.value)}
-                    onBlur={() => {
-                      const parsed = parseInt(pageInput, 10);
-                      if (!isNaN(parsed) && parsed >= 1 && parsed <= numPages) {
-                        scrollToPage(parsed);
-                      } else {
-                        setPageInput(String(currentPage));
-                      }
-                    }}
-                    className="w-10 sm:w-12 text-center py-0.5 px-1 bg-zinc-800 border border-zinc-700 focus:border-emerald-500 focus:bg-zinc-750 rounded text-emerald-400 font-bold outline-none transition-colors"
-                    title="Type page number and press Enter"
-                  />
-                  <span>of <strong className="text-zinc-400">{numPages || 1}</strong></span>
+            {/* 2. Interactive Reader Toolbar (Shown only for Canvas/PDF.js mode) */}
+            {!driveEmbed && !rawTextFallback && !loading && !error && (
+              <div className="bg-zinc-900 border-b border-zinc-800 px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-300 shrink-0">
+                {/* Pagination Controls */}
+                <form onSubmit={handlePageInputSubmit} className="flex items-center gap-1 sm:gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handlePrevPage}
+                    disabled={currentPage <= 1 || loading}
+                    className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:pointer-events-none text-white transition-all cursor-pointer"
+                    title="Previous Page"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  </button>
+                  
+                  <div className="flex items-center gap-1 font-mono text-[11px] sm:text-xs text-zinc-300 font-semibold px-1">
+                    <span>Page</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={pageInput}
+                      onChange={(e) => setPageInput(e.target.value)}
+                      onBlur={() => {
+                        const parsed = parseInt(pageInput, 10);
+                        if (!isNaN(parsed) && parsed >= 1 && parsed <= numPages) {
+                          scrollToPage(parsed);
+                        } else {
+                          setPageInput(String(currentPage));
+                        }
+                      }}
+                      className="w-10 sm:w-12 text-center py-0.5 px-1 bg-zinc-800 border border-zinc-700 focus:border-emerald-500 focus:bg-zinc-750 rounded text-emerald-400 font-bold outline-none transition-colors"
+                      title="Type page number and press Enter"
+                    />
+                    <span>of <strong className="text-zinc-400">{numPages || 1}</strong></span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleNextPage}
+                    disabled={currentPage >= numPages || loading}
+                    className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:pointer-events-none text-white transition-all cursor-pointer"
+                    title="Next Page"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  </button>
+                </form>
+
+                {/* View & Zoom Controls */}
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <button
+                    type="button"
+                    onClick={handleToggleViewMode}
+                    className={`px-2.5 py-1 rounded-lg border text-[10px] sm:text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                      viewMode === "continuous" 
+                        ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300" 
+                        : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
+                    }`}
+                    title="Toggle Layout"
+                  >
+                    <Layers className="h-3 w-3" />
+                    <span className="hidden sm:inline">{viewMode === "continuous" ? "Continuous Scroll" : "Single Page"}</span>
+                  </button>
+
+                  <button
+                    onClick={handleZoomOut}
+                    disabled={scale <= 0.5 || loading}
+                    className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-white transition-all cursor-pointer"
+                    title="Zoom Out"
+                  >
+                    <ZoomOut className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  </button>
+
+                  <button
+                    onClick={handleResetZoom}
+                    className="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 font-mono text-[10px] sm:text-xs font-bold text-zinc-300 transition-all cursor-pointer"
+                    title="Reset Zoom"
+                  >
+                    {Math.round(scale * 100)}%
+                  </button>
+
+                  <button
+                    onClick={handleZoomIn}
+                    disabled={scale >= 3.0 || loading}
+                    className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-white transition-all cursor-pointer"
+                    title="Zoom In"
+                  >
+                    <ZoomIn className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  </button>
+
+                  <button
+                    onClick={handleRotate}
+                    disabled={loading}
+                    className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-zinc-300 hover:text-white transition-all cursor-pointer"
+                    title="Rotate 90°"
+                  >
+                    <RotateCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  </button>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={handleNextPage}
-                  disabled={currentPage >= numPages || loading}
-                  className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 disabled:pointer-events-none text-white transition-all cursor-pointer"
-                  title="Next Page"
-                >
-                  <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                </button>
-              </form>
-
-              {/* View & Zoom Controls */}
-              <div className="flex items-center gap-1 sm:gap-2">
-                {/* View Mode Toggle */}
-                <button
-                  type="button"
-                  onClick={handleToggleViewMode}
-                  className={`px-2.5 py-1 rounded-lg border text-[10px] sm:text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
-                    viewMode === "continuous" 
-                      ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300" 
-                      : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700"
-                  }`}
-                  title="Toggle Layout"
-                >
-                  <Layers className="h-3 w-3" />
-                  <span className="hidden sm:inline">{viewMode === "continuous" ? "Continuous Scroll" : "Single Page"}</span>
-                </button>
-
-                {/* Zoom Out */}
-                <button
-                  onClick={handleZoomOut}
-                  disabled={scale <= 0.5 || loading}
-                  className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-white transition-all cursor-pointer"
-                  title="Zoom Out"
-                >
-                  <ZoomOut className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                </button>
-
-                {/* Zoom Level Indicator / Reset */}
-                <button
-                  onClick={handleResetZoom}
-                  className="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 font-mono text-[10px] sm:text-xs font-bold text-zinc-300 transition-all cursor-pointer"
-                  title="Reset Zoom"
-                >
-                  {Math.round(scale * 100)}%
-                </button>
-
-                {/* Zoom In */}
-                <button
-                  onClick={handleZoomIn}
-                  disabled={scale >= 3.0 || loading}
-                  className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-white transition-all cursor-pointer"
-                  title="Zoom In"
-                >
-                  <ZoomIn className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                </button>
-
-                {/* Rotate */}
-                <button
-                  onClick={handleRotate}
-                  disabled={loading}
-                  className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-zinc-300 hover:text-white transition-all cursor-pointer"
-                  title="Rotate 90°"
-                >
-                  <RotateCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                </button>
               </div>
-            </div>
+            )}
 
             {/* 3. Security Notice Banner */}
             <div className="bg-amber-500/10 border-b border-amber-500/20 px-3 sm:px-6 py-1.5 flex items-center justify-between text-amber-300 text-[10px] sm:text-xs font-medium shrink-0">
@@ -514,15 +667,40 @@ export default function PdfViewerModal({
                   <strong>Protected In-App Document:</strong> Direct downloading and printing are restricted by system policy.
                 </span>
               </div>
+              {driveEmbed && (
+                <span className="text-[10px] text-emerald-400 font-semibold hidden sm:inline">
+                  Google Drive Cloud Viewer
+                </span>
+              )}
             </div>
 
-            {/* 4. PDF Reader Canvas Area */}
+            {/* 4. Document Viewing Area */}
             <div 
               ref={containerRef}
               onScroll={handleScroll}
-              className="flex-1 bg-zinc-950 relative overflow-auto flex flex-col items-center p-3 sm:p-6"
+              className="flex-1 bg-zinc-950 relative overflow-auto flex flex-col items-center"
             >
-              {loading ? (
+              {/* Google Drive / Cloud Iframe Embed Mode */}
+              {driveEmbed ? (
+                <div className="w-full h-full relative flex-1 flex flex-col bg-zinc-950">
+                  {iframeLoading && (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-zinc-950 p-6 space-y-4">
+                      <Loader2 className="h-10 w-10 text-emerald-500 animate-spin" />
+                      <div className="text-center space-y-1">
+                        <h4 className="text-white font-bold text-sm">Connecting to Google Drive Viewer</h4>
+                        <p className="text-zinc-400 text-xs">Loading secure document preview...</p>
+                      </div>
+                    </div>
+                  )}
+                  <iframe
+                    src={driveEmbed.embedUrl}
+                    title={title}
+                    className="w-full h-full flex-1 border-0 rounded-none bg-zinc-950 min-h-[450px]"
+                    allow="autoplay; fullscreen"
+                    onLoad={() => setIframeLoading(false)}
+                  />
+                </div>
+              ) : loading ? (
                 <div className="my-auto text-center p-8 space-y-4 max-w-sm">
                   <div className="relative w-12 h-12 mx-auto">
                     <Loader2 className="h-12 w-12 text-emerald-500 animate-spin" />
@@ -539,19 +717,31 @@ export default function PdfViewerModal({
                     <h4 className="text-base font-bold text-white">Document Viewer Notice</h4>
                     <p className="text-xs text-zinc-400 leading-relaxed">{error}</p>
                   </div>
-                  <button
-                    onClick={() => {
-                      setLoading(true);
-                      setError(null);
-                    }}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all cursor-pointer"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" /> Retry Loading
-                  </button>
+                  <div className="flex items-center justify-center gap-3 pt-2">
+                    <button
+                      onClick={() => {
+                        setLoading(true);
+                        setError(null);
+                      }}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" /> Retry Loading
+                    </button>
+                    {pdfUrl && (
+                      <a
+                        href={pdfUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl text-xs inline-flex items-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> Open Directly
+                      </a>
+                    )}
+                  </div>
                 </div>
               ) : rawTextFallback ? (
                 // Clean structured text handbook fallback
-                <div className="w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-2xl p-6 sm:p-8 space-y-4 text-zinc-200 text-left my-auto shadow-xl">
+                <div className="w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-2xl p-6 sm:p-8 space-y-4 text-zinc-200 text-left my-auto shadow-xl m-4">
                   <div className="border-b border-zinc-800 pb-3 flex items-center justify-between">
                     <div>
                       <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">{category || "Study Material"}</span>
@@ -565,7 +755,7 @@ export default function PdfViewerModal({
                 </div>
               ) : (
                 // PDF Canvas Pages
-                <div className={`space-y-6 flex flex-col items-center w-full py-4 ${numPages <= 1 ? "my-auto" : ""}`}>
+                <div className={`space-y-6 flex flex-col items-center w-full py-4 px-3 sm:px-6 ${numPages <= 1 ? "my-auto" : ""}`}>
                   {viewMode === "single" ? (
                     <div 
                       key={`page-${currentPage}`}

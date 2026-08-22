@@ -20,6 +20,8 @@ import {
   Calendar, 
   Award, 
   ChevronRight, 
+  ChevronDown,
+  ChevronUp,
   Layers, 
   Check, 
   Compass, 
@@ -72,6 +74,36 @@ export default function StudentDashboard() {
   const [selectedChapterId, setSelectedChapterId] = useState<string>("");
   const [selectedLessonId, setSelectedLessonId] = useState<string>("");
   const [completedLessonsByCourse, setCompletedLessonsByCourse] = useState<Record<string, string[]>>({});
+
+  // Chapter Accordion Collapse / Expand State (keyed by chapterId or index key)
+  const [collapsedChapters, setCollapsedChapters] = useState<Record<string, boolean>>({});
+
+  const toggleChapterCollapse = (chapterKey: string) => {
+    setCollapsedChapters(prev => ({
+      ...prev,
+      [chapterKey]: !prev[chapterKey]
+    }));
+  };
+
+  const expandAllChapters = () => {
+    if (!selectedCourse?.chapters) return;
+    const next: Record<string, boolean> = {};
+    selectedCourse.chapters.forEach((ch, idx) => {
+      const key = ch.id || `chap-idx-${idx}`;
+      next[key] = false; // false = expanded
+    });
+    setCollapsedChapters(next);
+  };
+
+  const collapseAllChapters = () => {
+    if (!selectedCourse?.chapters) return;
+    const next: Record<string, boolean> = {};
+    selectedCourse.chapters.forEach((ch, idx) => {
+      const key = ch.id || `chap-idx-${idx}`;
+      next[key] = true; // true = collapsed
+    });
+    setCollapsedChapters(next);
+  };
 
   // Modals for Resource Viewing
   const [selectedPdf, setSelectedPdf] = useState<{ title: string; category?: string; pdfUrl?: string; fileData?: string } | null>(null);
@@ -770,76 +802,161 @@ export default function StudentDashboard() {
 
                               {/* Chapter Syllabus Accordion */}
                               <div className="pt-6 border-t border-zinc-200 space-y-4">
-                                <h4 className="text-sm font-black uppercase tracking-wide text-zinc-900 flex items-center gap-2">
-                                  <Layers className="h-4 w-4 text-emerald-600" /> Complete Course Syllabus & Lessons
-                                </h4>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                  <h4 className="text-sm font-black uppercase tracking-wide text-zinc-900 flex items-center gap-2">
+                                    <Layers className="h-4 w-4 text-emerald-600" /> Complete Course Syllabus & Lessons
+                                  </h4>
 
-                                <div className="space-y-4">
-                                  {selectedCourse.chapters?.map((ch, chIdx) => (
-                                    <div key={ch.id ? `chap-${ch.id}` : `chap-idx-${chIdx}`} className="border border-zinc-200 rounded-2xl overflow-hidden bg-zinc-50/50">
-                                      <div className="bg-zinc-100/70 px-4 py-3 border-b border-zinc-200 flex items-center justify-between">
-                                        <h5 className="text-xs font-black uppercase tracking-wider text-zinc-800">
-                                          {ch.title}
-                                        </h5>
-                                        <span className="text-[11px] text-zinc-500 font-semibold">
-                                          {ch.lessons?.length || 0} Lessons
-                                        </span>
-                                      </div>
+                                  {selectedCourse.chapters && selectedCourse.chapters.length > 0 && (
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={expandAllChapters}
+                                        className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 px-2.5 py-1 rounded-lg border border-emerald-200/80 transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                                        title="Expand all chapters"
+                                      >
+                                        <ChevronDown className="h-3 w-3" /> Expand All
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={collapseAllChapters}
+                                        className="text-[11px] font-bold text-zinc-600 hover:text-zinc-800 bg-zinc-100 hover:bg-zinc-200 px-2.5 py-1 rounded-lg border border-zinc-200 transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                                        title="Collapse all chapters"
+                                      >
+                                        <ChevronUp className="h-3 w-3" /> Collapse All
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
 
-                                      <div className="divide-y divide-zinc-100 bg-white">
-                                        {ch.lessons?.map((les, lesIdx) => {
-                                          const isCur = currentLesson?.id === les.id;
-                                          const isDone = (completedLessonsByCourse[selectedCourse.id] || []).includes(les.id);
-                                          return (
-                                            <div
-                                              key={les.id ? `les-${ch.id || chIdx}-${les.id}` : `les-${chIdx}-${lesIdx}`}
-                                              onClick={() => {
-                                                setSelectedChapterId(ch.id);
-                                                setSelectedLessonId(les.id);
-                                              }}
-                                              className={`p-3.5 flex items-center justify-between gap-3 hover:bg-emerald-50/30 transition-all cursor-pointer ${
-                                                isCur ? "bg-emerald-50/60 border-l-4 border-emerald-600" : ""
-                                              }`}
-                                            >
-                                              <div className="flex items-center gap-3">
-                                                <button
-                                                  type="button"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleToggleLessonComplete(selectedCourse.id, les.id);
-                                                  }}
-                                                  className={`h-5 w-5 rounded-full flex items-center justify-center transition-all ${
-                                                    isDone
-                                                      ? "bg-emerald-600 text-white"
-                                                      : "border border-zinc-300 text-transparent hover:border-emerald-600"
-                                                  }`}
-                                                >
-                                                  <Check className="h-3 w-3 stroke-[3]" />
-                                                </button>
-                                                <div>
-                                                  <p className={`text-xs font-bold ${isCur ? "text-emerald-900" : "text-zinc-800"}`}>
-                                                    {lesIdx + 1}. {les.title}
-                                                  </p>
-                                                  <span className="text-[10px] text-zinc-400 font-mono">
-                                                    {les.duration || "10 mins"}
-                                                  </span>
-                                                </div>
-                                              </div>
+                                <div className="space-y-3">
+                                  {selectedCourse.chapters?.map((ch, chIdx) => {
+                                    const chapKey = ch.id ? `chap-${ch.id}` : `chap-idx-${chIdx}`;
+                                    const isCollapsed = !!collapsedChapters[chapKey];
+                                    const containsCurrentLesson = ch.lessons?.some(l => l.id === currentLesson?.id);
 
-                                              <div className="flex items-center gap-2">
-                                                {isCur && (
-                                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                                                    Now Playing
+                                    return (
+                                      <div 
+                                        key={chapKey} 
+                                        className={`border rounded-2xl overflow-hidden transition-all shadow-xs ${
+                                          containsCurrentLesson 
+                                            ? "border-emerald-300 bg-emerald-50/10" 
+                                            : "border-zinc-200 bg-zinc-50/50 hover:border-zinc-300"
+                                        }`}
+                                      >
+                                        {/* Chapter Clickable Header to Expand / Collapse */}
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleChapterCollapse(chapKey)}
+                                          className={`w-full px-4 py-3.5 flex items-center justify-between text-left transition-colors cursor-pointer select-none ${
+                                            isCollapsed 
+                                              ? "bg-zinc-100/80 hover:bg-zinc-200/70" 
+                                              : "bg-zinc-100 border-b border-zinc-200"
+                                          }`}
+                                          aria-expanded={!isCollapsed}
+                                        >
+                                          <div className="flex items-center gap-2.5 pr-2">
+                                            <span className={`flex items-center justify-center h-6 w-6 rounded-lg text-xs font-bold font-mono transition-colors ${
+                                              containsCurrentLesson
+                                                ? "bg-emerald-600 text-white"
+                                                : "bg-zinc-200 text-zinc-700"
+                                            }`}>
+                                              {chIdx + 1}
+                                            </span>
+                                            <div>
+                                              <div className="flex items-center gap-2 flex-wrap">
+                                                <h5 className="text-xs font-black uppercase tracking-wider text-zinc-900">
+                                                  {ch.title}
+                                                </h5>
+                                                {containsCurrentLesson && (
+                                                  <span className="text-[9px] font-extrabold uppercase bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                                                    Active Chapter
                                                   </span>
                                                 )}
-                                                <ChevronRight className="h-4 w-4 text-zinc-400" />
                                               </div>
+                                              <p className="text-[10px] text-zinc-500 font-medium">
+                                                {ch.lessons?.length || 0} Lessons • {isCollapsed ? "Click to Expand" : "Click to Collapse"}
+                                              </p>
                                             </div>
-                                          );
-                                        })}
+                                          </div>
+
+                                          <div className="flex items-center gap-2 shrink-0">
+                                            <span className="text-[11px] text-zinc-500 font-semibold hidden sm:inline">
+                                              {ch.lessons?.length || 0} Lessons
+                                            </span>
+                                            <div className={`p-1 rounded-lg bg-zinc-200/60 text-zinc-700 transition-transform duration-200 ${
+                                              isCollapsed ? "" : "rotate-180"
+                                            }`}>
+                                              <ChevronDown className="h-4 w-4" />
+                                            </div>
+                                          </div>
+                                        </button>
+
+                                        {/* Collapsible Lessons Container */}
+                                        {!isCollapsed && (
+                                          <div className="divide-y divide-zinc-100 bg-white transition-all">
+                                            {ch.lessons && ch.lessons.length > 0 ? (
+                                              ch.lessons.map((les, lesIdx) => {
+                                                const isCur = currentLesson?.id === les.id;
+                                                const isDone = (completedLessonsByCourse[selectedCourse.id] || []).includes(les.id);
+                                                return (
+                                                  <div
+                                                    key={les.id ? `les-${ch.id || chIdx}-${les.id}` : `les-${chIdx}-${lesIdx}`}
+                                                    onClick={() => {
+                                                      setSelectedChapterId(ch.id);
+                                                      setSelectedLessonId(les.id);
+                                                    }}
+                                                    className={`p-3.5 flex items-center justify-between gap-3 hover:bg-emerald-50/40 transition-all cursor-pointer ${
+                                                      isCur ? "bg-emerald-50/70 border-l-4 border-emerald-600" : ""
+                                                    }`}
+                                                  >
+                                                    <div className="flex items-center gap-3">
+                                                      <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          handleToggleLessonComplete(selectedCourse.id, les.id);
+                                                        }}
+                                                        className={`h-5 w-5 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                                                          isDone
+                                                            ? "bg-emerald-600 text-white shadow-xs"
+                                                            : "border border-zinc-300 text-transparent hover:border-emerald-600"
+                                                        }`}
+                                                        title={isDone ? "Mark as Incomplete" : "Mark as Completed"}
+                                                      >
+                                                        <Check className="h-3 w-3 stroke-[3]" />
+                                                      </button>
+                                                      <div>
+                                                        <p className={`text-xs font-bold ${isCur ? "text-emerald-950 font-extrabold" : "text-zinc-800"}`}>
+                                                          {lesIdx + 1}. {les.title}
+                                                        </p>
+                                                        <span className="text-[10px] text-zinc-400 font-mono">
+                                                          {les.duration || "10 mins"}
+                                                        </span>
+                                                      </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2">
+                                                      {isCur && (
+                                                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded shadow-xs">
+                                                          Now Playing
+                                                        </span>
+                                                      )}
+                                                      <ChevronRight className={`h-4 w-4 transition-colors ${isCur ? "text-emerald-600" : "text-zinc-400"}`} />
+                                                    </div>
+                                                  </div>
+                                                );
+                                              })
+                                            ) : (
+                                              <div className="p-4 text-center text-xs text-zinc-400 italic">
+                                                No lessons available in this chapter yet.
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               </div>
 

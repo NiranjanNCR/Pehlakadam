@@ -4683,6 +4683,154 @@ app.get("/api/resources/view/:id", async (req, res) => {
   }
 });
 
+// 🔒 PDF PROXY ENDPOINT (Enables secure CORS streaming for Google Drive, Docs & external PDF links)
+app.get("/api/pdf-proxy", async (req, res) => {
+  try {
+    const rawUrl = (req.query.url as string) || "";
+    if (!rawUrl) {
+      return res.status(400).json({ error: "Missing 'url' query parameter." });
+    }
+
+    const trimmedUrl = rawUrl.trim();
+    if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://")) {
+      return res.status(400).json({ error: "Invalid URL protocol." });
+    }
+
+    // 1. Detect Google Drive / Docs / Sheets / Slides URLs
+    const driveFileMatch = trimmedUrl.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
+    const driveIdMatch = trimmedUrl.match(/drive\.google\.com\/(?:open|uc)\?(?:.*&)?id=([a-zA-Z0-9_-]+)/i);
+    const docMatch = trimmedUrl.match(/docs\.google\.com\/document\/d\/([a-zA-Z0-9_-]+)/i);
+    const sheetMatch = trimmedUrl.match(/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/i);
+    const slideMatch = trimmedUrl.match(/docs\.google\.com\/presentation\/d\/([a-zA-Z0-9_-]+)/i);
+
+    let targetUrls: string[] = [];
+
+    if (docMatch && docMatch[1]) {
+      targetUrls.push(`https://docs.google.com/document/d/${docMatch[1]}/export?format=pdf`);
+    } else if (sheetMatch && sheetMatch[1]) {
+      targetUrls.push(`https://docs.google.com/spreadsheets/d/${sheetMatch[1]}/export?format=pdf`);
+    } else if (slideMatch && slideMatch[1]) {
+      targetUrls.push(`https://docs.google.com/presentation/d/${slideMatch[1]}/export/pdf`);
+    } else if (driveFileMatch && driveFileMatch[1]) {
+      const fileId = driveFileMatch[1];
+      targetUrls.push(
+        `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0`,
+        `https://drive.google.com/uc?export=download&id=${fileId}`,
+        `https://docs.google.com/uc?export=download&id=${fileId}`
+      );
+    } else if (driveIdMatch && driveIdMatch[1]) {
+      const fileId = driveIdMatch[1];
+      targetUrls.push(
+        `https://drive.usercontent.google.com/download?id=${fileId}&export=download&authuser=0`,
+        `https://drive.google.com/uc?export=download&id=${fileId}`,
+        `https://docs.google.com/uc?export=download&id=${fileId}`
+      );
+    } else {
+      targetUrls.push(trimmedUrl);
+    }
+
+    let finalBuffer: Buffer | null = null;
+    let finalContentType = "application/pdf";
+    let lastError = "";
+
+    for (const url of targetUrls) {
+      try {
+        const response = await fetch(url, {
+          redirect: "follow",
+          headers: {
+            "Accept": "application/pdf, application/octet-stream, text/html, */*",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+          }
+        });
+
+        if (!response.ok) {
+          lastError = `Target returned HTTP ${response.status}`;
+          continue;
+        }
+
+        const setCookie = response.headers.get("set-cookie") || "";
+        const contentType = response.headers.get("content-type") || "";
+        const arrayBuf = await response.arrayBuffer();
+        const buf = Buffer.from(arrayBuf);
+
+        // Check if directly a PDF (magic bytes %PDF- or application/pdf header)
+        if (buf.slice(0, 5).toString() === "%PDF-" || contentType.includes("application/pdf")) {
+          finalBuffer = buf;
+          finalContentType = "application/pdf";
+          break;
+        }
+
+        // Check if Google Drive returned virus-scan warning HTML with confirm link
+        const text = buf.toString("utf-8");
+        if (
+          text.includes("confirm=") || 
+          text.includes("download_warning") || 
+          text.includes("uc-download-link") || 
+          text.includes("id=\"download-form\"") ||
+          text.includes("download-form")
+        ) {
+          const confirmMatch = text.match(/confirm=([0-9a-zA-Z_-]+)/);
+          const actionMatch = text.match(/action="([^"]+)"/);
+
+          let confirmUrl = "";
+          if (actionMatch && actionMatch[1]) {
+            confirmUrl = actionMatch[1].replace(/&amp;/g, "&");
+          } else if (confirmMatch && confirmMatch[1]) {
+            const fId = driveFileMatch?.[1] || driveIdMatch?.[1] || "";
+            confirmUrl = `https://drive.usercontent.google.com/download?id=${fId}&export=download&confirm=${confirmMatch[1]}`;
+          }
+
+          if (confirmUrl) {
+            if (!confirmUrl.startsWith("http")) {
+              confirmUrl = `https://drive.google.com${confirmUrl}`;
+            }
+            const resp2 = await fetch(confirmUrl, {
+              headers: {
+                "Accept": "application/pdf, application/octet-stream, */*",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                "Cookie": setCookie
+              }
+            });
+            if (resp2.ok) {
+              const arrayBuf2 = await resp2.arrayBuffer();
+              const buf2 = Buffer.from(arrayBuf2);
+              if (buf2.slice(0, 5).toString() === "%PDF-" || resp2.headers.get("content-type")?.includes("application/pdf")) {
+                finalBuffer = buf2;
+                finalContentType = "application/pdf";
+                break;
+              }
+            }
+          }
+        }
+
+        // If it's another non-HTML binary stream
+        if (!text.includes("<html") && !text.includes("<!DOCTYPE") && buf.length > 500) {
+          finalBuffer = buf;
+          finalContentType = contentType || "application/pdf";
+          break;
+        }
+      } catch (err: any) {
+        lastError = err.message || "Failed to fetch from candidate URL";
+      }
+    }
+
+    if (!finalBuffer) {
+      return res.status(422).json({ 
+        error: lastError || "Unable to stream document. Please ensure Google Drive sharing is set to 'Anyone with the link' or open directly." 
+      });
+    }
+
+    res.setHeader("Content-Type", finalContentType);
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Content-Disposition", `inline; filename="document.pdf"`);
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    return res.send(finalBuffer);
+  } catch (err: any) {
+    console.error("[Pehlakadam API] PDF Proxy error:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch document via proxy." });
+  }
+});
+
 // 🔒 IN-APP BROCHURE VIEWER ENDPOINT
 app.get("/api/programs/brochure/view/:programKey", async (req, res) => {
   try {
@@ -5426,18 +5574,13 @@ app.get("/api/courses", async (req, res) => {
     }
 
     let formatted: any[] = [];
+    let mongoQueriedSuccessfully = false;
+
     if (isMongoLive()) {
       try {
-        let docs = await CourseModel.find().sort({ createdAt: -1 });
-        if (docs.length === 0) {
-          // Seed default courses into MongoDB if empty
-          try {
-            const seeded = await CourseModel.insertMany(defaultCourses);
-            docs = seeded as any[];
-          } catch (e) {}
-        }
+        const docs = await CourseModel.find().sort({ createdAt: -1 });
         formatted = (docs || []).map((doc: any) => ({
-          id: doc._id ? doc._id.toString() : doc.id,
+          id: doc._id ? doc._id.toString() : (doc.id || doc.slug),
           title: doc.title,
           slug: doc.slug,
           description: doc.description,
@@ -5453,14 +5596,20 @@ app.get("/api/courses", async (req, res) => {
           chapters: doc.chapters || [],
           createdAt: doc.createdAt ? (doc.createdAt.toISOString ? doc.createdAt.toISOString() : doc.createdAt) : new Date().toISOString()
         }));
+        mongoQueriedSuccessfully = true;
       } catch (err: any) {
         console.warn("⚠️ [Pehlakadam API] Mongo error reading courses:", err?.message);
-        formatted = [];
       }
     }
 
-    if (formatted.length === 0) {
-      formatted = fs.existsSync(COURSES_FILE) ? JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8")) : defaultCourses;
+    if (!mongoQueriedSuccessfully) {
+      if (fs.existsSync(COURSES_FILE)) {
+        try {
+          formatted = JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8"));
+        } catch (e) {
+          formatted = [];
+        }
+      }
     }
 
     const etag = apiCache.set("courses", formatted, 300);
@@ -5469,7 +5618,7 @@ app.get("/api/courses", async (req, res) => {
     return res.status(200).json(formatted);
   } catch (err) {
     console.error("[Pehlakadam API] Error fetching courses:", err);
-    return res.status(200).json(defaultCourses);
+    return res.status(200).json([]);
   }
 });
 
@@ -5535,18 +5684,27 @@ app.post("/api/courses", verifyAdmin, async (req, res) => {
 
 app.put("/api/courses/:id", verifyAdmin, async (req, res) => {
   try {
-    const { id } = req.params;
+    const rawId = req.params.id || "";
+    const cleanId = decodeURIComponent(rawId).trim();
     apiCache.invalidate("courses");
     let updatedCourse: any = null;
 
     if (isMongoLive()) {
       try {
         let doc: any = null;
-        if (mongoose.Types.ObjectId.isValid(id)) {
-          doc = await CourseModel.findById(id);
+        if (mongoose.Types.ObjectId.isValid(cleanId)) {
+          doc = await CourseModel.findById(cleanId);
         }
         if (!doc) {
-          doc = await CourseModel.findOne({ $or: [{ slug: id }, { title: id }] });
+          doc = await CourseModel.findOne({
+            $or: [
+              { slug: cleanId },
+              { title: cleanId },
+              { id: cleanId },
+              { slug: new RegExp(`^${cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i") },
+              { title: new RegExp(`^${cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i") }
+            ]
+          });
         }
         if (doc) {
           Object.assign(doc, req.body);
@@ -5581,7 +5739,19 @@ app.put("/api/courses/:id", verifyAdmin, async (req, res) => {
         courses = JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8"));
       }
     } catch (e) {}
-    const index = courses.findIndex((c: any) => c.id === id || c.slug === id || (c._id && c._id.toString() === id));
+    const index = courses.findIndex((c: any) => {
+      const cId = (c.id || "").toString().trim();
+      const cMongoId = (c._id ? c._id.toString() : "").trim();
+      const cSlug = (c.slug || "").toString().trim();
+      const cTitle = (c.title || "").toString().trim();
+      return (
+        cId.toLowerCase() === cleanId.toLowerCase() ||
+        cMongoId.toLowerCase() === cleanId.toLowerCase() ||
+        cSlug.toLowerCase() === cleanId.toLowerCase() ||
+        cTitle.toLowerCase() === cleanId.toLowerCase()
+      );
+    });
+
     if (index !== -1) {
       courses[index] = { ...courses[index], ...req.body };
       fs.writeFileSync(COURSES_FILE, JSON.stringify(courses, null, 2));
@@ -5591,7 +5761,7 @@ app.put("/api/courses/:id", verifyAdmin, async (req, res) => {
     if (!updatedCourse) {
       // If updating a course that didn't exist yet in storage, create it
       const fallbackCourse = {
-        id,
+        id: cleanId,
         ...req.body,
         updatedAt: new Date().toISOString()
       };
@@ -5609,29 +5779,36 @@ app.put("/api/courses/:id", verifyAdmin, async (req, res) => {
 
 app.delete("/api/courses/:id", verifyAdmin, async (req, res) => {
   try {
-    const { id } = req.params;
-    if (!id) {
+    const rawId = req.params.id || "";
+    const cleanId = decodeURIComponent(rawId).trim();
+    if (!cleanId) {
       return res.status(400).json({ error: "Course ID is required for deletion." });
     }
     apiCache.invalidate("courses");
 
+    console.log(`[Pehlakadam Server] Processing deletion request for course: "${cleanId}"`);
+
+    // 1. Delete from MongoDB Atlas if active
     if (isMongoLive()) {
       try {
-        if (mongoose.Types.ObjectId.isValid(id)) {
-          await CourseModel.findByIdAndDelete(id);
+        const orConditions: any[] = [
+          { slug: cleanId },
+          { title: cleanId },
+          { id: cleanId },
+          { slug: new RegExp(`^${cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i") },
+          { title: new RegExp(`^${cleanId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i") }
+        ];
+        if (mongoose.Types.ObjectId.isValid(cleanId)) {
+          orConditions.push({ _id: new mongoose.Types.ObjectId(cleanId) });
         }
-        await CourseModel.deleteMany({
-          $or: [
-            { slug: id },
-            { title: id },
-            ...(mongoose.Types.ObjectId.isValid(id) ? [{ _id: id }] : [])
-          ]
-        });
+        const delResult = await CourseModel.deleteMany({ $or: orConditions });
+        console.log(`[Pehlakadam Server] Successfully deleted ${delResult.deletedCount} matching course documents from MongoDB.`);
       } catch (mongoErr: any) {
         console.warn("⚠️ [Pehlakadam API] Mongo course deletion notice:", mongoErr?.message);
       }
     }
 
+    // 2. Delete from local JSON depository
     let courses: any[] = [];
     try {
       if (fs.existsSync(COURSES_FILE)) {
@@ -5639,11 +5816,30 @@ app.delete("/api/courses/:id", verifyAdmin, async (req, res) => {
       }
     } catch (e) {}
     
+    const countBefore = courses.length;
     courses = courses.filter((c: any) => {
-      const matchId = c.id === id || (c._id && c._id.toString() === id) || c.slug === id || c.title === id;
-      return !matchId;
+      const cId = (c.id || "").toString().trim();
+      const cMongoId = (c._id ? c._id.toString() : "").trim();
+      const cSlug = (c.slug || "").toString().trim();
+      const cTitle = (c.title || "").toString().trim();
+
+      const isMatch =
+        cId.toLowerCase() === cleanId.toLowerCase() ||
+        cMongoId.toLowerCase() === cleanId.toLowerCase() ||
+        cSlug.toLowerCase() === cleanId.toLowerCase() ||
+        cTitle.toLowerCase() === cleanId.toLowerCase();
+
+      return !isMatch;
     });
-    fs.writeFileSync(COURSES_FILE, JSON.stringify(courses, null, 2));
+
+    try {
+      fs.writeFileSync(COURSES_FILE, JSON.stringify(courses, null, 2));
+      console.log(`[Pehlakadam Server] JSON file updated: ${countBefore} -> ${courses.length} courses remaining.`);
+    } catch (fsErr) {
+      console.warn("⚠️ [Pehlakadam API] Notice writing courses.json:", fsErr);
+    }
+
+    apiCache.invalidate("courses");
 
     return res.status(200).json({ success: true, message: "Course deleted successfully." });
   } catch (err) {
@@ -6465,20 +6661,22 @@ app.get("/api/student/dashboard-data", async (req, res) => {
     }
 
     // 3. Load Courses with guaranteed non-null IDs
+    let mongoCoursesLoaded = false;
     if (isMongoLive()) {
       try {
         rawCoursesList = await CourseModel.find({ published: true }).lean();
+        mongoCoursesLoaded = true;
       } catch (e) {
         console.warn("[Pehlakadam API] Mongo error on CourseModel:", (e as any)?.message);
       }
     }
-    if (rawCoursesList.length === 0 && fs.existsSync(COURSES_FILE)) {
+    if (!mongoCoursesLoaded && fs.existsSync(COURSES_FILE)) {
       try {
         rawCoursesList = JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8"));
       } catch (e) {}
     }
-    if (!rawCoursesList || rawCoursesList.length === 0) {
-      rawCoursesList = defaultCourses;
+    if (!rawCoursesList) {
+      rawCoursesList = [];
     }
 
     const allCoursesList = rawCoursesList.map((doc: any, docIdx: number) => {
