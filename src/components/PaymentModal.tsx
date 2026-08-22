@@ -3,9 +3,11 @@ import { createPortal } from "react-dom";
 import { 
   X, CreditCard, CheckCircle, MessageSquare, 
   Copy, Check, Shield, Phone, QrCode, Sparkles, 
-  Smartphone, Zap, ClipboardPaste, ArrowRight, ExternalLink 
+  Smartphone, Zap, ClipboardPaste, ArrowRight, ExternalLink,
+  ShieldCheck, Loader2, ChevronDown, ChevronUp
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { launchRazorpayCheckout, fetchRazorpayConfig } from "../lib/razorpay";
 
 export const PLAN_OPTIONS = ["Basic", "Standard", "Premium Pro"] as const;
 export type PlanOption = (typeof PLAN_OPTIONS)[number];
@@ -223,6 +225,9 @@ export default function PaymentModal({
 
   const [upiId, setUpiId] = useState("nrjstudywrk@okicici");
   const [merchantName, setMerchantName] = useState("Niranjan Singh (Pehlakadam)");
+  const [razorpayEnabled, setRazorpayEnabled] = useState(true);
+  const [razorpayLoading, setRazorpayLoading] = useState(false);
+  const [paymentStatusText, setPaymentStatusText] = useState("");
 
   // Coupon Code State
   const [couponInput, setCouponInput] = useState("");
@@ -245,9 +250,14 @@ export default function PaymentModal({
         if (data) {
           if (data.upiId) setUpiId(data.upiId);
           if (data.merchantName) setMerchantName(data.merchantName);
+          if (data.razorpayEnabled !== undefined) setRazorpayEnabled(data.razorpayEnabled);
         }
       })
       .catch((err) => console.error("[PaymentModal] Error fetching payment config:", err));
+
+    fetchRazorpayConfig().then(cfg => {
+      setRazorpayEnabled(cfg.enabled && !!cfg.keyId);
+    });
   }, []);
 
   // 🎯 Compute dynamically synchronized pricing details based on selected Plan Tier
@@ -362,6 +372,95 @@ export default function PaymentModal({
     navigator.clipboard.writeText(String(effectiveAmount));
     setCopiedAmount(true);
     setTimeout(() => setCopiedAmount(false), 2000);
+  };
+
+  const validateStudentInfo = () => {
+    const newErrors: Partial<Record<string, string>> = {};
+    if (!formData.firstName.trim()) { newErrors.firstName = "First name is required."; triggerShake("firstName"); }
+    if (!formData.lastName.trim()) { newErrors.lastName = "Last name is required."; triggerShake("lastName"); }
+    if (!formData.email.trim()) { newErrors.email = "Email is required."; triggerShake("email"); }
+    else if (!formData.email.includes("@")) { newErrors.email = "Please enter a valid email."; triggerShake("email"); }
+    if (!formData.number.trim()) { newErrors.number = "Contact number is required."; triggerShake("number"); }
+    if (!formData.role) { newErrors.role = "Please select a program."; triggerShake("role"); }
+    if (!formData.plan) { newErrors.plan = "Please select a plan."; triggerShake("plan"); }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      setSubmitError("Please fill out your contact details above.");
+      return false;
+    }
+    return true;
+  };
+
+  // 💳 1-Click Automated Razorpay Payment Gateway (Instant Activation, No UTR input needed)
+  const handleRazorpayPayment = async () => {
+    setSubmitError("");
+    setErrors({});
+    if (!validateStudentInfo()) return;
+
+    setRazorpayLoading(true);
+    setPaymentStatusText("Connecting to secure Razorpay gateway...");
+
+    try {
+      const cleanNum = formData.number.replace(/[^0-9]/g, "");
+      const result = await launchRazorpayCheckout(
+        {
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          email: formData.email.trim().toLowerCase(),
+          number: cleanNum,
+          role: selectedProgram,
+          plan: selectedPlan,
+          amount: effectiveAmount,
+          couponCode: appliedCoupon?.code || "",
+        },
+        (stage, msg) => {
+          if (msg) setPaymentStatusText(msg);
+        }
+      );
+
+      if (result.success && result.data) {
+        if (result.data.whatsappUrl) {
+          setWhatsappUrl(result.data.whatsappUrl);
+        }
+
+        try {
+          localStorage.setItem("pehlakadam_student_phone", cleanNum);
+          localStorage.setItem("pehlakadam_student_email", formData.email.trim().toLowerCase());
+          localStorage.setItem("pehlakadam_user", JSON.stringify({
+            name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
+            email: formData.email.trim().toLowerCase(),
+            number: cleanNum,
+            role: selectedProgram
+          }));
+        } catch (e) {}
+
+        setSubmitSuccess(true);
+        setFormData({
+          firstName: "",
+          lastName: "",
+          email: "",
+          number: "",
+          role: defaultProgram ? normalizeProgram(defaultProgram) : "6-8 Grade Student",
+          plan: defaultPlan ? normalizePlan(defaultPlan) : "Basic",
+          transactionId: "",
+        });
+
+        setTimeout(() => {
+          setIsOpen(false);
+          setSubmitSuccess(false);
+          setWhatsappUrl("");
+        }, 45000);
+      } else if (result.error && !result.dismissed) {
+        setSubmitError(result.error);
+      }
+    } catch (err: any) {
+      console.error("[PaymentModal] Razorpay error:", err);
+      setSubmitError(err.message || "Failed to launch Razorpay gateway.");
+    } finally {
+      setRazorpayLoading(false);
+      setPaymentStatusText("");
+    }
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -735,41 +834,7 @@ export default function PaymentModal({
                           </motion.div>
                         </div>
 
-                        {/* 4. UPI Transaction ID with Smart Paste & Auto-Detection */}
-                        <motion.div animate={shakeFields.transactionId ? "shake" : "default"} variants={shakeVariants}>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 text-left">
-                              UPI Transaction ID / 12-Digit UTR
-                            </label>
-                            <button
-                              type="button"
-                              onClick={handleSmartPasteUtr}
-                              className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 cursor-pointer bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded-md border border-emerald-500/20 transition-colors"
-                              title="Paste from clipboard and auto-detect 12-digit UTR"
-                            >
-                              <ClipboardPaste className="h-3 w-3" />
-                              {utrPastedNotice ? "Pasted!" : "Paste & Detect UTR"}
-                            </button>
-                          </div>
-                          <input
-                            type="text"
-                            name="transactionId"
-                            value={formData.transactionId}
-                            onChange={handleChange}
-                            placeholder="e.g. 412389128392 or TXN123456789"
-                            required
-                            className={`w-full rounded-xl bg-zinc-800 border px-3.5 py-2 text-sm text-white placeholder-zinc-500 transition-all duration-200 focus:outline-none focus:ring-2 font-mono ${
-                              errors.transactionId
-                                ? "border-red-500/80 focus:ring-red-500/20 focus:border-red-500"
-                                : "border-zinc-700/60 focus:ring-emerald-500/30 focus:border-emerald-500"
-                            }`}
-                          />
-                          {errors.transactionId && (
-                            <p className="mt-1 text-[10px] text-red-500 font-semibold text-left">{errors.transactionId}</p>
-                          )}
-                        </motion.div>
-
-                        {/* 5. 🎟️ Coupon Code Discount Section */}
+                        {/* 4. 🎟️ Coupon Code Discount Section */}
                         <div className="bg-zinc-850/80 p-3 rounded-2xl border border-zinc-700/80 space-y-2">
                           <label className="block text-[10px] font-bold uppercase tracking-wider text-emerald-400 text-left">
                             Have a Promo / Coupon Code?
@@ -815,137 +880,95 @@ export default function PaymentModal({
                         </div>
 
                         {submitError && (
-                          <p id="payment-error-msg" className="text-red-400 text-xs font-medium">
+                          <p id="payment-error-msg" className="text-red-400 text-xs font-medium p-2.5 rounded-xl bg-red-950/40 border border-red-500/30">
                             {submitError}
                           </p>
                         )}
 
-                        <button
-                          id="submit-payment-modal-btn"
-                          type="submit"
-                          disabled={isSubmitting}
-                          className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 transition-all duration-200 shadow-md hover:shadow-emerald-500/20 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-55 flex items-center justify-center gap-2 text-sm cursor-pointer"
-                        >
-                          {isSubmitting ? "Activating Enrollment..." : `Confirm & Submit Enrollment (${effectivePriceStr})`}
-                        </button>
+                        {/* ⚡ 1-Click Razorpay Automated Payment Button */}
+                        <div className="space-y-2 pt-2">
+                          <button
+                            id="razorpay-online-pay-btn"
+                            type="button"
+                            onClick={handleRazorpayPayment}
+                            disabled={razorpayLoading}
+                            className="w-full rounded-2xl bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black py-4 px-4 transition-all duration-200 shadow-xl shadow-emerald-950/60 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-55 flex items-center justify-center gap-2.5 text-sm cursor-pointer"
+                          >
+                            {razorpayLoading ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span>{paymentStatusText || "Opening Checkout..."}</span>
+                              </>
+                            ) : (
+                              <>
+                                <Zap className="h-4 w-4 text-yellow-300 fill-yellow-300" />
+                                <span>Pay {effectivePriceStr} Online (Instant Access)</span>
+                              </>
+                            )}
+                          </button>
+                          <div className="flex items-center justify-center gap-2 text-[10px] text-zinc-400">
+                            <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                            <span>Instant activation via Google Pay, PhonePe, Paytm, Cards & Netbanking</span>
+                          </div>
+                        </div>
                       </form>
 
-                      {/* Right Column: Secure UPI Details Container with 1-Click App Launchers */}
-                      <div className="md:col-span-5 bg-zinc-950/60 rounded-2xl border border-zinc-800/80 p-4 sm:p-5 flex flex-col items-center text-center">
-                        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 px-2.5 py-0.5 rounded-full mb-2 uppercase tracking-widest">
-                          <Shield className="h-3.5 w-3.5 text-emerald-400" /> Free UPI Direct Gateway
+                      {/* Right Column: Order Summary & Program Highlights */}
+                      <div className="md:col-span-5 bg-zinc-950/70 rounded-2xl border border-zinc-800/80 p-5 flex flex-col items-center text-center space-y-4">
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 px-3 py-1 rounded-full uppercase tracking-widest">
+                          <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> 100% Secure Checkout
                         </span>
 
-                        <p className="text-[11px] text-zinc-400 font-medium">Synchronized Payable Amount</p>
-                        {appliedCoupon ? (
-                          <div className="mt-0.5 mb-0.5">
-                            <span className="text-xs font-semibold text-zinc-500 line-through mr-2">{basePriceStr}</span>
-                            <span className="text-2xl sm:text-3xl font-black text-emerald-400 font-sans tracking-tight">{effectivePriceStr}</span>
+                        <div className="w-full border-b border-zinc-800 pb-3">
+                          <p className="text-[11px] text-zinc-400 font-medium">Payable Enrollment Fee</p>
+                          <div className="flex items-baseline justify-center gap-2 mt-1">
+                            {appliedCoupon && (
+                              <span className="text-sm font-semibold text-zinc-500 line-through">
+                                {basePriceStr}
+                              </span>
+                            )}
+                            <span className="text-3xl font-black text-emerald-400 font-sans tracking-tight">
+                              {effectivePriceStr}
+                            </span>
                           </div>
-                        ) : (
-                          <h3 className="text-2xl sm:text-3xl font-black text-white font-sans mt-0.5 mb-0.5 tracking-tight">{effectivePriceStr}</h3>
-                        )}
-                        
-                        <div className="flex items-center gap-1.5 flex-wrap justify-center mb-2.5">
-                          <span className="text-[10px] font-bold text-zinc-300 bg-zinc-800 px-2 py-0.5 rounded-md">
-                            {selectedProgram}
+                          
+                          <div className="flex items-center gap-1.5 flex-wrap justify-center mt-2">
+                            <span className="text-[10px] font-bold text-zinc-300 bg-zinc-800 px-2 py-0.5 rounded-md">
+                              {selectedProgram}
+                            </span>
+                            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md">
+                              {selectedPlan} Plan
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Program Included Benefits */}
+                        <div className="w-full space-y-2 text-left text-xs bg-zinc-900/90 p-3.5 rounded-xl border border-zinc-800">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1">
+                            Plan Inclusions:
                           </span>
-                          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md">
-                            {selectedPlan} Plan
-                          </span>
-                        </div>
-
-                        {/* Interactive QR Code scan area */}
-                        <div className="relative bg-white p-2.5 rounded-2xl shadow-lg border border-zinc-800 mb-2.5 inline-block group overflow-hidden">
-                          <img
-                            key={`${qrCodeUrl}-${effectiveAmount}`}
-                            src={qrCodeUrl}
-                            alt="Dynamic UPI QR Code"
-                            className="h-[135px] w-[135px] block transition-transform duration-300 group-hover:scale-105"
-                          />
-                          <div className="absolute inset-0 bg-emerald-950/5 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300">
-                            <QrCode className="h-8 w-8 text-emerald-600 animate-pulse bg-white/90 p-1.5 rounded-full shadow" />
+                          <div className="flex items-center gap-2 text-zinc-300 text-[11px]">
+                            <Check className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
+                            <span>Instant Whitelist Access for Authorized Phone</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-zinc-300 text-[11px]">
+                            <Check className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
+                            <span>1-on-1 Mentorship Sessions & Roadmaps</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-zinc-300 text-[11px]">
+                            <Check className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
+                            <span>Skill Assessments & Diagnostic Reports</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-zinc-300 text-[11px]">
+                            <Check className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
+                            <span>Direct WhatsApp Group & Mentor Support</span>
                           </div>
                         </div>
 
-                        <p className="text-[10px] text-zinc-400 max-w-xs leading-relaxed mb-3">
-                          Scan using GPay, PhonePe, Paytm, BHIM, CRED or any mobile banking app.
-                        </p>
-
-                        {/* ⚡ 1-Click Automated UPI App Launchers (100% Free Mobile Protocol) */}
-                        <div className="w-full space-y-2 mb-3">
-                          <a
-                            id="upi-deeplink-action-main"
-                            href={upiUri}
-                            className="w-full inline-flex items-center justify-center gap-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 px-3 rounded-xl shadow-md transition-all duration-200 active:scale-95 text-center cursor-pointer"
-                          >
-                            <Smartphone className="h-4 w-4" />
-                            Pay {effectivePriceStr} in 1-Click (Any UPI)
-                          </a>
-
-                          <div className="grid grid-cols-3 gap-1.5">
-                            <a
-                              href={gpayUri}
-                              className="inline-flex items-center justify-center py-1.5 px-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-[10px] font-bold text-zinc-200 hover:text-white transition-colors"
-                              title="Open Google Pay with pre-filled amount"
-                            >
-                              GPay
-                            </a>
-                            <a
-                              href={phonepeUri}
-                              className="inline-flex items-center justify-center py-1.5 px-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-[10px] font-bold text-purple-300 hover:text-white transition-colors"
-                              title="Open PhonePe with pre-filled amount"
-                            >
-                              PhonePe
-                            </a>
-                            <a
-                              href={paytmUri}
-                              className="inline-flex items-center justify-center py-1.5 px-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-[10px] font-bold text-sky-300 hover:text-white transition-colors"
-                              title="Open Paytm with pre-filled amount"
-                            >
-                              Paytm
-                            </a>
-                          </div>
+                        <div className="w-full text-[10px] text-zinc-500 text-center space-y-1">
+                          <p>🔒 256-Bit SSL Encrypted Razorpay Gateway</p>
+                          <p className="text-emerald-400/90 font-medium">Automatic verification & immediate activation.</p>
                         </div>
-
-                        {/* Text copyable details */}
-                        <div className="w-full space-y-1.5 border-t border-zinc-800/80 pt-2.5 text-left text-xs">
-                          <div className="flex items-center justify-between bg-zinc-900/80 px-2.5 py-1 rounded-lg border border-zinc-800/50">
-                            <div>
-                              <span className="block text-[9px] font-semibold text-zinc-500 uppercase">UPI ID</span>
-                              <code className="text-xs font-mono text-emerald-400 select-all">{upiId}</code>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={handleCopyUpi}
-                              className="text-zinc-400 hover:text-white transition-colors p-1 cursor-pointer"
-                              title="Copy UPI ID"
-                            >
-                              {copiedUpi ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                            </button>
-                          </div>
-
-                          <div className="flex items-center justify-between bg-zinc-900/80 px-2.5 py-1 rounded-lg border border-zinc-800/50">
-                            <div>
-                              <span className="block text-[9px] font-semibold text-zinc-500 uppercase">Exact Amount</span>
-                              <span className="text-xs font-mono text-white font-bold">{effectivePriceStr}</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={handleCopyAmount}
-                              className="text-zinc-400 hover:text-white transition-colors p-1 cursor-pointer"
-                              title="Copy Exact Amount"
-                            >
-                              {copiedAmount ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                            </button>
-                          </div>
-
-                          <div className="flex items-baseline justify-between text-[10px] pt-1 text-zinc-400">
-                            <span>Verified Payee:</span>
-                            <span className="text-zinc-200 font-medium truncate max-w-[160px]">{merchantName}</span>
-                          </div>
-                        </div>
-
                       </div>
 
                     </div>

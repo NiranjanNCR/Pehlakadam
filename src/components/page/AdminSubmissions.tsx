@@ -148,6 +148,12 @@ export default function AdminSubmissions() {
     successRate: "99%",
     upiId: "nrjstudywrk@okicici",
     merchantName: "Niranjan Singh (Pehlakadam)",
+    razorpayEnabled: true,
+    razorpayKeyId: "",
+    razorpayKeySecret: "",
+    hasRazorpaySecret: false,
+    razorpayWebhookSecret: "",
+    hasRazorpayWebhookSecret: false,
     instagramUrl: "#",
     youtubeUrl: "#",
     whatsappSupportUrl: "#",
@@ -3207,10 +3213,126 @@ export default function AdminSubmissions() {
                         </div>
                       </div>
 
+                      {/* 💳 RAZORPAY AUTOMATED PAYMENT GATEWAY CONFIGURATION */}
+                      <div className="border-t border-zinc-100 pt-6 mt-6 bg-gradient-to-br from-emerald-50/40 via-white to-zinc-50/30 p-6 rounded-2xl border border-emerald-100/70">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="p-1.5 rounded-lg bg-emerald-600 text-white">
+                                <CreditCard className="h-4 w-4" />
+                              </span>
+                              <h3 className="text-base font-bold text-zinc-900">
+                                Razorpay Payment Gateway (Instant Automated Access)
+                              </h3>
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                Recommended
+                              </span>
+                            </div>
+                            <p className="text-xs text-zinc-500 mt-1">
+                              Automatically receives payments via Google Pay, PhonePe, Paytm, Cards, and Netbanking. Validates signatures and activates student courses immediately without manual UTR submission.
+                            </p>
+                          </div>
+
+                          <label className="relative inline-flex items-center cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={adminStats.razorpayEnabled}
+                              onChange={(e) => setAdminStats({ ...adminStats, razorpayEnabled: e.target.checked })}
+                              className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                            <span className="ml-2.5 text-xs font-bold text-zinc-800">
+                              {adminStats.razorpayEnabled ? "Gateway Active" : "Disabled"}
+                            </span>
+                          </label>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-700 mb-2">
+                              Razorpay Key ID (Public API Key)
+                            </label>
+                            <input
+                              type="text"
+                              value={adminStats.razorpayKeyId || ""}
+                              onChange={(e) => setAdminStats({ ...adminStats, razorpayKeyId: e.target.value })}
+                              className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all font-mono"
+                              placeholder="e.g. rzp_live_xxxxxxxxxxxx or rzp_test_xxxxxxxxxxxx"
+                            />
+                            <p className="text-[10px] text-zinc-500 mt-1.5">
+                              Found on your Razorpay Dashboard &rarr; Settings &rarr; API Keys.
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-700 mb-2 flex items-center justify-between">
+                              <span>Razorpay Key Secret (Server Only)</span>
+                              {adminStats.hasRazorpaySecret && (
+                                <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
+                                  <Check className="h-3 w-3" /> Secret Configured
+                                </span>
+                              )}
+                            </label>
+                            <input
+                              type="password"
+                              value={adminStats.razorpayKeySecret || ""}
+                              onChange={(e) => setAdminStats({ ...adminStats, razorpayKeySecret: e.target.value })}
+                              className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all font-mono"
+                              placeholder={adminStats.hasRazorpaySecret ? "•••••••••••••••••••• (Leave blank to keep existing)" : "Paste your Razorpay Secret Key"}
+                            />
+                            <p className="text-[10px] text-zinc-500 mt-1.5">
+                              Kept strictly confidential on server for HMAC-SHA256 signature verification.
+                            </p>
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-700 mb-2 flex items-center justify-between">
+                              <span>Razorpay Webhook Secret (Optional / For Instant Webhook Notifications)</span>
+                              {adminStats.hasRazorpayWebhookSecret && (
+                                <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
+                                  <Check className="h-3 w-3" /> Webhook Secret Configured
+                                </span>
+                              )}
+                            </label>
+                            <input
+                              type="password"
+                              value={adminStats.razorpayWebhookSecret || ""}
+                              onChange={(e) => setAdminStats({ ...adminStats, razorpayWebhookSecret: e.target.value })}
+                              className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all font-mono"
+                              placeholder={adminStats.hasRazorpayWebhookSecret ? "•••••••••••••••••••• (Leave blank to keep existing)" : "Paste secret entered in Razorpay Dashboard Webhooks"}
+                            />
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-2 text-[11px] text-zinc-600 bg-white/80 border border-zinc-200/80 p-2.5 rounded-lg">
+                              <span className="font-semibold text-zinc-700">Webhook URL:</span>
+                              <code className="bg-zinc-100 px-2 py-0.5 rounded text-emerald-700 font-mono select-all">
+                                {typeof window !== "undefined" ? `${window.location.origin}/api/razorpay/webhook` : "https://YOUR-DOMAIN/api/razorpay/webhook"}
+                              </code>
+                              <span className="text-zinc-500 text-[10px]">(Active Events: payment.captured, order.paid)</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 p-3.5 bg-zinc-900 text-zinc-200 rounded-xl text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span>
+                              <strong>Zero Manual Work:</strong> When students pay via Razorpay, transaction IDs and approvals are logged automatically.
+                            </span>
+                          </div>
+                          <a
+                            href="https://dashboard.razorpay.com/#/access/api_keys"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-emerald-400 hover:text-emerald-300 font-bold underline text-[11px] whitespace-nowrap"
+                          >
+                            Open Razorpay API Keys &rarr;
+                          </a>
+                        </div>
+                      </div>
+
                       <div className="border-t border-zinc-100 pt-6 mt-6">
                         <h3 className="text-sm font-bold text-zinc-900 mb-4 flex items-center gap-2">
                           <CreditCard className="h-4 w-4 text-emerald-600" />
-                          Secure UPI Payment Details
+                          Fallback / Manual UPI Payment Details
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div>

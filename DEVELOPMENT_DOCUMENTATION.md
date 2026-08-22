@@ -106,54 +106,71 @@ To prevent unauthorized account sharing across multiple users or pirate devices:
 
 ---
 
-## 3. Payment & Checkout Architecture
+## 5. Payment & Checkout Architecture
 
-The payment system provides a fast, frictionless, and secure checkout experience without requiring file/screenshot uploads.
+Pehlakadam features a modern, fully automated **Razorpay Payment Gateway** integration for frictionless, instant course and program enrollment across all devices.
 
 ```
-[Student Clicks "Enroll" or "Unlock"]
+[Student Clicks "Enroll Now" or "Pay Online"]
                  │
                  ▼
-[Modal Displays Grade/Track Selector & Price Calculation]
+[Modal Displays Program / Course Breakdown & Dynamic Price Calculation]
                  │
                  ▼
 [Student Enters Promo Coupon (Optional)] ──► [Server Validates Code & Discounts Price]
                  │
                  ▼
-[Dynamic UPI String Generated: upi://pay?pa=...&pn=...&am=...&cu=INR&tn=...]
-                 │
-  ┌──────────────┴──────────────┐
-  ▼                             ▼
-[Scannable Live QR Code]   [1-Click Deep Links: GPay / PhonePe / Paytm]
-  │                             │
-  └──────────────┬──────────────┘
+[Student Clicks "Pay Online (Instant 1-Click Access)"]
                  │
                  ▼
-[Student Completes UPI Payment in Bank App & Copies 12-Digit UTR]
+[Frontend Requests Order: POST /api/razorpay/create-order]
                  │
                  ▼
-[Student Pastes 12-Digit UTR / Transaction ID]
+[Backend Initializes Razorpay Instance with Secret Key & Generates Order ID]
                  │
                  ▼
-[Submit Enrollment (POST /api/payment-submit or /api/courses/enroll)]
+[Razorpay Standard Checkout Modal Opens (Google Pay, PhonePe, Paytm, UPI, Cards, Netbanking)]
                  │
-  ┌──────────────┴──────────────────────────┐
-  ▼                                         ▼
-[Record Saved with Status "pending"]   [WhatsApp Dispatcher Link Opened for Instant Activation]
-  │
-  ▼
-[Admin Reviews UTR & Clicks "Approve & Whitelist" ──► Phone Number Instant Tier Access]
+                 ▼
+[Student Completes Payment in Razorpay Gateway]
+                 │
+                 ▼
+[Frontend Captures Razorpay Response (Payment ID, Order ID, Signature)]
+                 │
+                 ▼
+[Backend Verification: POST /api/razorpay/verify-payment]
+                 │
+                 ▼
+[Cryptographic HMAC-SHA256 Signature Verification]
+                 │
+  ┌──────────────┴───────────────────────────────────────────────────────┐
+  ▼                                                                      ▼
+[✅ Valid Signature]                                            [🚨 Signature Mismatch]
+  │                                                                      │
+  ├─► Auto-whitelists Student Phone Number in Authorized Database        └─► Flags Fraud & Blocks Access
+  ├─► Enrolls Student in Course (if Course Checkout)
+  ├─► Logs Payment Record with Status "approved"
+  ├─► Sends Instant WhatsApp Activation Receipt
+  └─► Auto-redirects Student to LMS Dashboard with Whitelisted Access
 ```
 
+### Razorpay Webhook Event Synchronizer
+The platform includes an automated Webhook receiver at `/api/razorpay/webhook`:
+* **HMAC-SHA256 Webhook Verification**: Validates `x-razorpay-signature` against the configured `RAZORPAY_WEBHOOK_SECRET`.
+* **Handled Events**:
+  * `payment.captured` & `order.paid`: Automatically whitelists the student's mobile number, approves enrollment, and updates payment state even if the student closes their browser before returning.
+  * `payment.failed`: Logs transaction errors for customer support visibility.
+  * `refund.created` & `refund.processed`: Tracks refund lifecycle.
+
 ### Key Workflow Highlights
-1.  **Direct UTR Identification**: Verification relies on the bank-issued 12-digit UTR / UPI Reference ID and the student's registered mobile number.
-2.  **Dynamic QR & Deep-Links**: QR codes and UPI payment links update in real time when coupons are applied.
-3.  **One-Click WhatsApp Dispatch**: On submission, a WhatsApp link pre-filled with the student's name, email, phone number, plan, amount paid, and UTR is generated to facilitate instant support and onboarding.
-4.  **Admin Whitelisting**: Admins can approve payment records with one click in the **Payment Proofs** tab, automatically enrolling the student in the database.
+1. **Zero-Friction Checkout**: Eliminates manual UTR entry, screenshots, and manual admin whitelisting bottlenecks.
+2. **Instant Automated Whitelisting**: Students receive immediate access to their courses, video lessons, and diagnostic reports within milliseconds of payment completion.
+3. **Admin Key Configuration**: Razorpay credentials (`Key ID`, `Key Secret`, `Webhook Secret`, and Gateway Toggle) can be configured dynamically from the Admin Panel (`/admin -> System & Site Config`) or via environment variables (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`).
+4. **Dynamic Promo Discounts**: Promo coupons apply seamlessly to the Razorpay order amount before order creation.
 
 ---
 
-## 4. LMS Video & Interactive Curriculum Portal
+## 6. LMS Video & Interactive Curriculum Portal
 
 Accessible via `/courses` with full tiered authorization:
 *   **Curriculum Structure**: Courses contain structured Chapters, each composed of Lessons with duration, YouTube/Vimeo/MP4 video embeds, comprehensive lesson notes, and downloadable PDF worksheets.
@@ -166,7 +183,7 @@ Accessible via `/courses` with full tiered authorization:
 
 ---
 
-## 5. Psychometric & Diagnostic Assessment Suite
+## 7. Psychometric & Diagnostic Assessment Suite
 
 Accessible via `/diagnostic` or the Student Portal:
 *   **Assessment Frameworks**:
@@ -182,7 +199,7 @@ Accessible via `/diagnostic` or the Student Portal:
 
 ---
 
-## 6. Promo Coupon & Dynamic Pricing Engine
+## 8. Promo Coupon & Dynamic Pricing Engine
 
 *   **Coupon Types**: Percentage Discount (e.g., 20% off) or Fixed Amount (e.g., ₹100 off).
 *   **Cart Requirements**: Configurable minimum order amount (`minOrderAmount`) to prevent discount abuse.
@@ -191,7 +208,7 @@ Accessible via `/diagnostic` or the Student Portal:
 
 ---
 
-## 7. 1-on-1 Counseling & Lead Management System
+## 9. 1-on-1 Counseling & Lead Management System
 
 *   **Lead Capture**: Captures inquiries from the homepage consultation form and program landing pages.
 *   **Counseling Scheduler**:
@@ -205,7 +222,7 @@ Accessible via `/diagnostic` or the Student Portal:
 
 ---
 
-## 8. Admin Governance Control Room
+## 10. Admin Governance Control Room
 
 The Admin Panel (`/admin`) is a multi-tab administrative workspace:
 
@@ -226,18 +243,24 @@ The Admin Panel (`/admin`) is a multi-tab administrative workspace:
 
 ---
 
-## 9. Complete REST API Reference
+## 11. Complete REST API Reference
 
 ### System & Health
 *   `GET /api/health` — Server health check.
 *   `GET /api/system-stats` — Fetch dynamic trust numbers, UPI payee info, social URLs, and SEO metadata.
-*   `POST /api/system-stats` — (Admin) Update system configurations and metadata.
+*   `POST /api/system-stats` — (Admin) Update system configurations, Razorpay credentials, and metadata.
 
 ### Authentication & Device Concurrency
 *   `POST /api/check-access` — Validate student phone number for resource access.
 *   `POST /api/check-premium-access` — Validate student phone number and return active tier level + session ID.
 *   `POST /api/verify-session` — Periodic heartbeat checking for single-device concurrency conflicts.
 *   `POST /api/logout-session` — Terminate active device session for a phone number.
+
+### Razorpay Automated Payment Gateway
+*   `GET /api/razorpay/config` — Public endpoint providing active state and public Razorpay Key ID.
+*   `POST /api/razorpay/create-order` — Create Razorpay order with currency INR, dynamic amount, receipt, and notes.
+*   `POST /api/razorpay/verify-payment` — Cryptographically verify HMAC-SHA256 signature, auto-whitelist student, and activate access.
+*   `POST /api/razorpay/webhook` — Process incoming Razorpay webhook events (`payment.captured`, `order.paid`, `payment.failed`).
 
 ### Courses & LMS
 *   `GET /api/courses` — Retrieve list of all published LMS courses and curriculums.
@@ -282,7 +305,7 @@ The Admin Panel (`/admin`) is a multi-tab administrative workspace:
 
 ---
 
-## 10. Database Schemas & Data Models
+## 12. Database Schemas & Data Models
 
 ### LMS Course (`Course`)
 ```typescript
@@ -345,6 +368,10 @@ The Admin Panel (`/admin`) is a multi-tab administrative workspace:
   studentsCount: string;       // e.g. "10K+"
   expertsCount: string;        // e.g. "15+"
   successRate: string;         // e.g. "99%"
+  razorpayEnabled?: boolean;   // Master Razorpay gateway toggle
+  razorpayKeyId?: string;      // Public Razorpay Key ID
+  razorpayKeySecret?: string;  // Private secret for HMAC verification
+  razorpayWebhookSecret?: string; // Webhook secret for event dispatch verification
   upiId: string;               // Payee VPA address
   merchantName: string;        // Merchant registered name
   instagramUrl: string;
@@ -362,7 +389,7 @@ The Admin Panel (`/admin`) is a multi-tab administrative workspace:
 
 ---
 
-## 11. PDF Handbook & Rendering System
+## 13. PDF Handbook & Rendering System
 
 *   **Component**: `src/components/PdfViewerModal.tsx`.
 *   **High-DPI Rendering**: Automatically applies device pixel ratio scaling (`dpr = Math.max(window.devicePixelRatio, 2)`) with high smoothing quality for crisp display on high-density phone and tablet screens.
@@ -371,7 +398,7 @@ The Admin Panel (`/admin`) is a multi-tab administrative workspace:
 
 ---
 
-## 12. SEO & Head Hydration Architecture
+## 14. SEO & Head Hydration Architecture
 
 1.  **Static Crawlability**: `index.html` defines semantic meta tags, OpenGraph previews, and robots directives.
 2.  **Dynamic Client Hydration**: On app startup, the frontend fetches `/api/system-stats` and dynamically updates:
@@ -384,7 +411,7 @@ The Admin Panel (`/admin`) is a multi-tab administrative workspace:
 
 ---
 
-## 13. Deployment, Build & Environment Configuration
+## 15. Deployment, Build & Environment Configuration
 
 ### Available Scripts
 ```bash
@@ -405,6 +432,16 @@ npm start
 ```env
 # MongoDB Connection String (Optional, automatically falls back to JSON flat files if unconfigured)
 MONGODB_URI=
+
+# Razorpay Payment Gateway Credentials
+RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
+RAZORPAY_WEBHOOK_SECRET=
+
+# Admin Credentials & WhatsApp Dispatch
+ADMIN_EMAIL=
+ADMIN_PHONE=
+ADMIN_WHATSAPP_NUMBER=
 
 # Port is fixed to 3000 by container infrastructure
 PORT=3000

@@ -1,12 +1,13 @@
-import React, { useState, useEffect, ChangeEvent, FormEvent } from "react";
+import React, { useState, useEffect, FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { 
   X, Sparkles, CheckCircle2, ShieldCheck, Copy, Check, 
-  QrCode, Phone, BookOpen, AlertCircle, ArrowRight, MessageSquare
+  Phone, BookOpen, MessageSquare, Zap, Loader2, ChevronDown, ChevronUp
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Course } from "../types";
+import { launchRazorpayCheckout, fetchRazorpayConfig } from "../lib/razorpay";
 
 interface CourseCheckoutModalProps {
   course: Course | null;
@@ -33,6 +34,10 @@ export default function CourseCheckoutModal({
   const [upiId, setUpiId] = useState("nrjstudywrk@okicici");
   const [merchantName, setMerchantName] = useState("Niranjan Singh (Pehlakadam)");
   const [copied, setCopied] = useState(false);
+  const [razorpayEnabled, setRazorpayEnabled] = useState(true);
+  const [razorpayLoading, setRazorpayLoading] = useState(false);
+  const [paymentStatusText, setPaymentStatusText] = useState("");
+  const [showManualUpi, setShowManualUpi] = useState(false);
 
   // Coupon state
   const [couponInput, setCouponInput] = useState("");
@@ -56,7 +61,7 @@ export default function CourseCheckoutModal({
     whatsappUrl?: string;
   } | null>(null);
 
-  // Fetch UPI configs
+  // Fetch UPI configs and Razorpay gateway availability
   useEffect(() => {
     fetch("/api/system-stats")
       .then(res => res.ok ? res.json() : null)
@@ -64,9 +69,14 @@ export default function CourseCheckoutModal({
         if (data) {
           if (data.upiId) setUpiId(data.upiId);
           if (data.merchantName) setMerchantName(data.merchantName);
+          if (data.razorpayEnabled !== undefined) setRazorpayEnabled(data.razorpayEnabled);
         }
       })
       .catch(() => {});
+
+    fetchRazorpayConfig().then(cfg => {
+      setRazorpayEnabled(cfg.enabled && !!cfg.keyId);
+    });
   }, []);
 
   // Pre-fill phone if student already authorized or in localStorage
@@ -96,6 +106,7 @@ export default function CourseCheckoutModal({
       setCouponInput("");
       setCouponError("");
       setSubmitError("");
+      setPaymentStatusText("");
       setEnrollSuccessData(null);
     }
   }, [isOpen, course]);
@@ -107,7 +118,7 @@ export default function CourseCheckoutModal({
   const effectivePriceStr = "₹" + effectivePrice.toLocaleString("en-IN");
   const originalPriceStr = "₹" + (course.originalPrice || basePrice).toLocaleString("en-IN");
 
-  const upiUri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(merchantName)}&am=${effectivePrice}&cu=INR&tn=${encodeURIComponent(`Course Enrollment - ${course.title.slice(0, 30)}`)}`;
+  const upiUri = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(merchantName)}&am=${effectivePrice}&cu=INR&tn=${encodeURIComponent(`Course - ${course.title.slice(0, 25)}`)}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(upiUri)}`;
 
   const handleCopyUpi = () => {
@@ -152,28 +163,91 @@ export default function CourseCheckoutModal({
     setCouponError("");
   };
 
-  const handleSubmitEnrollment = async (e: FormEvent) => {
-    e.preventDefault();
-    setSubmitError("");
-
+  const validateStudentInputs = () => {
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
-      setSubmitError("Please enter your full name.");
-      return;
+      setSubmitError("Please enter your First and Last name.");
+      return false;
     }
     if (!formData.email.trim() || !formData.email.includes("@")) {
       setSubmitError("Please enter a valid email address.");
-      return;
+      return false;
     }
     const cleanNum = formData.number.replace(/[^0-9]/g, "");
     if (!cleanNum || cleanNum.length < 10) {
       setSubmitError("Please enter a valid 10-digit mobile number.");
-      return;
+      return false;
     }
+    return true;
+  };
+
+  // 💳 1-Click Automated Razorpay Flow (No manual UTR entry needed)
+  const handleRazorpayPayment = async () => {
+    setSubmitError("");
+    if (!validateStudentInputs()) return;
+
+    const cleanNum = formData.number.replace(/[^0-9]/g, "");
+    setRazorpayLoading(true);
+    setPaymentStatusText("Connecting to secure payment gateway...");
+
+    try {
+      const result = await launchRazorpayCheckout(
+        {
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          email: formData.email.trim().toLowerCase(),
+          number: cleanNum,
+          courseId: course.id,
+          courseTitle: course.title,
+          plan: course.tier || "advance",
+          amount: effectivePrice,
+          couponCode: appliedCoupon?.code || ""
+        },
+        (stage, msg) => {
+          if (msg) setPaymentStatusText(msg);
+        }
+      );
+
+      if (result.success && result.data) {
+        const authedNumber = result.data.studentNumber || cleanNum.slice(-10);
+        localStorage.setItem("pehlakadam_student_phone", authedNumber);
+        localStorage.setItem("pehlakadam_student_email", formData.email.trim().toLowerCase());
+
+        setEnrollSuccessData({
+          success: true,
+          studentName: `${formData.firstName} ${formData.lastName}`,
+          courseTitle: course.title,
+          phone: authedNumber,
+          tier: result.data.tier || course.tier || "pro",
+          whatsappUrl: result.data.whatsappUrl
+        });
+
+        if (onEnrollSuccess) {
+          onEnrollSuccess(authedNumber, result.data.tier || course.tier || "pro");
+        }
+      } else if (result.error && !result.dismissed) {
+        setSubmitError(result.error);
+      }
+    } catch (err: any) {
+      console.error("[CourseCheckoutModal] Razorpay exception:", err);
+      setSubmitError(err.message || "Failed to initiate online payment gateway.");
+    } finally {
+      setRazorpayLoading(false);
+      setPaymentStatusText("");
+    }
+  };
+
+  // Fallback Manual UTR Submission
+  const handleSubmitManualUtr = async (e: FormEvent) => {
+    e.preventDefault();
+    setSubmitError("");
+    if (!validateStudentInputs()) return;
+
     if (!formData.transactionId.trim()) {
       setSubmitError("Please enter the UPI Reference / UTR / Transaction ID.");
       return;
     }
 
+    const cleanNum = formData.number.replace(/[^0-9]/g, "");
     setIsSubmitting(true);
 
     try {
@@ -201,7 +275,6 @@ export default function CourseCheckoutModal({
 
       const data = await res.json();
       if (res.ok && data.success) {
-        // Save phone to localStorage for instant unlock
         const authedNumber = data.studentNumber || cleanNum.slice(-10);
         localStorage.setItem("pehlakadam_student_phone", authedNumber);
 
@@ -334,8 +407,8 @@ export default function CourseCheckoutModal({
 
                   {/* 2-Column Checkout Layout */}
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-                    {/* Left Column: Form Details & UTR */}
-                    <form onSubmit={handleSubmitEnrollment} className="md:col-span-7 space-y-3.5">
+                    {/* Left Column: Form Details & Actions */}
+                    <div className="md:col-span-7 space-y-4">
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">First Name</label>
@@ -343,7 +416,7 @@ export default function CourseCheckoutModal({
                             type="text"
                             value={formData.firstName}
                             onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                            placeholder="John"
+                            placeholder="First Name"
                             required
                             className="w-full rounded-xl bg-zinc-900 border border-zinc-700/80 px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           />
@@ -354,7 +427,7 @@ export default function CourseCheckoutModal({
                             type="text"
                             value={formData.lastName}
                             onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                            placeholder="Doe"
+                            placeholder="Last Name"
                             required
                             className="w-full rounded-xl bg-zinc-900 border border-zinc-700/80 px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           />
@@ -368,7 +441,7 @@ export default function CourseCheckoutModal({
                             type="email"
                             value={formData.email}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            placeholder="john@example.com"
+                            placeholder="student@example.com"
                             required
                             className="w-full rounded-xl bg-zinc-900 border border-zinc-700/80 px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           />
@@ -384,21 +457,6 @@ export default function CourseCheckoutModal({
                             className="w-full rounded-xl bg-zinc-900 border border-emerald-500/50 px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono font-bold"
                           />
                         </div>
-                      </div>
-
-                      {/* UPI UTR Reference Number */}
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1">
-                          UPI Ref / UTR / Transaction ID (from your Bank/UPI app)
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.transactionId}
-                          onChange={(e) => setFormData({ ...formData, transactionId: e.target.value })}
-                          placeholder="e.g. 412389128392 / TXN987654"
-                          required
-                          className="w-full rounded-xl bg-zinc-900 border border-zinc-700/80 px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
-                        />
                       </div>
 
                       {/* Coupon Discount Box */}
@@ -440,89 +498,85 @@ export default function CourseCheckoutModal({
                         {couponError && <p className="text-red-400 text-[10px]">{couponError}</p>}
                       </div>
 
-                      {submitError && (
-                        <p className="text-red-400 text-xs font-semibold p-2.5 rounded-xl bg-red-950/40 border border-red-500/30">
-                          {submitError}
-                        </p>
-                      )}
-
-                      <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 text-xs transition-all shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                      >
-                        {isSubmitting ? (
-                          <span className="animate-pulse">Validating Payment & Activating Access...</span>
-                        ) : (
-                          <>
-                            <ShieldCheck className="h-4 w-4" />
-                            Pay {effectivePriceStr} & Auto-Activate Course
-                          </>
+                      {/* Primary 1-Click Razorpay Payment Option */}
+                      <div className="space-y-3 pt-1">
+                        {submitError && (
+                          <p className="text-red-400 text-xs font-semibold p-2.5 rounded-xl bg-red-950/40 border border-red-500/30">
+                            {submitError}
+                          </p>
                         )}
-                      </button>
-                    </form>
 
-                    {/* Right Column: Direct UPI QR & Payee Details */}
-                    <div className="md:col-span-5 bg-zinc-900/80 rounded-2xl border border-zinc-800 p-4 sm:p-5 flex flex-col items-center text-center">
-                      <span className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 px-2.5 py-1 rounded-full mb-2 uppercase tracking-widest">
-                        <ShieldCheck className="h-3.5 w-3.5" /> Direct Zero-Fee UPI
+                        <button
+                          type="button"
+                          onClick={handleRazorpayPayment}
+                          disabled={razorpayLoading}
+                          className="w-full py-4 px-5 rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-950/60 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 cursor-pointer"
+                        >
+                          {razorpayLoading ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>{paymentStatusText || "Processing Checkout..."}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Zap className="h-4 w-4 text-yellow-300" />
+                              <span>Pay {effectivePriceStr} Online (Instant 1-Click Access)</span>
+                            </>
+                          )}
+                        </button>
+                        <div className="flex items-center justify-center gap-2 text-[10px] text-zinc-400">
+                          <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                          <span>Supports Google Pay, PhonePe, Paytm, UPI, Cards & Netbanking</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Column: Order Summary & Features */}
+                    <div className="md:col-span-5 rounded-2xl bg-zinc-900/90 border border-zinc-800/90 p-5 flex flex-col items-center text-center space-y-4">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider">
+                        <ShieldCheck className="h-3.5 w-3.5" /> 100% Secure Checkout
                       </span>
 
-                      <p className="text-[11px] text-zinc-400 font-medium">Course Enrollment Fee</p>
-                      {appliedCoupon ? (
-                        <div className="mt-0.5 mb-1">
-                          <span className="text-xs font-semibold text-zinc-500 line-through mr-2">{originalPriceStr}</span>
-                          <span className="text-3xl font-black text-emerald-400 font-mono tracking-tight">{effectivePriceStr}</span>
-                        </div>
-                      ) : (
-                        <div className="mt-0.5 mb-1">
-                          {course.originalPrice > course.discountPrice && (
-                            <span className="text-xs font-semibold text-zinc-500 line-through mr-2">{originalPriceStr}</span>
+                      <div className="w-full border-b border-zinc-800 pb-3">
+                        <span className="text-[11px] text-zinc-400">Payable Course Fee</span>
+                        <div className="flex items-baseline justify-center gap-2 mt-1">
+                          {appliedCoupon && (
+                            <span className="text-sm font-semibold text-zinc-500 line-through">
+                              ₹{basePrice.toLocaleString("en-IN")}
+                            </span>
                           )}
-                          <span className="text-3xl font-black text-white font-mono tracking-tight">{effectivePriceStr}</span>
+                          <span className="text-3xl font-black text-emerald-400 tracking-tight">
+                            {effectivePriceStr}
+                          </span>
                         </div>
-                      )}
-
-                      {/* QR Code */}
-                      <div className="relative bg-white p-2 rounded-2xl shadow-lg border border-zinc-800 my-2 inline-block group overflow-hidden">
-                        <img
-                          src={qrCodeUrl}
-                          alt="Pehlakadam Course UPI QR"
-                          className="h-[135px] w-[135px] block transition-transform duration-300 group-hover:scale-105"
-                        />
                       </div>
 
-                      <p className="text-[10px] text-zinc-400 max-w-xs leading-relaxed mb-3">
-                        Scan with GPay, PhonePe, Paytm, BHIM, or any bank UPI app. Zero gateway surcharge.
-                      </p>
-
-                      {/* Mobile Deep-link */}
-                      <a
-                        href={upiUri}
-                        className="w-full inline-flex items-center justify-center gap-2 text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-emerald-400 border border-zinc-700 py-2 px-3 rounded-xl transition-colors mb-3"
-                      >
-                        <Phone className="h-3.5 w-3.5 text-emerald-400" />
-                        Pay {effectivePriceStr} with UPI App
-                      </a>
-
-                      {/* Copyable UPI ID */}
-                      <div className="w-full border-t border-zinc-800/80 pt-3 text-left space-y-1.5">
-                        <span className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Official UPI ID</span>
-                        <div className="flex items-center justify-between bg-zinc-950 px-3 py-1.5 rounded-lg border border-zinc-800">
-                          <code className="text-xs font-mono text-emerald-400 select-all">{upiId}</code>
-                          <button
-                            type="button"
-                            onClick={handleCopyUpi}
-                            className="text-zinc-400 hover:text-white transition-colors p-1"
-                            title="Copy UPI ID"
-                          >
-                            {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                          </button>
+                      {/* Course Included Benefits */}
+                      <div className="w-full space-y-2 text-left text-xs bg-zinc-850 p-3.5 rounded-xl border border-zinc-800">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-1">
+                          Enrollment Includes:
+                        </span>
+                        <div className="flex items-center gap-2 text-zinc-300 text-[11px]">
+                          <Check className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
+                          <span>Immediate Student Dashboard Whitelisting</span>
                         </div>
-                        <div className="flex items-center justify-between text-[11px] pt-1">
-                          <span className="text-zinc-500">Payee:</span>
-                          <span className="text-zinc-300 font-medium truncate max-w-[160px]">{merchantName}</span>
+                        <div className="flex items-center gap-2 text-zinc-300 text-[11px]">
+                          <Check className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
+                          <span>Full HD Video Modules & Chapter Worksheets</span>
                         </div>
+                        <div className="flex items-center gap-2 text-zinc-300 text-[11px]">
+                          <Check className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
+                          <span>Verified Certificate of Completion</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-zinc-300 text-[11px]">
+                          <Check className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
+                          <span>Direct WhatsApp Mentor Group Support</span>
+                        </div>
+                      </div>
+
+                      <div className="w-full text-[10px] text-zinc-500 text-center space-y-1">
+                        <p>🔒 256-Bit SSL Encrypted Payment Gateway</p>
+                        <p className="text-emerald-400/90 font-medium">Automatic instant activation upon payment completion.</p>
                       </div>
                     </div>
                   </div>

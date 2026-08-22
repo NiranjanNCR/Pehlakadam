@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 import compression from "compression";
+import Razorpay from "razorpay";
 import { contactFormSchema } from "./src/lib/validation";
 
 // Load environment variables with fallback to .env.example
@@ -761,6 +762,10 @@ const SystemStatsSchema = new mongoose.Schema({
   successRate: { type: String, default: "99%" },
   upiId: { type: String, default: "nrjstudywrk@okicici" },
   merchantName: { type: String, default: "Niranjan Singh (Pehlakadam)" },
+  razorpayEnabled: { type: Boolean, default: true },
+  razorpayKeyId: { type: String, default: "" },
+  razorpayKeySecret: { type: String, default: "" },
+  razorpayWebhookSecret: { type: String, default: "" },
   instagramUrl: { type: String, default: "#" },
   youtubeUrl: { type: String, default: "#" },
   whatsappSupportUrl: { type: String, default: "#" },
@@ -2197,6 +2202,291 @@ app.post("/api/payment-submit", async (req, res) => {
   } catch (error) {
     console.error("[Pehlakadam API] Error saving payment proof:", error);
     return res.status(500).json({ error: "Failed to upload payment proof. Please try again." });
+  }
+});
+
+// =========================================================================================
+// 💳 RAZORPAY PAYMENT GATEWAY CORE (AUTOMATIC REAL-TIME PAYMENTS & INSTANT ACCESS)
+// =========================================================================================
+
+// Helper: Dynamically fetch active Razorpay credentials (from env vars or dynamic Admin DB stats)
+async function getRazorpayCredentials(): Promise<{ keyId: string; keySecret: string; webhookSecret: string; isEnabled: boolean }> {
+  let keyId = process.env.RAZORPAY_KEY_ID?.trim() || "";
+  let keySecret = process.env.RAZORPAY_KEY_SECRET?.trim() || "";
+  let webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET?.trim() || "";
+  let isEnabled = true;
+
+  try {
+    if (isMongoLive()) {
+      const stats = await SystemStatsModel.findOne();
+      if (stats) {
+        if (!keyId && (stats as any).razorpayKeyId) keyId = (stats as any).razorpayKeyId.trim();
+        if (!keySecret && (stats as any).razorpayKeySecret) keySecret = (stats as any).razorpayKeySecret.trim();
+        if (!webhookSecret && (stats as any).razorpayWebhookSecret) webhookSecret = (stats as any).razorpayWebhookSecret.trim();
+        if ((stats as any).razorpayEnabled !== undefined) isEnabled = (stats as any).razorpayEnabled;
+      }
+    }
+    if ((!keyId || !keySecret) && fs.existsSync(SYSTEM_STATS_FILE)) {
+      const stats = JSON.parse(fs.readFileSync(SYSTEM_STATS_FILE, "utf-8"));
+      if (!keyId && stats.razorpayKeyId) keyId = stats.razorpayKeyId.trim();
+      if (!keySecret && stats.razorpayKeySecret) keySecret = stats.razorpayKeySecret.trim();
+      if (!webhookSecret && stats.razorpayWebhookSecret) webhookSecret = stats.razorpayWebhookSecret.trim();
+      if (stats.razorpayEnabled !== undefined) isEnabled = stats.razorpayEnabled;
+    }
+  } catch (e) {}
+
+  return { keyId, keySecret, webhookSecret, isEnabled };
+}
+
+// 🌐 1. Public endpoint to get client-side Razorpay configuration (Secret is NEVER exposed!)
+app.get("/api/razorpay/config", async (req, res) => {
+  try {
+    const { keyId, keySecret, isEnabled } = await getRazorpayCredentials();
+    return res.status(200).json({
+      enabled: isEnabled && !!keyId && !!keySecret,
+      keyId: keyId || "",
+      merchantName: "Pehlakadam Career & Personality Development"
+    });
+  } catch (error: any) {
+    console.error("[Pehlakadam Razorpay Config] Error:", error);
+    return res.status(500).json({ enabled: false, keyId: "" });
+  }
+});
+
+// 🌐 2. Endpoint to create official Razorpay Order securely
+app.post("/api/razorpay/create-order", async (req, res) => {
+  try {
+    const { amount, receipt, notes } = req.body;
+    const numAmount = Number(amount);
+
+    if (!numAmount || numAmount <= 0) {
+      return res.status(400).json({ error: "Invalid payment amount specified." });
+    }
+
+    const { keyId, keySecret, isEnabled } = await getRazorpayCredentials();
+    if (!isEnabled || !keyId || !keySecret) {
+      return res.status(400).json({ 
+        error: "Razorpay payment gateway is not active. Please configure Razorpay Key ID and Secret in Admin Settings." 
+      });
+    }
+
+    const razorpayInstance = new Razorpay({
+      key_id: keyId,
+      key_secret: keySecret
+    });
+
+    const amountInPaise = Math.round(numAmount * 100);
+    const orderReceipt = receipt || `rcpt_${Date.now().toString().slice(-8)}`;
+
+    const order = await razorpayInstance.orders.create({
+      amount: amountInPaise,
+      currency: "INR",
+      receipt: orderReceipt,
+      notes: notes || {}
+    });
+
+    console.log(`⚡ [Razorpay Order Created] Order ID: ${order.id} | Amount: ₹${numAmount} | Receipt: ${orderReceipt}`);
+
+    return res.status(200).json({
+      success: true,
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      keyId
+    });
+  } catch (error: any) {
+    console.error("[Pehlakadam Razorpay] Error creating order:", error);
+    return res.status(500).json({ 
+      error: error.message || "Failed to initialize payment gateway order." 
+    });
+  }
+});
+
+// 🌐 3. Endpoint to cryptographically verify Razorpay payment and auto-grant instant access
+app.post("/api/razorpay/verify-payment", async (req, res) => {
+  try {
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      studentDetails
+    } = req.body;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ error: "Missing required Razorpay payment verification parameters." });
+    }
+
+    const { keySecret } = await getRazorpayCredentials();
+    if (!keySecret) {
+      return res.status(500).json({ error: "Razorpay gateway secret not configured on server." });
+    }
+
+    // Cryptographic signature verification using HMAC SHA-256
+    const expectedSignature = crypto
+      .createHmac("sha256", keySecret)
+      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .digest("hex");
+
+    if (expectedSignature !== razorpay_signature) {
+      console.warn(`🚨 [Razorpay Fraud Warning] Signature verification failed for order ${razorpay_order_id}`);
+      return res.status(400).json({ error: "Payment verification failed: Signature mismatch." });
+    }
+
+    console.log(`✅ [Razorpay Verified] Payment ID: ${razorpay_payment_id} verified cryptographically!`);
+
+    // Parse student details
+    const firstName = studentDetails?.firstName || "";
+    const lastName = studentDetails?.lastName || "";
+    const studentFullName = `${firstName.trim()} ${lastName.trim()}`.trim() || "Enrolled Student";
+    const studentEmail = (studentDetails?.email || "").trim().toLowerCase();
+    const rawNumber = studentDetails?.number || studentDetails?.phone || "";
+    const cleanNum = cleanPhoneDigits(rawNumber);
+    const role = studentDetails?.role || "";
+    const plan = studentDetails?.plan || "Basic";
+    const courseId = studentDetails?.courseId || "";
+    const courseTitle = studentDetails?.courseTitle || "";
+    const paymentAmount = Number(studentDetails?.amount) || 0;
+    const couponCode = studentDetails?.couponCode || "";
+
+    // Determine Tier & Enrollments
+    let studentTier = "pro";
+    if (plan.toLowerCase().includes("basic")) studentTier = "basic";
+    else if (plan.toLowerCase().includes("standard") || plan.toLowerCase().includes("advance")) studentTier = "advance";
+    else studentTier = "pro";
+
+    const assignedPrograms: string[] = role ? [role] : [];
+    const assignedCourses: string[] = courseId ? [courseId] : courseTitle ? [courseTitle] : [];
+
+    // 1. Grant instant whitelist access
+    if (cleanNum) {
+      await grantStudentAccess(cleanNum, studentFullName, studentTier, assignedPrograms, assignedCourses, studentEmail);
+    }
+
+    // 2. Record payment in Database & JSON
+    const paymentItem = {
+      firstName: firstName || "Student",
+      lastName: lastName || "",
+      email: studentEmail,
+      number: cleanNum,
+      role: role || (courseTitle ? `Course: ${courseTitle}` : "Online Program"),
+      plan: plan || "Basic",
+      amount: paymentAmount,
+      transactionId: razorpay_payment_id,
+      fileName: `razorpay_order_${razorpay_order_id}`,
+      fileType: "application/json",
+      fileData: "",
+      status: "auto_approved",
+      autoVerified: true,
+      verificationMethod: "RAZORPAY_GATEWAY",
+      verifiedAt: new Date(),
+      couponCode: couponCode || "",
+      createdAt: new Date()
+    };
+
+    if (isMongoConnected) {
+      const newPay = new PaymentModel(paymentItem);
+      await newPay.save();
+      console.log(`⚡ [Pehlakadam MongoDB] Logged verified Razorpay payment for ${studentFullName} (+91 ${cleanNum})`);
+    } else {
+      try {
+        const payments = fs.existsSync(PAYMENTS_FILE) ? JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8")) : [];
+        payments.push({
+          ...paymentItem,
+          id: Date.now().toString(),
+          verifiedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString()
+        });
+        fs.writeFileSync(PAYMENTS_FILE, JSON.stringify(payments, null, 2));
+      } catch (e) {}
+    }
+
+    // 3. Build WhatsApp notification link for the student
+    const rawWhatsAppNum = process.env.ADMIN_WHATSAPP_NUMBER || "917428613102";
+    const cleanAdminNum = rawWhatsAppNum.replace(/[^0-9]/g, "");
+    const whatsappMessageText =
+      `💳 *Pehlakadam Instant Payment Verified*\n\n` +
+      `🔥 *Payment Successful via Razorpay Gateway!*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `👤 *Student Name:* ${studentFullName}\n` +
+      `🎓 *Enrolled For:* ${courseTitle || role || plan}\n` +
+      `💵 *Amount Paid:* ₹${paymentAmount ? paymentAmount.toLocaleString("en-IN") : "0"}\n` +
+      `📞 *Mobile:* +91 ${cleanNum}\n` +
+      `📧 *Email:* ${studentEmail}\n` +
+      `🆔 *Payment ID:* ${razorpay_payment_id}\n` +
+      `📦 *Order ID:* ${razorpay_order_id}\n` +
+      (couponCode ? `🎟️ *Coupon:* ${couponCode}\n` : "") +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `⚡ *Status:* INSTANT ACCESS ACTIVATED & WHITELISTED AUTOMATICALLY!`;
+
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${cleanAdminNum}&text=${encodeURIComponent(whatsappMessageText)}`;
+
+    return res.status(200).json({
+      success: true,
+      verified: true,
+      message: "Payment verified successfully! Instant student access is active.",
+      paymentId: razorpay_payment_id,
+      orderId: razorpay_order_id,
+      studentName: studentFullName,
+      studentNumber: cleanNum,
+      tier: studentTier,
+      enrolledPrograms: assignedPrograms,
+      enrolledCourses: assignedCourses,
+      whatsappUrl
+    });
+  } catch (error: any) {
+    console.error("[Pehlakadam Razorpay] Error verifying payment:", error);
+    return res.status(500).json({ 
+      error: error.message || "Failed to complete payment verification." 
+    });
+  }
+});
+
+// 🌐 4. Razorpay Webhook Endpoint for Asynchronous Confirmation
+app.post("/api/razorpay/webhook", async (req, res) => {
+  try {
+    const webhookSignature = req.headers["x-razorpay-signature"] as string;
+    const { webhookSecret, keySecret } = await getRazorpayCredentials();
+    const secretToUse = webhookSecret || keySecret;
+
+    if (secretToUse && webhookSignature) {
+      const rawBody = JSON.stringify(req.body);
+      const expectedSignature = crypto
+        .createHmac("sha256", secretToUse)
+        .update(rawBody)
+        .digest("hex");
+
+      if (expectedSignature !== webhookSignature) {
+        console.warn("[Pehlakadam Webhook] Invalid webhook signature.");
+        return res.status(400).json({ error: "Invalid webhook signature" });
+      }
+    }
+
+    const event = req.body?.event;
+    const payload = req.body?.payload;
+
+    if (event === "payment.captured" || event === "order.paid") {
+      const paymentEntity = payload?.payment?.entity;
+      if (paymentEntity) {
+        const contact = paymentEntity.contact || "";
+        const email = paymentEntity.email || "";
+        const notes = paymentEntity.notes || {};
+        const studentName = notes.studentName || paymentEntity.description || "Student";
+        const cleanNum = cleanPhoneDigits(contact || notes.phone || "");
+
+        if (cleanNum) {
+          const tier = notes.plan?.toLowerCase().includes("standard") ? "advance" : "pro";
+          const prog = notes.programOrCourse ? [notes.programOrCourse] : [];
+          const crs = notes.courseId ? [notes.courseId] : [];
+          await grantStudentAccess(cleanNum, studentName, tier, prog, crs, email);
+          console.log(`⚡ [Razorpay Webhook] Auto-granted access for ${studentName} (+91 ${cleanNum}) via event ${event}`);
+        }
+      }
+    }
+
+    return res.status(200).json({ status: "ok" });
+  } catch (error: any) {
+    console.error("[Pehlakadam Webhook] Error:", error);
+    return res.status(500).json({ error: "Webhook processing failed" });
   }
 });
 
@@ -6978,6 +7268,9 @@ app.get("/api/system-stats", async (req, res) => {
       successRate: stats.successRate || "99%",
       upiId: stats.upiId || "nrjstudywrk@okicici",
       merchantName: stats.merchantName || "Niranjan Singh (Pehlakadam)",
+      razorpayEnabled: stats.razorpayEnabled !== undefined ? stats.razorpayEnabled : true,
+      razorpayKeyId: stats.razorpayKeyId || process.env.RAZORPAY_KEY_ID || "",
+      hasRazorpaySecret: !!(stats.razorpayKeySecret || process.env.RAZORPAY_KEY_SECRET),
       instagramUrl: stats.instagramUrl || "#",
       youtubeUrl: stats.youtubeUrl || "#",
       whatsappSupportUrl: stats.whatsappSupportUrl || "#",
@@ -7036,6 +7329,10 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
       successRate,
       upiId,
       merchantName,
+      razorpayEnabled,
+      razorpayKeyId,
+      razorpayKeySecret,
+      razorpayWebhookSecret,
       instagramUrl,
       youtubeUrl,
       whatsappSupportUrl,
@@ -7059,6 +7356,10 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
 
     const finalUpiId = upiId || "nrjstudywrk@okicici";
     const finalMerchantName = merchantName || "Niranjan Singh (Pehlakadam)";
+    const finalRazorpayEnabled = razorpayEnabled !== undefined ? Boolean(razorpayEnabled) : true;
+    const finalRazorpayKeyId = razorpayKeyId !== undefined ? String(razorpayKeyId).trim() : "";
+    const finalRazorpayKeySecret = razorpayKeySecret !== undefined ? String(razorpayKeySecret).trim() : "";
+    const finalRazorpayWebhookSecret = razorpayWebhookSecret !== undefined ? String(razorpayWebhookSecret).trim() : "";
     const finalInstagram = instagramUrl || "#";
     const finalYoutube = youtubeUrl || "#";
     const finalWhatsappSupport = whatsappSupportUrl || "#";
@@ -7086,6 +7387,10 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
         stats.successRate = successRate;
         stats.upiId = finalUpiId;
         stats.merchantName = finalMerchantName;
+        stats.razorpayEnabled = finalRazorpayEnabled;
+        if (finalRazorpayKeyId) stats.razorpayKeyId = finalRazorpayKeyId;
+        if (finalRazorpayKeySecret) stats.razorpayKeySecret = finalRazorpayKeySecret;
+        if (finalRazorpayWebhookSecret) stats.razorpayWebhookSecret = finalRazorpayWebhookSecret;
         stats.instagramUrl = finalInstagram;
         stats.youtubeUrl = finalYoutube;
         stats.whatsappSupportUrl = finalWhatsappSupport;
@@ -7109,12 +7414,22 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
     }
 
     // Always keep system_stats.json in sync
-    fs.writeFileSync(SYSTEM_STATS_FILE, JSON.stringify({
+    let existingJsonStats: any = {};
+    if (fs.existsSync(SYSTEM_STATS_FILE)) {
+      try { existingJsonStats = JSON.parse(fs.readFileSync(SYSTEM_STATS_FILE, "utf-8")); } catch (e) {}
+    }
+
+    const updatedJsonStats = {
+      ...existingJsonStats,
       studentsCount,
       expertsCount,
       successRate,
       upiId: finalUpiId,
       merchantName: finalMerchantName,
+      razorpayEnabled: finalRazorpayEnabled,
+      razorpayKeyId: finalRazorpayKeyId || existingJsonStats.razorpayKeyId || "",
+      razorpayKeySecret: finalRazorpayKeySecret || existingJsonStats.razorpayKeySecret || "",
+      razorpayWebhookSecret: finalRazorpayWebhookSecret || existingJsonStats.razorpayWebhookSecret || "",
       instagramUrl: finalInstagram,
       youtubeUrl: finalYoutube,
       whatsappSupportUrl: finalWhatsappSupport,
@@ -7130,7 +7445,9 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
       privacyContent: finalPrivacyContent,
       refundContent: finalRefundContent,
       disclaimerContent: finalDisclaimerContent
-    }, null, 2));
+    };
+
+    fs.writeFileSync(SYSTEM_STATS_FILE, JSON.stringify(updatedJsonStats, null, 2));
 
     return res.status(200).json({
       message: "System stats and payment/social/SEO/favicon/policies config updated successfully.",
@@ -7140,6 +7457,9 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
         successRate,
         upiId: finalUpiId,
         merchantName: finalMerchantName,
+        razorpayEnabled: finalRazorpayEnabled,
+        razorpayKeyId: finalRazorpayKeyId || existingJsonStats.razorpayKeyId || "",
+        hasRazorpaySecret: !!(finalRazorpayKeySecret || existingJsonStats.razorpayKeySecret || process.env.RAZORPAY_KEY_SECRET),
         instagramUrl: finalInstagram,
         youtubeUrl: finalYoutube,
         whatsappSupportUrl: finalWhatsappSupport,
