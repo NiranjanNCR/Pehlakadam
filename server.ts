@@ -119,7 +119,6 @@ app.disable("x-powered-by");
 // 3. HTTP Security Headers (OWASP & Industry Best Practice)
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "SAMEORIGIN");
   res.setHeader("X-XSS-Protection", "1; mode=block");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
@@ -127,13 +126,14 @@ app.use((req, res, next) => {
   res.setHeader(
     "Content-Security-Policy",
     "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:; " +
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: https://checkout.razorpay.com https://*.razorpay.com; " +
     "style-src 'self' 'unsafe-inline' https:; " +
     "font-src 'self' https: data:; " +
     "img-src 'self' https: data: blob:; " +
     "media-src 'self' https: data: blob:; " +
-    "frame-src 'self' https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com; " +
-    "connect-src 'self' https: ws: wss:;"
+    "frame-src 'self' https://*.razorpay.com https://razorpay.com https://api.razorpay.com https://checkout.razorpay.com https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com data: blob: https:; " +
+    "frame-ancestors 'self' https: http:; " +
+    "connect-src 'self' https: ws: wss: https://*.razorpay.com https://api.razorpay.com https://lumberjack.razorpay.com;"
   );
   next();
 });
@@ -2211,29 +2211,34 @@ app.post("/api/payment-submit", async (req, res) => {
 
 // Helper: Dynamically fetch active Razorpay credentials (from env vars or dynamic Admin DB stats)
 async function getRazorpayCredentials(): Promise<{ keyId: string; keySecret: string; webhookSecret: string; isEnabled: boolean }> {
-  let keyId = process.env.RAZORPAY_KEY_ID?.trim() || "";
-  let keySecret = process.env.RAZORPAY_KEY_SECRET?.trim() || "";
-  let webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET?.trim() || "";
+  let keyId = "";
+  let keySecret = "";
+  let webhookSecret = "";
   let isEnabled = true;
 
   try {
     if (isMongoLive()) {
       const stats = await SystemStatsModel.findOne();
       if (stats) {
-        if (!keyId && (stats as any).razorpayKeyId) keyId = (stats as any).razorpayKeyId.trim();
-        if (!keySecret && (stats as any).razorpayKeySecret) keySecret = (stats as any).razorpayKeySecret.trim();
-        if (!webhookSecret && (stats as any).razorpayWebhookSecret) webhookSecret = (stats as any).razorpayWebhookSecret.trim();
-        if ((stats as any).razorpayEnabled !== undefined) isEnabled = (stats as any).razorpayEnabled;
+        if ((stats as any).razorpayKeyId) keyId = String((stats as any).razorpayKeyId).trim();
+        if ((stats as any).razorpayKeySecret) keySecret = String((stats as any).razorpayKeySecret).trim();
+        if ((stats as any).razorpayWebhookSecret) webhookSecret = String((stats as any).razorpayWebhookSecret).trim();
+        if ((stats as any).razorpayEnabled !== undefined) isEnabled = Boolean((stats as any).razorpayEnabled);
       }
     }
-    if ((!keyId || !keySecret) && fs.existsSync(SYSTEM_STATS_FILE)) {
+    if (fs.existsSync(SYSTEM_STATS_FILE)) {
       const stats = JSON.parse(fs.readFileSync(SYSTEM_STATS_FILE, "utf-8"));
-      if (!keyId && stats.razorpayKeyId) keyId = stats.razorpayKeyId.trim();
-      if (!keySecret && stats.razorpayKeySecret) keySecret = stats.razorpayKeySecret.trim();
-      if (!webhookSecret && stats.razorpayWebhookSecret) webhookSecret = stats.razorpayWebhookSecret.trim();
-      if (stats.razorpayEnabled !== undefined) isEnabled = stats.razorpayEnabled;
+      if (!keyId && stats.razorpayKeyId) keyId = String(stats.razorpayKeyId).trim();
+      if (!keySecret && stats.razorpayKeySecret) keySecret = String(stats.razorpayKeySecret).trim();
+      if (!webhookSecret && stats.razorpayWebhookSecret) webhookSecret = String(stats.razorpayWebhookSecret).trim();
+      if (stats.razorpayEnabled !== undefined) isEnabled = Boolean(stats.razorpayEnabled);
     }
   } catch (e) {}
+
+  // Fallback to process.env if not set via admin panel
+  if (!keyId && process.env.RAZORPAY_KEY_ID) keyId = process.env.RAZORPAY_KEY_ID.trim();
+  if (!keySecret && process.env.RAZORPAY_KEY_SECRET) keySecret = process.env.RAZORPAY_KEY_SECRET.trim();
+  if (!webhookSecret && process.env.RAZORPAY_WEBHOOK_SECRET) webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET.trim();
 
   return { keyId, keySecret, webhookSecret, isEnabled };
 }

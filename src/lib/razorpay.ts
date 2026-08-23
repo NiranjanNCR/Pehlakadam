@@ -48,10 +48,28 @@ export function loadRazorpayScript(): Promise<boolean> {
       return;
     }
 
+    const checkInterval = setInterval(() => {
+      if (window.Razorpay) {
+        clearInterval(checkInterval);
+        resolve(true);
+      }
+    }, 100);
+
+    // Timeout after 4 seconds
+    setTimeout(() => {
+      clearInterval(checkInterval);
+    }, 4000);
+
     const existingScript = document.getElementById("razorpay-checkout-script");
     if (existingScript) {
-      existingScript.addEventListener("load", () => resolve(true));
-      existingScript.addEventListener("error", () => resolve(false));
+      existingScript.addEventListener("load", () => {
+        clearInterval(checkInterval);
+        resolve(true);
+      });
+      existingScript.addEventListener("error", () => {
+        clearInterval(checkInterval);
+        resolve(false);
+      });
       return;
     }
 
@@ -59,8 +77,12 @@ export function loadRazorpayScript(): Promise<boolean> {
     script.id = "razorpay-checkout-script";
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
     script.async = true;
-    script.onload = () => resolve(true);
+    script.onload = () => {
+      clearInterval(checkInterval);
+      resolve(true);
+    };
     script.onerror = () => {
+      clearInterval(checkInterval);
       console.error("Failed to load Razorpay Checkout SDK script.");
       resolve(false);
     };
@@ -179,7 +201,6 @@ export async function launchRazorpayCheckout(
         currency: orderRes.currency || "INR",
         name: config.merchantName,
         description: `Enrollment for ${student.courseTitle || student.role || student.plan || 'Pehlakadam Program'}`,
-        image: "/favicon.ico",
         order_id: orderRes.orderId,
         prefill: {
           name: `${student.firstName} ${student.lastName}`.trim(),
@@ -190,6 +211,10 @@ export async function launchRazorpayCheckout(
           color: "#059669" // emerald-600
         },
         modal: {
+          backdropclose: false,
+          escape: true,
+          handleback: true,
+          confirm_close: true,
           ondismiss: function () {
             if (!isHandled) {
               isHandled = true;
