@@ -184,6 +184,10 @@ app.use(globalLimiter);
 // 5. Input Sanitization (XSS and NoSQL Operator Protection)
 function sanitizeValue(value: any): any {
   if (typeof value === "string") {
+    // Preserve base64 image/file payloads and long encoded strings without regex modification
+    if (value.startsWith("data:") || value.length > 500) {
+      return value;
+    }
     return value
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
       .replace(/javascript:/gi, "")
@@ -640,8 +644,6 @@ app.post("/api/admin/login", authLimiter, (req, res) => {
 // =========================================================================================
 
 // 📂 SCHEMA 1: SUBMISSIONS SCHEMA
-// This schema tracks career advisory consultation leads registered by users via contact forms
-// and timed conversion popups. It gathers student details, roles, and chosen career objectives.
 const SubmissionSchema = new mongoose.Schema({
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
@@ -662,13 +664,9 @@ const SubmissionSchema = new mongoose.Schema({
     message: { type: String }
   }],
   createdAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
 
 // 📂 SCHEMA 2: RESOURCE MATERIAL SCHEMA
-// This schema catalogs handbooks, guides, templates, and video masterclasses uploaded by advisors.
-// Notice the `fileData` field: it stores raw Base64 file payloads directly in the database.
-// This ensures extreme container survivability; even if the server container restarts or recycles
-// and wipes physical filesystem uploads, PDFs can be dynamically restored from MongoDB on-demand!
 const ResourceSchema = new mongoose.Schema({
   title: { type: String, required: true },
   category: { type: String, required: true },
@@ -680,11 +678,9 @@ const ResourceSchema = new mongoose.Schema({
   fileData: { type: String }, // Stores full Base64 for ultimate container durability
   isPaid: { type: Boolean, default: false }, // RESTRICTED ACCESS FOR PAID STUDENTS ONLY
   createdAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
 
 // 📂 SCHEMA 3: UPDATES SCHEMA
-// Tracks announcements broadcasted by the administration. Contains the broadcasted content,
-// the total number of students notified, and detailed recipient snapshots of students who were alerted.
 const UpdateSchema = new mongoose.Schema({
   message: { type: String, required: true },
   notifiedCount: { type: Number, default: 0 },
@@ -694,10 +690,9 @@ const UpdateSchema = new mongoose.Schema({
     number: { type: String }
   }],
   createdAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
 
 // 📂 SCHEMA 4: AUTHORIZED PAID USERS SCHEMA
-// Stores list of student phone numbers authorized by admin to access paid resources and assessments.
 const AuthorizedNumberSchema = new mongoose.Schema({
   number: { type: String, required: true, unique: true },
   studentName: { type: String, default: "Enrolled Student" },
@@ -707,10 +702,9 @@ const AuthorizedNumberSchema = new mongoose.Schema({
   enrolledCourses: { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
 
 // 📂 SCHEMA 5: PAYMENT SUBMISSIONS SCHEMA
-// Tracks payment transactions uploaded by students including their screenshots or PDFs.
 const PaymentSchema = new mongoose.Schema({
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
@@ -729,7 +723,7 @@ const PaymentSchema = new mongoose.Schema({
   verifiedAt: { type: Date, default: Date.now },
   couponCode: { type: String, default: "" },
   createdAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
 
 // Instantiate Mongoose models
 const SubmissionModel = mongoose.model("Submission", SubmissionSchema);
@@ -751,7 +745,7 @@ const ProgramConfigSchema = new mongoose.Schema({
   currentPrice: { type: String, default: "" },
   features: { type: String, default: "" },
   updatedAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
 
 const ProgramConfigModel = mongoose.model("ProgramConfig", ProgramConfigSchema);
 
@@ -782,7 +776,7 @@ const SystemStatsSchema = new mongoose.Schema({
   refundContent: { type: String, default: "" },
   disclaimerContent: { type: String, default: "" },
   updatedAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
 
 const SystemStatsModel = mongoose.model("SystemStats", SystemStatsSchema);
 
@@ -791,7 +785,7 @@ const CareerTipSubscriberSchema = new mongoose.Schema({
   email: { type: String, required: true },
   phone: { type: String, default: "" },
   createdAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
 
 const CareerTipSubscriberModel = mongoose.model("CareerTipSubscriber", CareerTipSubscriberSchema);
 
@@ -804,7 +798,7 @@ const TestimonialSchema = new mongoose.Schema({
   fileName: { type: String, default: "" },
   fileData: { type: String, default: "" }, // Base64 representation of student avatar
   createdAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
 
 const TestimonialModel = mongoose.model("Testimonial", TestimonialSchema);
 
@@ -833,7 +827,7 @@ const DiagnosticTestSchema = new mongoose.Schema({
     }]
   }],
   updatedAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
 
 const DiagnosticTestModel = mongoose.model("DiagnosticTest", DiagnosticTestSchema);
 
@@ -851,7 +845,7 @@ const DiagnosticSubmissionSchema = new mongoose.Schema({
   answers: { type: mongoose.Schema.Types.Mixed, default: {} },
   score: { type: mongoose.Schema.Types.Mixed, default: {} },
   createdAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
 
 const DiagnosticSubmissionModel = mongoose.model("DiagnosticSubmission", DiagnosticSubmissionSchema);
 
@@ -864,7 +858,7 @@ const DiagnosticRegistrationSchema = new mongoose.Schema({
   testTitle: { type: String, required: true },
   specialDetail: { type: String, required: true },
   createdAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
 
 const DiagnosticRegistrationModel = mongoose.model("DiagnosticRegistration", DiagnosticRegistrationSchema);
 
@@ -901,7 +895,7 @@ const CourseSchema = new mongoose.Schema({
     }]
   }],
   createdAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
 
 const CourseModel = mongoose.model("Course", CourseSchema);
 
@@ -913,7 +907,7 @@ const CouponSchema = new mongoose.Schema({
   minOrderAmount: { type: Number, default: 0 },
   active: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
 
 const CouponModel = mongoose.model("Coupon", CouponSchema);
 
@@ -928,7 +922,7 @@ const ResourceHistorySchema = new mongoose.Schema({
   type: { type: String, enum: ["pdf", "video"], default: "pdf" },
   url: { type: String, default: "" },
   accessedAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
 
 const ResourceHistoryModel = mongoose.model("ResourceHistory", ResourceHistorySchema);
 
@@ -940,7 +934,7 @@ const CourseProgressSchema = new mongoose.Schema({
   completedLessons: [{ type: String }],
   progressPercentage: { type: Number, default: 0 },
   lastAccessedAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
 
 const CourseProgressModel = mongoose.model("CourseProgress", CourseProgressSchema);
 
@@ -1085,19 +1079,17 @@ if (isInvalidScheme) {
 
 const MONGODB_URI = sanitizeMongoDBUri(rawUri);
 let isMongoConnected = false;
-mongoose.set("bufferCommands", false);
+mongoose.set("bufferCommands", true);
 
-const isMongoLive = () => isMongoConnected && mongoose.connection.readyState === 1;
+const isMongoLive = () => mongoose.connection.readyState === 1 || isMongoConnected;
 
 /**
- * Executes a MongoDB query with a strict timeout and automatic fallback.
- * If the query experiences a network timeout or connection reset, it automatically
- * marks isMongoConnected = false so subsequent queries instantly use local JSON without stalling.
+ * Executes a MongoDB query with high-reliability fallback.
  */
 async function safeMongoQuery<T>(
   queryFn: () => Promise<T>,
   fallbackFn?: () => Promise<T> | T,
-  timeoutMs = 2500
+  timeoutMs = 15000
 ): Promise<T | null> {
   if (!isMongoLive()) {
     return fallbackFn ? await fallbackFn() : null;
@@ -1113,18 +1105,7 @@ async function safeMongoQuery<T>(
   } catch (err: any) {
     if (timer) clearTimeout(timer);
     const msg = err?.message || String(err);
-    if (
-      msg.includes("timed out") ||
-      msg.includes("timeout") ||
-      msg.includes("connection") ||
-      msg.includes("PoolCleared") ||
-      msg.includes("Topology") ||
-      msg.includes("closed") ||
-      msg.includes("buffering timed out")
-    ) {
-      isMongoConnected = false;
-      console.warn(`⚠️ [Pehlakadam Server] MongoDB query notice: ${msg}. Seamlessly switched to local fallback mode.`);
-    }
+    console.warn(`⚠️ [Pehlakadam Server] MongoDB query notice: ${msg}. Serving from fallback cache.`);
     return fallbackFn ? await fallbackFn() : null;
   }
 }
@@ -1132,11 +1113,13 @@ async function safeMongoQuery<T>(
 mongoose.connection.on("connected", () => {
   isMongoConnected = true;
   console.log("🟢 [Pehlakadam Server] MongoDB connection established.");
+  syncDatabaseOnStartup();
 });
 
 mongoose.connection.on("reconnected", () => {
   isMongoConnected = true;
   console.log("🟢 [Pehlakadam Server] MongoDB connection restored.");
+  syncDatabaseOnStartup();
 });
 
 mongoose.connection.on("disconnected", () => {
@@ -1170,6 +1153,7 @@ if (hasValidScheme) {
     .then(() => {
       isMongoConnected = true;
       console.log("🟢 [Pehlakadam Server] Successfully connected to MongoDB Database Cluster.");
+      syncDatabaseOnStartup();
       seedDefaultResourcesIfEmpty(); // Seeds default resources if database is empty
       seedDefaultProgramConfigsIfEmpty(); // Seeds default program configs if database is empty
       seedDefaultDiagnosticsIfEmpty(); // Seeds default diagnostic tests if empty
@@ -1189,6 +1173,193 @@ if (hasValidScheme) {
     });
 } else {
   console.log("ℹ️ [Pehlakadam Server] MONGODB_URI connection scheme is missing or invalid. Operating in high-reliability JSON fallback database mode.");
+}
+
+/**
+ * 🔄 BIDIRECTIONAL STARTUP DATABASE SYNCHRONIZER
+ * When MongoDB connects, this routine ensures that MongoDB and local files are completely in sync.
+ * 1. If MongoDB has records, it updates the local file cache so local files reflect live MongoDB.
+ * 2. If MongoDB is empty, it populates MongoDB from the local JSON files so no content is ever lost!
+ */
+async function syncDatabaseOnStartup() {
+  if (!isMongoLive()) return;
+  console.log("🔄 [Pehlakadam Server] Performing startup synchronization with MongoDB Atlas...");
+  try {
+    // 1. Courses Synchronization
+    const mongoCourseCount = await CourseModel.countDocuments();
+    if (mongoCourseCount > 0) {
+      const docs = await CourseModel.find().lean();
+      const formatted = docs.map((doc: any) => ({
+        id: doc._id ? doc._id.toString() : (doc.id || doc.slug),
+        title: doc.title,
+        slug: doc.slug,
+        description: doc.description,
+        thumbnailUrl: doc.thumbnailUrl,
+        tier: doc.tier,
+        category: doc.category,
+        originalPrice: doc.originalPrice,
+        discountPrice: doc.discountPrice,
+        duration: doc.duration,
+        level: doc.level,
+        batch: doc.batch || "Regular Self-Paced Batch",
+        published: doc.published ?? true,
+        chapters: doc.chapters || [],
+        createdAt: doc.createdAt ? (doc.createdAt.toISOString ? doc.createdAt.toISOString() : doc.createdAt) : new Date().toISOString()
+      }));
+      fs.writeFileSync(COURSES_FILE, JSON.stringify(formatted, null, 2));
+      console.log(`✅ [Sync] Cached ${formatted.length} courses from MongoDB Atlas.`);
+    } else if (fs.existsSync(COURSES_FILE)) {
+      try {
+        const localCourses = JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8"));
+        if (Array.isArray(localCourses) && localCourses.length > 0) {
+          for (const c of localCourses) {
+            await CourseModel.findOneAndUpdate(
+              { $or: [{ slug: c.slug }, { title: c.title }] },
+              { ...c, _id: undefined },
+              { upsert: true, new: true }
+            );
+          }
+          console.log(`✅ [Sync] Uploaded ${localCourses.length} local courses to newly connected MongoDB Atlas.`);
+        }
+      } catch (e) {}
+    }
+
+    // 2. Program Configurations Synchronization
+    const mongoProgCount = await ProgramConfigModel.countDocuments();
+    if (mongoProgCount > 0) {
+      const configs = await ProgramConfigModel.find().lean();
+      fs.writeFileSync(PROGRAMS_CONFIG_FILE, JSON.stringify(configs, null, 2));
+    } else if (fs.existsSync(PROGRAMS_CONFIG_FILE)) {
+      try {
+        const localConfigs = JSON.parse(fs.readFileSync(PROGRAMS_CONFIG_FILE, "utf-8"));
+        if (Array.isArray(localConfigs) && localConfigs.length > 0) {
+          for (const cfg of localConfigs) {
+            await ProgramConfigModel.findOneAndUpdate({ programKey: cfg.programKey }, cfg, { upsert: true });
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 3. System Stats Synchronization
+    const mongoStats = await SystemStatsModel.findOne().lean();
+    if (mongoStats) {
+      fs.writeFileSync(SYSTEM_STATS_FILE, JSON.stringify(mongoStats, null, 2));
+    } else if (fs.existsSync(SYSTEM_STATS_FILE)) {
+      try {
+        const localStats = JSON.parse(fs.readFileSync(SYSTEM_STATS_FILE, "utf-8"));
+        if (localStats && Object.keys(localStats).length > 0) {
+          await SystemStatsModel.findOneAndUpdate({}, localStats, { upsert: true });
+        }
+      } catch (e) {}
+    }
+
+    // 4. Testimonials Synchronization
+    const mongoTestCount = await TestimonialModel.countDocuments();
+    if (mongoTestCount > 0) {
+      const testimonials = await TestimonialModel.find().lean();
+      const formatted = testimonials.map((t: any) => ({
+        id: t._id ? t._id.toString() : t.id,
+        ...t
+      }));
+      fs.writeFileSync(TESTIMONIALS_FILE, JSON.stringify(formatted, null, 2));
+    } else if (fs.existsSync(TESTIMONIALS_FILE)) {
+      try {
+        const localTestimonials = JSON.parse(fs.readFileSync(TESTIMONIALS_FILE, "utf-8"));
+        if (Array.isArray(localTestimonials) && localTestimonials.length > 0) {
+          for (const t of localTestimonials) {
+            await TestimonialModel.create({ ...t, _id: undefined });
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 5. Authorized Numbers Synchronization
+    const mongoAuthCount = await AuthorizedNumberModel.countDocuments();
+    if (mongoAuthCount > 0) {
+      const authDocs = await AuthorizedNumberModel.find().lean();
+      const formatted = authDocs.map((a: any) => ({
+        id: a._id ? a._id.toString() : a.id,
+        ...a
+      }));
+      fs.writeFileSync(AUTHORIZED_NUMBERS_FILE, JSON.stringify(formatted, null, 2));
+    } else if (fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
+      try {
+        const localAuth = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
+        if (Array.isArray(localAuth) && localAuth.length > 0) {
+          for (const a of localAuth) {
+            const cleanNum = cleanPhoneDigits(a.number);
+            if (cleanNum) {
+              await AuthorizedNumberModel.findOneAndUpdate(
+                { number: cleanNum },
+                { ...a, number: cleanNum, _id: undefined },
+                { upsert: true }
+              );
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 6. Resources Synchronization
+    const mongoResCount = await ResourceModel.countDocuments();
+    if (mongoResCount > 0) {
+      const resDocs = await ResourceModel.find().lean();
+      const formatted = resDocs.map((r: any) => ({
+        id: r._id ? r._id.toString() : r.id,
+        ...r
+      }));
+      fs.writeFileSync(RESOURCES_FILE, JSON.stringify(formatted, null, 2));
+    } else if (fs.existsSync(RESOURCES_FILE)) {
+      try {
+        const localRes = JSON.parse(fs.readFileSync(RESOURCES_FILE, "utf-8"));
+        if (Array.isArray(localRes) && localRes.length > 0) {
+          for (const r of localRes) {
+            await ResourceModel.findOneAndUpdate(
+              { title: r.title },
+              { ...r, _id: undefined },
+              { upsert: true }
+            );
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 7. Diagnostic Tests Synchronization
+    const mongoDiagCount = await DiagnosticTestModel.countDocuments();
+    if (mongoDiagCount > 0) {
+      const diagDocs = await DiagnosticTestModel.find().lean();
+      fs.writeFileSync(DIAGNOSTIC_TESTS_FILE, JSON.stringify(diagDocs, null, 2));
+    } else if (fs.existsSync(DIAGNOSTIC_TESTS_FILE)) {
+      try {
+        const localDiags = JSON.parse(fs.readFileSync(DIAGNOSTIC_TESTS_FILE, "utf-8"));
+        if (Array.isArray(localDiags) && localDiags.length > 0) {
+          for (const d of localDiags) {
+            await DiagnosticTestModel.findOneAndUpdate({ key: d.key }, { ...d, _id: undefined }, { upsert: true });
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 8. Coupons Synchronization
+    const mongoCouponCount = await CouponModel.countDocuments();
+    if (mongoCouponCount > 0) {
+      const couponDocs = await CouponModel.find().lean();
+      fs.writeFileSync(COUPONS_FILE, JSON.stringify(couponDocs, null, 2));
+    } else if (fs.existsSync(COUPONS_FILE)) {
+      try {
+        const localCoupons = JSON.parse(fs.readFileSync(COUPONS_FILE, "utf-8"));
+        if (Array.isArray(localCoupons) && localCoupons.length > 0) {
+          for (const cp of localCoupons) {
+            await CouponModel.findOneAndUpdate({ code: cp.code }, { ...cp, _id: undefined }, { upsert: true });
+          }
+        }
+      } catch (e) {}
+    }
+
+    console.log("🟢 [Pehlakadam Server] Database startup sync completed successfully.");
+  } catch (err: any) {
+    console.warn("⚠️ [Pehlakadam Server] Startup database sync notice:", err?.message);
+  }
 }
 
 /**
