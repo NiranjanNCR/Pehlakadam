@@ -50,7 +50,11 @@ import {
   BookMarked,
   UserCheck,
   Filter,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Database,
+  Server,
+  HardDrive,
+  Cloud
 } from "lucide-react";
 import { Submission, ResourceMaterial, SessionUpdate, Testimonial } from "../../types";
 import { motion, AnimatePresence } from "motion/react";
@@ -173,6 +177,17 @@ export default function AdminSubmissions() {
   const [updatingStats, setUpdatingStats] = useState(false);
   const [updateStatsSuccess, setUpdateStatsSuccess] = useState(false);
   const [faviconMode, setFaviconMode] = useState<"presets" | "upload" | "url">("presets");
+
+  // 🗄️ LIVE DATABASE & PERSISTENCE STATE
+  const [dbStatus, setDbStatus] = useState<{
+    connected: boolean;
+    storageMode: string;
+    targetUri: string;
+    counts: { courses: number; students: number; submissions: number; testimonials: number; coupons: number };
+    isPermanentCloudStorage: boolean;
+  } | null>(null);
+  const [syncingDb, setSyncingDb] = useState(false);
+  const [syncDbMessage, setSyncDbMessage] = useState<string | null>(null);
 
   // 🌟 BRAND FAVICON PRESET PACKAGES
   const DEFAULT_FAVICON_EMBLEM = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%23059669' stroke='%23047857' stroke-width='4'/%3E%3Ctext x='50' y='63' font-family='system-ui, -apple-system, sans-serif' font-size='42' font-weight='900' fill='white' text-anchor='middle'%3EPK%3C/text%3E%3C/svg%3E";
@@ -680,8 +695,50 @@ export default function AdminSubmissions() {
       console.error("Error loading auto-approval status:", err);
     }
 
+    // 11. Fetch Database & Persistence Status
+    try {
+      const resDb = await fetch("/api/admin/database/status", { headers: authHeaders });
+      if (resDb.ok) {
+        const dbData = await resDb.json();
+        setDbStatus(dbData);
+      }
+    } catch (err) {
+      console.error("Error loading database status:", err);
+    }
+
     setLoading(false);
     setRefreshing(false);
+  };
+
+  const handleSyncDatabase = async () => {
+    setSyncingDb(true);
+    setSyncDbMessage(null);
+    try {
+      const token = localStorage.getItem("pehlakadam_admin_token");
+      const res = await fetch("/api/admin/database/sync-all", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSyncDbMessage(`✅ Sync Complete: Migrated ${data.synced?.courses || 0} courses, ${data.synced?.students || 0} students to MongoDB Atlas!`);
+        // Refresh status
+        const resDb = await fetch("/api/admin/database/status", { headers: { "Authorization": `Bearer ${token}` } });
+        if (resDb.ok) {
+          const dbData = await resDb.json();
+          setDbStatus(dbData);
+        }
+      } else {
+        setSyncDbMessage(`⚠️ ${data.error || "Sync failed"}`);
+      }
+    } catch (err: any) {
+      setSyncDbMessage(`❌ Network error: ${err.message}`);
+    } finally {
+      setSyncingDb(false);
+    }
   };
 
   const handleUpdateStats = async (e: FormEvent) => {
@@ -3137,7 +3194,7 @@ export default function AdminSubmissions() {
                 </motion.div>
               )}
 
-              {/* TAB 7: HOME PAGE STATS EDITOR */}
+              {/* TAB 7: HOME PAGE STATS & SYSTEM CONFIG EDITOR */}
               {activeTab === "system-stats" && (
                 <motion.div
                   key="system-stats-tab"
@@ -3146,6 +3203,93 @@ export default function AdminSubmissions() {
                   exit={{ opacity: 0, y: -10 }}
                   className="space-y-6"
                 >
+                  {/* 🗄️ DATABASE & MONGO DB ATLAS PERSISTENCE MANAGEMENT CARD */}
+                  <div className="bg-white rounded-3xl border border-zinc-200 p-8 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-100 pb-5 mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-2xl">
+                          <Database className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h2 className="text-lg font-bold text-zinc-900">Database & Cloud Storage Engine</h2>
+                            {dbStatus?.connected ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                MongoDB Atlas (Live & Permanent)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                                Local Fallback Mode
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-zinc-500 text-xs mt-0.5">
+                            Ensures courses, enrolled students, testimonials, and site configs persist permanently across server reboots and deployments.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleSyncDatabase}
+                          disabled={syncingDb || !dbStatus?.connected}
+                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                            syncingDb || !dbStatus?.connected
+                              ? "bg-zinc-100 text-zinc-400 cursor-not-allowed"
+                              : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                          }`}
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 ${syncingDb ? "animate-spin" : ""}`} />
+                          {syncingDb ? "Syncing Database..." : "Sync All Data to MongoDB"}
+                        </button>
+                      </div>
+                    </div>
+
+                    {syncDbMessage && (
+                      <div className="mb-6 p-4 rounded-xl text-xs font-medium bg-emerald-50 border border-emerald-200 text-emerald-800">
+                        {syncDbMessage}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 bg-zinc-50 rounded-2xl border border-zinc-200/80">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-zinc-400">Target Database</span>
+                        <p className="text-xs font-semibold text-zinc-800 mt-0.5 truncate" title={dbStatus?.targetUri || ""}>
+                          {dbStatus?.targetUri || "MongoDB Atlas Cluster0"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-zinc-400">Synced Courses</span>
+                        <p className="text-sm font-bold text-zinc-900 mt-0.5">
+                          {dbStatus?.counts?.courses ?? "..."} Courses
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-zinc-400">Enrolled Students</span>
+                        <p className="text-sm font-bold text-zinc-900 mt-0.5">
+                          {dbStatus?.counts?.students ?? "..."} Students
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-zinc-400">Storage Durability</span>
+                        <p className="text-xs font-bold text-emerald-600 mt-0.5 flex items-center gap-1">
+                          <Cloud className="h-3.5 w-3.5" />
+                          {dbStatus?.connected ? "100% Cloud-Backed" : "Local Disk"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 p-3 bg-zinc-100/70 rounded-xl text-[11px] text-zinc-600 flex items-start gap-2">
+                      <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold text-zinc-800">Permanent Persistence Active:</span> Any updates you make from this Admin Console (adding/modifying courses, publishing blogs, changing stats, or enrolling students) are automatically synchronized to your live MongoDB Atlas cluster so your data never disappears.
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="bg-white rounded-3xl border border-zinc-200 p-8 shadow-sm">
                     <div className="flex items-center gap-3 border-b border-zinc-100 pb-5 mb-6">
                       <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-2xl">

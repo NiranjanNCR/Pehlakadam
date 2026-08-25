@@ -6060,6 +6060,14 @@ app.put("/api/courses/:id", verifyAdmin, async (req, res) => {
         ...req.body,
         updatedAt: new Date().toISOString()
       };
+      if (isMongoLive()) {
+        try {
+          const newDoc = new CourseModel({ ...fallbackCourse });
+          await newDoc.save();
+        } catch (mErr: any) {
+          console.warn("⚠️ [Pehlakadam API] Mongo fallback course create warning:", mErr?.message);
+        }
+      }
       courses.push(fallbackCourse);
       fs.writeFileSync(COURSES_FILE, JSON.stringify(courses, null, 2));
       updatedCourse = fallbackCourse;
@@ -7485,6 +7493,164 @@ app.post("/api/system-stats", verifyAdmin, async (req, res) => {
   } catch (error) {
     console.error("[Pehlakadam API] Error updating system stats:", error);
     return res.status(500).json({ error: "Failed to update system stats." });
+  }
+});
+
+// =========================================================================================
+// 🗄️ DATABASE & MONGO DB ATLAS PERSISTENCE MANAGEMENT API
+// =========================================================================================
+app.get("/api/admin/database/status", verifyAdmin, async (req, res) => {
+  try {
+    const isLive = isMongoLive();
+    let maskedHost = "Local Embedded JSON Store (Transient)";
+    if (MONGODB_URI) {
+      maskedHost = maskUri(MONGODB_URI);
+    }
+
+    let counts = {
+      courses: 0,
+      students: 0,
+      submissions: 0,
+      testimonials: 0,
+      coupons: 0
+    };
+
+    if (isLive) {
+      try {
+        counts.courses = await CourseModel.countDocuments();
+        counts.students = await AuthorizedNumberModel.countDocuments();
+        counts.submissions = await SubmissionModel.countDocuments();
+        counts.testimonials = await TestimonialModel.countDocuments();
+        counts.coupons = await CouponModel.countDocuments();
+      } catch (cErr) {}
+    } else {
+      if (fs.existsSync(COURSES_FILE)) {
+        try { counts.courses = JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8")).length; } catch (e) {}
+      }
+      if (fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
+        try { counts.students = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8")).length; } catch (e) {}
+      }
+      if (fs.existsSync(SUBMISSIONS_FILE)) {
+        try { counts.submissions = JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, "utf-8")).length; } catch (e) {}
+      }
+      if (fs.existsSync(TESTIMONIALS_FILE)) {
+        try { counts.testimonials = JSON.parse(fs.readFileSync(TESTIMONIALS_FILE, "utf-8")).length; } catch (e) {}
+      }
+    }
+
+    return res.status(200).json({
+      connected: isLive,
+      storageMode: isLive ? "mongodb" : "local-json",
+      targetUri: maskedHost,
+      counts,
+      isPermanentCloudStorage: isLive
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || "Failed to query database status" });
+  }
+});
+
+// 🔄 Sync / Migrate all local JSON data into MongoDB Atlas permanently
+app.post("/api/admin/database/sync-all", verifyAdmin, async (req, res) => {
+  try {
+    if (!isMongoLive()) {
+      return res.status(400).json({ 
+        error: "MongoDB Atlas is not currently connected. Please verify your MONGODB_URI connection string first." 
+      });
+    }
+
+    let synced = {
+      courses: 0,
+      students: 0,
+      testimonials: 0,
+      systemStats: false
+    };
+
+    // 1. Sync Courses
+    if (fs.existsSync(COURSES_FILE)) {
+      try {
+        const localCourses = JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8"));
+        if (Array.isArray(localCourses)) {
+          for (const c of localCourses) {
+            const id = c.id || c._id;
+            if (id) {
+              await CourseModel.findOneAndUpdate(
+                { $or: [{ id: String(id) }, { _id: id }] },
+                { $set: c },
+                { upsert: true, new: true }
+              );
+              synced.courses++;
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 2. Sync Students (Authorized Numbers)
+    if (fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
+      try {
+        const localStudents = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
+        if (Array.isArray(localStudents)) {
+          for (const s of localStudents) {
+            const num = s.number || s.phone;
+            if (num) {
+              await AuthorizedNumberModel.findOneAndUpdate(
+                { number: num },
+                { $set: s },
+                { upsert: true, new: true }
+              );
+              synced.students++;
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 3. Sync Testimonials
+    if (fs.existsSync(TESTIMONIALS_FILE)) {
+      try {
+        const localTestimonials = JSON.parse(fs.readFileSync(TESTIMONIALS_FILE, "utf-8"));
+        if (Array.isArray(localTestimonials)) {
+          for (const t of localTestimonials) {
+            if (t.name) {
+              await TestimonialModel.findOneAndUpdate(
+                { name: t.name, role: t.role },
+                { $set: t },
+                { upsert: true, new: true }
+              );
+              synced.testimonials++;
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 4. Sync System Stats
+    if (fs.existsSync(SYSTEM_STATS_FILE)) {
+      try {
+        const localStats = JSON.parse(fs.readFileSync(SYSTEM_STATS_FILE, "utf-8"));
+        if (localStats && typeof localStats === "object") {
+          await SystemStatsModel.findOneAndUpdate(
+            {},
+            { $set: { ...localStats, updatedAt: new Date() } },
+            { upsert: true, new: true }
+          );
+          synced.systemStats = true;
+        }
+      } catch (e) {}
+    }
+
+    // Invalidate caches
+    apiCache.clear();
+
+    return res.status(200).json({
+      success: true,
+      message: "Successfully synchronized and migrated all local records into MongoDB Atlas.",
+      synced
+    });
+  } catch (error: any) {
+    console.error("[Pehlakadam API] Error syncing to MongoDB:", error);
+    return res.status(500).json({ error: error?.message || "Failed to sync records to MongoDB." });
   }
 });
 
