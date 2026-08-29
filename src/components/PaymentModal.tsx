@@ -1,10 +1,11 @@
 import { useState, ChangeEvent, FormEvent, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import { 
   X, CreditCard, CheckCircle, MessageSquare, 
   Copy, Check, Shield, Phone, QrCode, Sparkles, 
   Smartphone, Zap, ClipboardPaste, ArrowRight, ExternalLink,
-  ShieldCheck, Loader2, ChevronDown, ChevronUp
+  ShieldCheck, Loader2, ChevronDown, ChevronUp, BookOpen
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { launchRazorpayCheckout, fetchRazorpayConfig } from "../lib/razorpay";
@@ -196,6 +197,10 @@ export default function PaymentModal({
       }));
     }
   }, [defaultProgram, defaultPlan, planName, planPrice, isOpen]);
+
+  const navigate = useNavigate();
+  const [submittedPhone, setSubmittedPhone] = useState("");
+  const [submittedEmail, setSubmittedEmail] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
@@ -435,6 +440,8 @@ export default function PaymentModal({
           }));
         } catch (e) {}
 
+        setSubmittedPhone(cleanNum);
+        setSubmittedEmail(formData.email.trim().toLowerCase());
         setSubmitSuccess(true);
         setFormData({
           firstName: "",
@@ -526,6 +533,8 @@ export default function PaymentModal({
           setWhatsappUrl(data.whatsappUrl);
         }
 
+        setSubmittedPhone(formData.number.trim());
+        setSubmittedEmail(formData.email.trim().toLowerCase());
         setSubmitSuccess(true);
         setFormData({
           firstName: "",
@@ -623,34 +632,43 @@ export default function PaymentModal({
                       Your enrollment for <span className="text-emerald-400 font-bold">{selectedProgram} ({selectedPlan} Plan)</span> for <span className="text-white font-bold">{effectivePriceStr}</span> has been logged and whitelisted.
                     </p>
                     <p className="text-zinc-400 max-w-sm mb-6 text-xs leading-relaxed">
-                      Instant student access is activated! Click below to send direct WhatsApp confirmation to your advisor.
+                      Instant student access is activated! Jump straight into your learning dashboard or send payment confirmation to your advisor on WhatsApp.
                     </p>
 
-                    {whatsappUrl && (
-                      <motion.a
-                        id="payment-whatsapp-cta"
-                        href={whatsappUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        initial={{ scale: 0.9, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ delay: 0.25 }}
-                        className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold py-3 px-6 transition-all duration-300 shadow-lg shadow-emerald-500/20 hover:scale-[1.02] active:scale-95 cursor-pointer text-sm mb-4"
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-md">
+                      <button
+                        id="payment-dashboard-redirect-btn"
+                        onClick={() => {
+                          setIsOpen(false);
+                          const cleanP = (submittedPhone || "").replace(/[^0-9]/g, "");
+                          const emailP = (submittedEmail || "").trim().toLowerCase();
+                          const targetUrl = cleanP || emailP
+                            ? `/dashboard?phone=${encodeURIComponent(cleanP)}&email=${encodeURIComponent(emailP)}`
+                            : "/dashboard";
+                          navigate(targetUrl);
+                        }}
+                        className="w-full sm:flex-1 py-3 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 transition-all cursor-pointer"
                       >
-                        <MessageSquare className="h-4 w-4" />
-                        Send Payment Confirmation on WhatsApp
-                      </motion.a>
-                    )}
+                        <BookOpen className="h-4 w-4" />
+                        <span>Go to Student Dashboard</span>
+                      </button>
 
-                    <button
-                      onClick={() => {
-                        setIsOpen(false);
-                        window.location.href = "/student/dashboard";
-                      }}
-                      className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold underline cursor-pointer"
-                    >
-                      Go to Student Dashboard →
-                    </button>
+                      {whatsappUrl && (
+                        <motion.a
+                          id="payment-whatsapp-cta"
+                          href={whatsappUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          initial={{ scale: 0.9, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ delay: 0.25 }}
+                          className="w-full sm:flex-1 py-3 px-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-emerald-500/30 text-emerald-400 hover:text-emerald-300 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                          <span>WhatsApp Confirm</span>
+                        </motion.a>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div id="payment-submit-fields">

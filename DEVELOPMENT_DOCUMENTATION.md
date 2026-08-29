@@ -9,17 +9,19 @@ This document is the definitive engineering reference manual covering the system
 2. [Enterprise Security & Defensive Hardening Suite](#2-enterprise-security--defensive-hardening-suite)
 3. [High-Speed Data Delivery & In-Memory Caching Engine](#3-high-speed-data-delivery--in-memory-caching-engine)
 4. [Session Concurrency & Single-Device Control](#4-session-concurrency--single-device-control)
-5. [Payment & Checkout Architecture](#5-payment--checkout-architecture)
+5. [Payment & Checkout Architecture & Post-Payment Flows](#5-payment--checkout-architecture--post-payment-flows)
 6. [LMS Video & Interactive Curriculum Portal](#6-lms-video--interactive-curriculum-portal)
-7. [Psychometric & Diagnostic Assessment Suite](#7-psychometric--diagnostic-assessment-suite)
-8. [Promo Coupon & Dynamic Pricing Engine](#8-promo-coupon--dynamic-pricing-engine)
-9. [1-on-1 Counseling & Lead Management System](#9-1-on-1-counseling--lead-management-system)
-10. [Admin Governance Control Room](#10-admin-governance-control-room)
-11. [Complete REST API Reference](#11-complete-rest-api-reference)
-12. [Database Schemas & Data Models](#12-database-schemas--data-models)
-13. [PDF Handbook & Rendering System](#13-pdf-handbook--rendering-system)
-14. [SEO & Head Hydration Architecture](#14-seo--head-hydration-architecture)
-15. [Deployment, Build & Environment Configuration](#15-deployment-build--environment-configuration)
+7. [Unified Student Learning Dashboard](#7-unified-student-learning-dashboard)
+8. [Client-Side Routing & Fallback Protection Architecture](#8-client-side-routing--fallback-protection-architecture)
+9. [Psychometric & Diagnostic Assessment Suite](#9-psychometric--diagnostic-assessment-suite)
+10. [Promo Coupon & Dynamic Pricing Engine](#10-promo-coupon--dynamic-pricing-engine)
+11. [1-on-1 Counseling & Lead Management System](#11-1-on-1-counseling--lead-management-system)
+12. [Admin Governance Control Room](#12-admin-governance-control-room)
+13. [Complete REST API Reference](#13-complete-rest-api-reference)
+14. [Database Schemas & Data Models](#14-database-schemas--data-models)
+15. [PDF Handbook & Rendering System](#15-pdf-handbook--rendering-system)
+16. [SEO & Head Hydration Architecture](#16-seo--head-hydration-architecture)
+17. [Deployment, Cold-Start Prevention & Cloud Guide](#17-deployment-cold-start-prevention--cloud-guide)
 
 ---
 
@@ -106,9 +108,9 @@ To prevent unauthorized account sharing across multiple users or pirate devices:
 
 ---
 
-## 5. Payment & Checkout Architecture
+## 5. Payment & Checkout Architecture & Post-Payment Flows
 
-Pehlakadam features a modern, fully automated **Razorpay Payment Gateway** integration for frictionless, instant course and program enrollment across all devices.
+Pehlakadam features a modern, fully automated **Razorpay Payment Gateway** integration alongside resilient manual UPI payment verification for frictionless, instant course and program enrollment across all devices.
 
 ```
 [Student Clicks "Enroll Now" or "Pay Online"]
@@ -154,6 +156,18 @@ Pehlakadam features a modern, fully automated **Razorpay Payment Gateway** integ
   └─► Auto-redirects Student to LMS Dashboard with Whitelisted Access
 ```
 
+### Post-Payment Redirection & Direct Learning Entry
+Upon completing payment (whether via 1-Click Razorpay or manual UPI proof submission), the application prevents drop-offs and guarantees instant access:
+1. **Deterministic Client Routing**: Rather than issuing an unauthenticated hard reload (`window.location.href`), `PaymentModal` and `CourseCheckoutModal` utilize React Router's `useNavigate` hook.
+2. **Credential Forwarding**: The redirect carries the student's cleaned phone number and registered email directly in the URL query string:
+   ```typescript
+   navigate(`/dashboard?phone=${encodeURIComponent(cleanPhone)}&email=${encodeURIComponent(cleanEmail)}`);
+   ```
+3. **Instant Dashboard Hydration**: The Student Learning Dashboard (`/dashboard`) reads these query parameters immediately on mount, validates the student's whitelist status against `GET /api/student/dashboard-data`, and loads their active courses without prompting for a secondary login.
+4. **Dual Post-Payment Action CTAs**:
+   * **"Go to Student Dashboard" Button**: Launches directly into the interactive LMS courses, video lessons, and worksheets.
+   * **"WhatsApp Confirm" Button**: Generates a pre-filled, encrypted WhatsApp message link to the designated advisor with payment and transaction verification details.
+
 ### Razorpay Webhook Event Synchronizer
 The platform includes an automated Webhook receiver at `/api/razorpay/webhook`:
 * **HMAC-SHA256 Webhook Verification**: Validates `x-razorpay-signature` against the configured `RAZORPAY_WEBHOOK_SECRET`.
@@ -183,9 +197,66 @@ Accessible via `/courses` with full tiered authorization:
 
 ---
 
-## 7. Psychometric & Diagnostic Assessment Suite
+## 7. Unified Student Learning Dashboard
 
-Accessible via `/diagnostic` or the Student Portal:
+Accessible via `/dashboard` (with route aliases `/student-dashboard`, `/student/dashboard`, and `/my-learning`), the Student Learning Dashboard serves as the central student cockpit.
+
+### Authentication & Credential Detection
+The dashboard supports frictionless authentication:
+1. **URL Parameter Auto-Auth**: If accessed with `?phone=9876543210&email=student@example.com` (such as after checkout), it immediately verifies whitelist access and loads enrolled modules without a login prompt.
+2. **Local Session Recovery**: Reads cached student credentials from `localStorage` (`pehlakadam_student_phone`, `pehlakadam_premium_phone`, `student_phone`).
+3. **Manual Phone / Email Login**: If unauthenticated, provides a clean single-input login allowing students to look up their enrolled records using their registered mobile number.
+
+### 4 Core Learning Modules
+*   **1. Enrolled Courses (`tab=courses`)**:
+    *   Lists all courses the student has unlocked or purchased.
+    *   Displays real-time completion progress bars (`0% - 100%`).
+    *   Embedded media player supporting YouTube, Vimeo, and MP4 video lessons.
+    *   Chapter & lesson accordion with expand/collapse controls.
+    *   Interactive lesson completion toggles synchronized with `POST /api/courses/progress`.
+    *   Inline downloadable PDF lesson worksheets and exercise notes.
+*   **2. Enrolled Programs (`tab=programs`)**:
+    *   Tracks grade-level program enrollments (Class 8–10, Class 11–12, College/UG, Professional).
+    *   Displays program tier badges (**Basic**, **Advance**, **Pro**) and counselor access status.
+*   **3. Diagnostic Assessment Reports (`tab=diagnostics`)**:
+    *   Archive of all completed psychometric evaluations (DISC, MBTI, 16PF, Stream Selector).
+    *   Summary of cognitive archetypes, behavioral strengths, and recommended career paths.
+    *   Direct link to download or view comprehensive PDF assessment reports.
+*   **4. Resource History (`tab=resources`)**:
+    *   Audit log of all accessed career handbooks, downloadable PDF guides, and briefing materials.
+
+---
+
+## 8. Client-Side Routing & Fallback Protection Architecture
+
+Pehlakadam implements client-side single-page application (SPA) routing powered by `react-router-dom`:
+
+| Route Path | Associated Component | Description & Access Permissions |
+| :--- | :--- | :--- |
+| `/` | `Home` | Public landing page featuring hero lead capture, trust metrics, and program previews. |
+| `/dashboard` | `StudentDashboard` | Primary unified Student Learning Dashboard. |
+| `/student-dashboard` | `StudentDashboard` | Route alias for student dashboard. |
+| `/student/dashboard` | `StudentDashboard` | Route alias for post-payment redirects and LMS deep-links. |
+| `/student/*` | `StudentDashboard` | Sub-path wildcard alias for student portal. |
+| `/my-learning` | `StudentDashboard` | Student bookmark alias. |
+| `/courses` | `Courses` | LMS course catalog, curriculum outline, and standalone lesson player. |
+| `/diagnostics` | `Diagnostics` | Interactive psychometric evaluation and career aptitude assessment suite. |
+| `/diagnostic` | `Diagnostics` | Route alias for diagnostic assessments. |
+| `/resources` | `Resources` | Downloadable PDF handbooks, curriculum syllabi, and briefing videos. |
+| `/programs/*` | `Programs` | Dynamic grade-specific program pages (e.g. `/programs/class-8-10`). |
+| `/contact` | `Contact` | 1-on-1 counseling appointment scheduler and advisor contact form. |
+| `/payment` | `Payment` | Standalone payment verification and checkout page. |
+| `/checkout` | `Payment` | Route alias for standalone checkout. |
+| `/legal` | `TermsAndPolicies` | Terms of service, privacy policy, refund policy, and disclosures. |
+| `/admin` | `AdminSubmissions` | Password & phone whitelisted administrative control room. |
+| `/resources/admin` | `AdminSubmissions` | Route alias for admin portal. |
+| `*` | `<Navigate to="/" replace />` | **Global Fallback Route**: Catches all unregistered or malformed paths and redirects safely to `/` to eliminate blank/white screen errors. |
+
+---
+
+## 9. Psychometric & Diagnostic Assessment Suite
+
+Accessible via `/diagnostics` or directly inside the Student Dashboard:
 *   **Assessment Frameworks**:
     *   **DISC Behavioral Analysis**: Evaluates Dominance, Influence, Steadiness, and Conscientiousness.
     *   **MBTI-Style Personality Matrix**: Classifies 16 distinct cognitive archetypes.
@@ -199,7 +270,7 @@ Accessible via `/diagnostic` or the Student Portal:
 
 ---
 
-## 8. Promo Coupon & Dynamic Pricing Engine
+## 10. Promo Coupon & Dynamic Pricing Engine
 
 *   **Coupon Types**: Percentage Discount (e.g., 20% off) or Fixed Amount (e.g., ₹100 off).
 *   **Cart Requirements**: Configurable minimum order amount (`minOrderAmount`) to prevent discount abuse.
@@ -208,7 +279,7 @@ Accessible via `/diagnostic` or the Student Portal:
 
 ---
 
-## 9. 1-on-1 Counseling & Lead Management System
+## 11. 1-on-1 Counseling & Lead Management System
 
 *   **Lead Capture**: Captures inquiries from the homepage consultation form and program landing pages.
 *   **Counseling Scheduler**:
@@ -222,7 +293,7 @@ Accessible via `/diagnostic` or the Student Portal:
 
 ---
 
-## 10. Admin Governance Control Room
+## 12. Admin Governance Control Room
 
 The Admin Panel (`/admin`) is a multi-tab administrative workspace:
 
@@ -243,17 +314,42 @@ The Admin Panel (`/admin`) is a multi-tab administrative workspace:
 
 ---
 
-## 11. Complete REST API Reference
+## 13. Complete REST API Reference
 
 ### System & Health
-*   `GET /api/health` — Server health check.
-*   `GET /api/system-stats` — Fetch dynamic trust numbers, UPI payee info, social URLs, and SEO metadata.
+*   `GET /api/health` — High-availability server health check (used for container probes and external uptime pingers).
+*   `GET /api/system-stats` — Fetch dynamic trust numbers, UPI payee info, social URLs, Razorpay public config, and SEO metadata.
 *   `POST /api/system-stats` — (Admin) Update system configurations, Razorpay credentials, and metadata.
+
+### Student Learning Dashboard & Profile
+*   `GET /api/student/dashboard-data` — Unified student learning center endpoint.
+    *   **Query Parameters**: `phone` (string, e.g. `919876543210`), `email` (optional string).
+    *   **Response Payload**:
+        ```typescript
+        {
+          authenticated: boolean;
+          student: {
+            phone: string;
+            email?: string;
+            name?: string;
+            role?: string;
+            isWhitelisted: boolean;
+            tier: "basic" | "advance" | "pro";
+            registeredAt?: string;
+          };
+          enrolledCourses: Course[];
+          enrolledPrograms: EnrolledProgram[];
+          diagnosticHistory: DiagnosticRecord[];
+          resourceHistory: ResourceHistoryItem[];
+          progress: Record<string, number>; // courseId -> completion percentage (0-100)
+          completedLessons: Record<string, string[]>; // courseId -> array of completed lesson IDs
+        }
+        ```
 
 ### Authentication & Device Concurrency
 *   `POST /api/check-access` — Validate student phone number for resource access.
 *   `POST /api/check-premium-access` — Validate student phone number and return active tier level + session ID.
-*   `POST /api/verify-session` — Periodic heartbeat checking for single-device concurrency conflicts.
+*   `POST /api/verify-session` — Periodic 6-second heartbeat checking for single-device concurrency conflicts.
 *   `POST /api/logout-session` — Terminate active device session for a phone number.
 
 ### Razorpay Automated Payment Gateway
@@ -263,13 +359,17 @@ The Admin Panel (`/admin`) is a multi-tab administrative workspace:
 *   `POST /api/razorpay/webhook` — Process incoming Razorpay webhook events (`payment.captured`, `order.paid`, `payment.failed`).
 
 ### Courses & LMS
-*   `GET /api/courses` — Retrieve list of all published LMS courses and curriculums.
+*   `GET /api/courses` — Retrieve list of all published LMS courses and curriculums (cached with ETag).
 *   `POST /api/courses` — (Admin) Create a new LMS course.
 *   `PUT /api/courses/:id` — (Admin) Update course details, chapters, or lessons.
 *   `DELETE /api/courses/:id` — (Admin) Delete an LMS course.
 *   `POST /api/courses/enroll` — Submit a course enrollment request with UTR.
 *   `GET /api/courses/progress` — Fetch student lesson completion history.
 *   `POST /api/courses/progress` — Record completed lesson IDs for a student.
+
+### Programs Configuration
+*   `GET /api/programs-config` — Retrieve grade-specific program pricing, brochure URLs, video links, and curriculum summaries (cached with ETag).
+*   `PUT /api/programs-config/:id` — (Admin) Update grade program details, brochure URLs, and pricing.
 
 ### Payments & Whitelisting
 *   `POST /api/payment-submit` — Submit general program payment verification with UTR.
@@ -303,9 +403,15 @@ The Admin Panel (`/admin`) is a multi-tab administrative workspace:
 *   `GET /api/career-tips-subscribers` — (Admin) Fetch list of all newsletter subscribers.
 *   `DELETE /api/career-tips-subscribers/:id` — (Admin) Remove a subscriber.
 
+### Policies & Testimonials
+*   `GET /api/policies` — Fetch live Terms of Service, Privacy Policy, and Refund Policy.
+*   `POST /api/policies` — (Admin) Update policy content.
+*   `GET /api/testimonials` — Retrieve approved student reviews and star ratings.
+*   `POST /api/testimonials` — (Admin) Manage published testimonials.
+
 ---
 
-## 12. Database Schemas & Data Models
+## 14. Database Schemas & Data Models
 
 ### LMS Course (`Course`)
 ```typescript
@@ -344,6 +450,50 @@ The Admin Panel (`/admin`) is a multi-tab administrative workspace:
 }
 ```
 
+### Student Dashboard Aggregate (`StudentDashboardData`)
+```typescript
+{
+  authenticated: boolean;
+  student: {
+    phone: string;
+    email?: string;
+    name?: string;
+    role?: string;
+    isWhitelisted: boolean;
+    tier: "basic" | "advance" | "pro";
+    registeredAt?: string;
+  };
+  enrolledCourses: Course[];
+  enrolledPrograms: {
+    id: string;
+    programId: string;
+    programTitle: string;
+    tier: "basic" | "advance" | "pro";
+    enrolledAt: string;
+    status: "active" | "completed";
+  }[];
+  diagnosticHistory: {
+    id: string;
+    testId: string;
+    testTitle: string;
+    archetype?: string;
+    scores: Record<string, number>;
+    summary: string;
+    completedAt: string;
+    reportUrl?: string;
+  }[];
+  resourceHistory: {
+    id: string;
+    title: string;
+    category: string;
+    accessedAt: string;
+    downloadUrl: string;
+  }[];
+  progress: Record<string, number>;
+  completedLessons: Record<string, string[]>;
+}
+```
+
 ### Payment Record (`PaymentProof`)
 ```typescript
 {
@@ -355,7 +505,7 @@ The Admin Panel (`/admin`) is a multi-tab administrative workspace:
   role: string;          // Academic track / grade program
   plan: string;          // Selected tier ("Basic" | "Advance" | "Pro")
   amount: number;        // Final paid amount after discounts
-  transactionId: string; // 12-digit UTR / UPI reference ID
+  transactionId: string; // 12-digit UTR / UPI reference ID or Razorpay Payment ID
   couponCode?: string;   // Applied coupon (if any)
   status: "pending" | "approved" | "rejected";
   createdAt: string;
@@ -389,7 +539,7 @@ The Admin Panel (`/admin`) is a multi-tab administrative workspace:
 
 ---
 
-## 13. PDF Handbook & Rendering System
+## 15. PDF Handbook & Rendering System
 
 *   **Component**: `src/components/PdfViewerModal.tsx`.
 *   **High-DPI Rendering**: Automatically applies device pixel ratio scaling (`dpr = Math.max(window.devicePixelRatio, 2)`) with high smoothing quality for crisp display on high-density phone and tablet screens.
@@ -398,7 +548,7 @@ The Admin Panel (`/admin`) is a multi-tab administrative workspace:
 
 ---
 
-## 14. SEO & Head Hydration Architecture
+## 16. SEO & Head Hydration Architecture
 
 1.  **Static Crawlability**: `index.html` defines semantic meta tags, OpenGraph previews, and robots directives.
 2.  **Dynamic Client Hydration**: On app startup, the frontend fetches `/api/system-stats` and dynamically updates:
@@ -411,7 +561,7 @@ The Admin Panel (`/admin`) is a multi-tab administrative workspace:
 
 ---
 
-## 15. Deployment, Build & Environment Configuration
+## 17. Deployment, Cold-Start Prevention & Cloud Guide
 
 ### Available Scripts
 ```bash
@@ -443,6 +593,25 @@ ADMIN_EMAIL=
 ADMIN_PHONE=
 ADMIN_WHATSAPP_NUMBER=
 
-# Port is fixed to 3000 by container infrastructure
+# Container port configuration (fixed to 3000 by proxy layer)
 PORT=3000
 ```
+
+### Production Hosting Best Practices (Render, Cloud Run, VPS)
+
+#### 1. Free-Tier Cold-Start Mitigation
+If hosted on platforms that spin down containers after inactivity (such as Render free web services sleeping after 15 minutes):
+*   **Automated Uptime Pingers**: Configure a free external monitor (e.g. [UptimeRobot](https://uptimerobot.com) or [Cron-Job.org](https://cron-job.org)) to perform a lightweight HTTP `GET` request every 10 minutes to:
+    ```
+    https://<your-deployed-app-url>/api/health
+    ```
+*   Because `/api/health` responds instantly with `{"status":"ok"}`, this keeps the Node.js container warm 24/7 without consuming significant compute cycles.
+
+#### 2. Dual-Persistence Startup Synchronization (`performStartupSync`)
+*   When a valid `MONGODB_URI` is provided, the backend attempts to establish a connection with an isolated 2.5-second timeout window.
+*   Upon successful connection, `performStartupSync` runs in the background to guarantee data parity between MongoDB collections and local JSON flat files.
+*   If MongoDB Atlas is unreachable or latency spikes occur, the application falls back seamlessly to the synchronized JSON files without crashing or returning HTTP 500 errors to students.
+
+#### 3. Asset & Brochure Optimization
+*   Avoid storing large multi-megabyte base64-encoded PDF files directly inside JSON configurations.
+*   Use Google Drive direct preview links, AWS S3/Cloud Storage URLs, or public static assets for course syllabi, brochures, and worksheets to keep API response payloads under 50KB.

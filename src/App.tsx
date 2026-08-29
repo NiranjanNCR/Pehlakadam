@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect } from "react";
 import ScrollToTop from "./components/ScrollToTop";
 import Home from "./components/page/Home";
@@ -86,6 +86,8 @@ export default function App() {
           <Route path="/courses" element={<Courses />} />
           <Route path="/dashboard" element={<StudentDashboard />} />
           <Route path="/student-dashboard" element={<StudentDashboard />} />
+          <Route path="/student/dashboard" element={<StudentDashboard />} />
+          <Route path="/student/*" element={<StudentDashboard />} />
           <Route path="/my-learning" element={<StudentDashboard />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/programs/*" element={<Programs />} />
@@ -96,6 +98,7 @@ export default function App() {
           <Route path="/legal" element={<TermsAndPolicies />} />
           <Route path="/admin" element={<AdminSubmissions />} />
           <Route path="/resources/admin" element={<AdminSubmissions />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
     </BrowserRouter>
