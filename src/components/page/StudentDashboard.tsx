@@ -120,6 +120,28 @@ export default function StudentDashboard() {
   const [resourceSearch, setResourceSearch] = useState("");
   const [diagSearch, setDiagSearch] = useState("");
 
+  const formatDateSafe = (dateVal: any, fallback = "Recently"): string => {
+    if (!dateVal) return fallback;
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return fallback;
+      return d.toLocaleDateString();
+    } catch (e) {
+      return fallback;
+    }
+  };
+
+  const formatDateTimeSafe = (dateVal: any, fallback = "Recently"): string => {
+    if (!dateVal) return fallback;
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return fallback;
+      return d.toLocaleString();
+    } catch (e) {
+      return fallback;
+    }
+  };
+
   // Determine current active credentials
   const getStoredCredentials = () => {
     const urlPhone = searchParams.get("phone");
@@ -146,22 +168,32 @@ export default function StudentDashboard() {
     setLoading(true);
     setAuthError("");
     try {
-      const cleanPhone = phone.replace(/[^0-9]/g, "");
+      const cleanPhone = (phone || "").replace(/[^0-9]/g, "");
+      const cleanEmail = (email || "").trim().toLowerCase();
       const params = new URLSearchParams();
       if (cleanPhone) params.append("phone", cleanPhone);
-      if (email) params.append("email", email.trim().toLowerCase());
+      if (cleanEmail) params.append("email", cleanEmail);
+
+      // Persist credentials in local storage for seamless reload persistence
+      if (cleanPhone) {
+        localStorage.setItem("pehlakadam_student_phone", cleanPhone);
+        localStorage.setItem("pehlakadam_premium_phone", cleanPhone);
+      }
+      if (cleanEmail) {
+        localStorage.setItem("pehlakadam_student_email", cleanEmail);
+      }
 
       const res = await fetch(`/api/student/dashboard-data?${params.toString()}`);
       if (res.ok) {
         const data: StudentDashboardData = await res.json();
-        setDashboardData(data);
+        setDashboardData(data || null);
 
-        if (data.completedLessons) {
+        if (data?.completedLessons) {
           setCompletedLessonsByCourse(data.completedLessons);
         }
 
         // Pre-select course matching courseId from URL, or first course if available
-        if (data.enrolledCourses && data.enrolledCourses.length > 0) {
+        if (data?.enrolledCourses && data.enrolledCourses.length > 0) {
           const targetCourseId = searchParams.get("courseId");
           const targetCourse = targetCourseId 
             ? data.enrolledCourses.find(c => c.id === targetCourseId || c.slug === targetCourseId) 
@@ -185,8 +217,8 @@ export default function StudentDashboard() {
           }
         }
       } else {
-        const err = await res.json();
-        setAuthError(err.error || "Failed to load dashboard data.");
+        const err = await res.json().catch(() => ({}));
+        setAuthError(err?.error || "Failed to load dashboard data.");
       }
     } catch (e: any) {
       console.error("Dashboard fetch error:", e);
@@ -206,7 +238,7 @@ export default function StudentDashboard() {
     } else {
       setLoading(false);
     }
-  }, []);
+  }, [searchParams]);
 
   const handleManualLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -334,15 +366,21 @@ export default function StudentDashboard() {
 
   // Filtered resources and diagnostics
   const filteredResources = (dashboardData?.resourceHistory || []).filter(item => {
+    if (!item) return false;
     if (!resourceSearch.trim()) return true;
     const q = resourceSearch.toLowerCase();
-    return item.title.toLowerCase().includes(q) || item.category.toLowerCase().includes(q);
+    const title = (item.title || "").toLowerCase();
+    const category = (item.category || "").toLowerCase();
+    return title.includes(q) || category.includes(q);
   });
 
   const filteredDiagnostics = (dashboardData?.diagnosticHistory || []).filter(item => {
+    if (!item) return false;
     if (!diagSearch.trim()) return true;
     const q = diagSearch.toLowerCase();
-    return item.testTitle.toLowerCase().includes(q) || (item.dominant && item.dominant.toLowerCase().includes(q));
+    const testTitle = (item.testTitle || "").toLowerCase();
+    const dominant = (item.dominant || "").toLowerCase();
+    return testTitle.includes(q) || dominant.includes(q);
   });
 
   // Active Lesson in selected course
@@ -367,17 +405,17 @@ export default function StudentDashboard() {
                   <span className="text-xs font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/15 px-3 py-1 rounded-full border border-emerald-500/20">
                     Individual Student Portal
                   </span>
-                  {dashboardData?.student.isAuthorized && (
+                  {dashboardData?.student?.isAuthorized && (
                     <span className="text-xs font-bold uppercase tracking-wider text-amber-300 bg-amber-500/15 px-3 py-1 rounded-full border border-amber-500/20 flex items-center gap-1">
                       <ShieldCheck className="h-3.5 w-3.5 text-amber-400" />
-                      {dashboardData.student.tier.toUpperCase()} TIER ACTIVE
+                      {(dashboardData.student.tier || "BASIC").toUpperCase()} TIER ACTIVE
                     </span>
                   )}
                 </div>
 
                 <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white flex items-center gap-3">
                   <GraduationCap className="h-9 w-9 text-emerald-400 shrink-0" />
-                  {dashboardData ? `Welcome, ${dashboardData.student.name || "Student"}` : "Student Learning Dashboard"}
+                  {dashboardData?.student ? `Welcome, ${dashboardData.student.name || "Student"}` : "Student Learning Dashboard"}
                 </h1>
                 
                 <p className="text-zinc-400 text-sm max-w-2xl leading-relaxed">
@@ -409,7 +447,7 @@ export default function StudentDashboard() {
             </div>
 
             {/* Quick Profile Meta Pill if logged in */}
-            {dashboardData && (
+            {dashboardData?.student && (
               <div className="mt-6 pt-6 border-t border-zinc-900/80 flex flex-wrap gap-4 text-xs text-zinc-400">
                 {dashboardData.student.phone && (
                   <span className="flex items-center gap-1.5 bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-800">
@@ -633,7 +671,7 @@ export default function StudentDashboard() {
                         <div className="space-y-3">
                           {dashboardData.enrolledCourses.map((c, cIdx) => {
                             const isSelected = selectedCourse?.id === c.id;
-                            const progressPct = dashboardData.progress[c.id] || 0;
+                            const progressPct = (dashboardData?.progress && c?.id ? dashboardData.progress[c.id] : 0) || 0;
                             return (
                               <div
                                 key={c.id ? `course-${c.id}` : `course-idx-${cIdx}`}
@@ -701,7 +739,7 @@ export default function StudentDashboard() {
 
                               <div className="shrink-0 flex sm:flex-col items-center sm:items-end gap-2">
                                 <span className="text-xs font-mono bg-zinc-800 px-3 py-1.5 rounded-xl border border-zinc-700 text-emerald-400 font-bold">
-                                  {dashboardData.progress[selectedCourse.id] || 0}% Completed
+                                  {(dashboardData?.progress && selectedCourse?.id ? dashboardData.progress[selectedCourse.id] : 0) || 0}% Completed
                                 </span>
                               </div>
                             </div>
@@ -723,15 +761,19 @@ export default function StudentDashboard() {
                                     </div>
 
                                     <button
-                                      onClick={() => handleToggleLessonComplete(selectedCourse.id, currentLesson.id)}
+                                      onClick={() => {
+                                        if (selectedCourse?.id && currentLesson?.id) {
+                                          handleToggleLessonComplete(selectedCourse.id, currentLesson.id);
+                                        }
+                                      }}
                                       className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                        (completedLessonsByCourse[selectedCourse.id] || []).includes(currentLesson.id)
+                                        selectedCourse?.id && currentLesson?.id && (completedLessonsByCourse[selectedCourse.id] || []).includes(currentLesson.id)
                                           ? "bg-emerald-600 text-white shadow-sm"
                                           : "bg-zinc-100 hover:bg-zinc-200 text-zinc-700"
                                       }`}
                                     >
                                       <CheckCircle2 className="h-4 w-4" />
-                                      {(completedLessonsByCourse[selectedCourse.id] || []).includes(currentLesson.id) ? "Completed" : "Mark as Complete"}
+                                      {selectedCourse?.id && currentLesson?.id && (completedLessonsByCourse[selectedCourse.id] || []).includes(currentLesson.id) ? "Completed" : "Mark as Complete"}
                                     </button>
                                   </div>
 
@@ -1023,7 +1065,7 @@ export default function StudentDashboard() {
                               </span>
                               <span className="text-xs text-zinc-400 flex items-center gap-1">
                                 <Calendar className="h-3.5 w-3.5 text-zinc-400" />
-                                {new Date(prog.enrolledAt).toLocaleDateString()}
+                                {formatDateSafe(prog.enrolledAt)}
                               </span>
                             </div>
 
@@ -1111,11 +1153,11 @@ export default function StudentDashboard() {
                           <div className="space-y-4">
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md border border-purple-100">
-                                {rec.testKey.toUpperCase()}
+                                {(rec.testKey || "DIAG").toUpperCase()}
                               </span>
                               <span className="text-xs text-zinc-400 flex items-center gap-1">
                                 <Calendar className="h-3.5 w-3.5 text-zinc-400" />
-                                {new Date(rec.createdAt).toLocaleDateString()}
+                                {formatDateSafe(rec.createdAt)}
                               </span>
                             </div>
 
@@ -1248,7 +1290,7 @@ export default function StudentDashboard() {
                                 <h4 className="text-sm font-bold text-zinc-900 mt-1">{item.title}</h4>
                                 <p className="text-[11px] text-zinc-400 mt-0.5 flex items-center gap-1">
                                   <Clock className="h-3 w-3 text-zinc-400" />
-                                  Accessed on {new Date(item.accessedAt).toLocaleString()}
+                                  Accessed on {formatDateTimeSafe(item.accessedAt)}
                                 </p>
                               </div>
                             </div>

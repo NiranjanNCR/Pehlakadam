@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect } from "react";
 import ScrollToTop from "./components/ScrollToTop";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Home from "./components/page/Home";
 import About from "./components/page/About";
 import Explore from "./components/page/Explore";
@@ -74,34 +75,36 @@ export default function App() {
   }, []);
 
   return (
-    <BrowserRouter>
-      <ScrollToTop />
-      <div id="pehlakadam-app-root" className="flex flex-col min-h-screen">
-        <AnnouncementBanner />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/explore" element={<Explore />} />
-          <Route path="/resources" element={<Resources />} />
-          <Route path="/courses" element={<Courses />} />
-          <Route path="/dashboard" element={<StudentDashboard />} />
-          <Route path="/student-dashboard" element={<StudentDashboard />} />
-          <Route path="/student/dashboard" element={<StudentDashboard />} />
-          <Route path="/student/*" element={<StudentDashboard />} />
-          <Route path="/my-learning" element={<StudentDashboard />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/programs/*" element={<Programs />} />
-          <Route path="/diagnostics" element={<Diagnostics />} />
-          <Route path="/terms" element={<TermsAndPolicies />} />
-          <Route path="/privacy" element={<TermsAndPolicies />} />
-          <Route path="/refund-policy" element={<TermsAndPolicies />} />
-          <Route path="/legal" element={<TermsAndPolicies />} />
-          <Route path="/admin" element={<AdminSubmissions />} />
-          <Route path="/resources/admin" element={<AdminSubmissions />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </div>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <ScrollToTop />
+        <div id="pehlakadam-app-root" className="flex flex-col min-h-screen">
+          <AnnouncementBanner />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/explore" element={<Explore />} />
+            <Route path="/resources" element={<Resources />} />
+            <Route path="/courses" element={<Courses />} />
+            <Route path="/dashboard" element={<StudentDashboard />} />
+            <Route path="/student-dashboard" element={<StudentDashboard />} />
+            <Route path="/student/dashboard" element={<StudentDashboard />} />
+            <Route path="/student/*" element={<StudentDashboard />} />
+            <Route path="/my-learning" element={<StudentDashboard />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/programs/*" element={<Programs />} />
+            <Route path="/diagnostics" element={<Diagnostics />} />
+            <Route path="/terms" element={<TermsAndPolicies />} />
+            <Route path="/privacy" element={<TermsAndPolicies />} />
+            <Route path="/refund-policy" element={<TermsAndPolicies />} />
+            <Route path="/legal" element={<TermsAndPolicies />} />
+            <Route path="/admin" element={<AdminSubmissions />} />
+            <Route path="/resources/admin" element={<AdminSubmissions />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </div>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

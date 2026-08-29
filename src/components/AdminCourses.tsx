@@ -1,5 +1,6 @@
 import { useState, useEffect, FormEvent, ChangeEvent } from "react";
 import { Course, Lesson, Chapter, UserTier, LessonAttachment } from "../types";
+import { SYSTEM_LMS_CATEGORIES } from "../lib/courseAccess";
 import { 
   Plus, Trash2, Edit3, Video, FileText, Layers, CheckCircle, 
   X, Save, Sparkles, BookOpen, Clock, Tag, ExternalLink, ChevronDown, ChevronUp, Upload,
@@ -22,6 +23,7 @@ export default function AdminCourses() {
   const [loading, setLoading] = useState(true);
   const [isCreatingCourse, setIsCreatingCourse] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const [adminSelectedCategory, setAdminSelectedCategory] = useState<string>("all");
 
   // Custom Batch States
   const [isCustomBatchNew, setIsCustomBatchNew] = useState(false);
@@ -677,12 +679,9 @@ export default function AdminCourses() {
                 onChange={e => setCourseForm({ ...courseForm, category: e.target.value })}
                 className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white"
               >
-                <option value="Primary Kudos">Primary Kudos</option>
-                <option value="6-8 Grade Student">6-8 Grade Student</option>
-                <option value="8-10 Grade Student">8-10 Grade Student</option>
-                <option value="11-12 Grade Student">11-12 Grade Student</option>
-                <option value="UG/Graduate/PG">UG/Graduate/PG</option>
-                <option value="Generalist to Specialist">Generalist to Specialist</option>
+                {SYSTEM_LMS_CATEGORIES.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
               </select>
             </div>
 
@@ -818,16 +817,32 @@ export default function AdminCourses() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Course Cards List */}
         <div className="lg:col-span-1 space-y-4">
-          <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wider">Active Courses ({courses.length})</h3>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wider">
+              Active Courses ({courses.filter(c => adminSelectedCategory === "all" || c.category === adminSelectedCategory).length})
+            </h3>
+            <select
+              value={adminSelectedCategory}
+              onChange={e => setAdminSelectedCategory(e.target.value)}
+              className="rounded-lg bg-zinc-900 border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-emerald-500"
+            >
+              <option value="all">All Categories</option>
+              {SYSTEM_LMS_CATEGORIES.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
           
           {loading ? (
             <div className="p-8 text-center text-zinc-500 text-xs">Loading courses...</div>
-          ) : courses.length === 0 ? (
+          ) : courses.filter(c => adminSelectedCategory === "all" || c.category === adminSelectedCategory).length === 0 ? (
             <div className="p-8 text-center border border-dashed border-zinc-800 rounded-2xl text-zinc-500 text-xs">
-              No courses created yet. Click "Create New LMS Course" above.
+              No courses found for selected filter. Click "Create New LMS Course" above.
             </div>
           ) : (
-            courses.map(course => (
+            courses
+              .filter(c => adminSelectedCategory === "all" || c.category === adminSelectedCategory)
+              .map(course => (
               <div
                 key={course.id}
                 onClick={() => {
@@ -1271,12 +1286,9 @@ export default function AdminCourses() {
                   onChange={e => setEditingCourse({ ...editingCourse, category: e.target.value })}
                   className="w-full rounded-xl bg-zinc-900 border border-zinc-700 px-3 py-2 text-xs text-white"
                 >
-                  <option value="Primary Kudos">Primary Kudos</option>
-                  <option value="6-8 Grade Student">6-8 Grade Student</option>
-                  <option value="8-10 Grade Student">8-10 Grade Student</option>
-                  <option value="11-12 Grade Student">11-12 Grade Student</option>
-                  <option value="UG/Graduate/PG">UG/Graduate/PG</option>
-                  <option value="Generalist to Specialist">Generalist to Specialist</option>
+                  {SYSTEM_LMS_CATEGORIES.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
                 </select>
               </div>
 

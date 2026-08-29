@@ -1,0 +1,611 @@
+const fs = require("fs");
+const path = require("path");
+
+const COURSES_FILE = path.join(process.cwd(), "courses.json");
+const UPLOADS_DIR = path.join(process.cwd(), "uploads");
+
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+// 1. Read existing courses
+let existingCourses = [];
+if (fs.existsSync(COURSES_FILE)) {
+  try {
+    existingCourses = JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8"));
+  } catch (e) {
+    console.error("Error reading existing courses:", e);
+  }
+}
+
+// Extract base64 thumbnail if present
+const parentAwareness = existingCourses.find(c => c.id === "6a7a33d26c8c957c5a2c8749");
+if (parentAwareness && parentAwareness.thumbnailUrl && parentAwareness.thumbnailUrl.startsWith("data:")) {
+  try {
+    const base64Data = parentAwareness.thumbnailUrl.replace(/^data:image\/\w+;base64,/, "");
+    const imgBuffer = Buffer.from(base64Data, "base64");
+    fs.writeFileSync(path.join(UPLOADS_DIR, "parent_awareness_thumb.jpg"), imgBuffer);
+    parentAwareness.thumbnailUrl = "/uploads/parent_awareness_thumb.jpg";
+    console.log("✅ Successfully extracted base64 image to /uploads/parent_awareness_thumb.jpg");
+  } catch (err) {
+    console.error("Error extracting base64 thumbnail:", err);
+  }
+}
+
+// Ensure Advance for primary has complete chapters and description
+const advancePrimary = existingCourses.find(c => c.id === "6a929cc0e3ef5ab740546b8e");
+if (advancePrimary) {
+  advancePrimary.title = "Advance for Primary Kudos";
+  advancePrimary.slug = "advance-for-primary-kudos";
+  advancePrimary.description = "Accelerated logical thinking, early STEM discovery, and interactive cognitive modules designed specifically for primary grade prodigies.";
+  advancePrimary.batch = "Weekend Intensive Batch";
+  if (!advancePrimary.chapters || advancePrimary.chapters.length === 0) {
+    advancePrimary.chapters = [
+      {
+        id: "ch_primary_adv_1",
+        title: "Chapter 1: Cognitive Logic & Pattern Recognition",
+        lessons: [
+          {
+            id: "les_primary_adv_101",
+            title: "Foundations of Mathematical & Spatial Logic",
+            duration: "18:00",
+            videoUrl: "https://youtu.be/RvtY1ITGcIM?si=jm9XOIzikmEcTiFx",
+            summary: "Fun visual puzzles and systematic analytical approaches for young learners.",
+            isFreePreview: true,
+            attachments: []
+          },
+          {
+            id: "les_primary_adv_102",
+            title: "Creative Problem Solving & Critical Thinking",
+            duration: "20:00",
+            videoUrl: "https://youtu.be/McsJH0IrDu8?si=N9-xvucqQnLSfYB0",
+            summary: "Building confidence through exploratory reasoning.",
+            isFreePreview: false,
+            attachments: []
+          }
+        ]
+      }
+    ];
+  }
+}
+
+// Placement Blueprint: ensure category is 8-10 Grade Student
+const placementBlueprint = existingCourses.find(c => c.id === "6a7a33326c8c957c5a2c873b");
+if (placementBlueprint) {
+  placementBlueprint.category = "8-10 Grade Student";
+}
+
+// Master list of new courses to guarantee every category has Basic, Advance, Pro courses
+const standardCourses = [
+  // ----------------------------------------------------
+  // 1. PRIMARY KUDOS
+  // ----------------------------------------------------
+  // Existing Basic: Parent awareness (id: 6a7a33d26c8c957c5a2c8749)
+  // Existing Advance: Advance for primary (id: 6a929cc0e3ef5ab740546b8e)
+  {
+    id: "course-kudos-pro-mastery",
+    title: "Primary Kudos: Advanced Cognitive & Creative Aptitude Masterclass",
+    slug: "primary-kudos-cognitive-creative-masterclass",
+    description: "Pro-tier personalized developmental masterclass featuring Olympiad foundations, emotional intelligence coaching, and parent-mentor 1:1 strategy.",
+    thumbnailUrl: "https://images.unsplash.com/photo-1509062522246-3755977927d7?q=80&w=800",
+    tier: "pro",
+    category: "Primary Kudos",
+    originalPrice: 7999,
+    discountPrice: 2499,
+    duration: "14 Hours",
+    level: "Advanced",
+    batch: "Regular Self-Paced Batch",
+    published: true,
+    chapters: [
+      {
+        id: "ch_kp_1",
+        title: "Chapter 1: Multi-Disciplinary Aptitude Mapping",
+        lessons: [
+          {
+            id: "les_kp_101",
+            title: "Early Aptitude Profiling & Natural Strengths Identification",
+            duration: "22:00",
+            videoUrl: "https://youtu.be/RvtY1ITGcIM?si=jm9XOIzikmEcTiFx",
+            summary: "Discovering visual, kinesthetic, and logical proficiencies.",
+            isFreePreview: true,
+            attachments: []
+          },
+          {
+            id: "les_kp_102",
+            title: "Curiosity-Driven Habit Building",
+            duration: "25:00",
+            videoUrl: "https://youtu.be/WfvZ2NsThws?si=7UbPCvXElmiuo2b-",
+            summary: "Techniques for daily reading, curiosity questioning, and creative journaling.",
+            isFreePreview: false,
+            attachments: []
+          }
+        ]
+      }
+    ],
+    createdAt: new Date().toISOString()
+  },
+
+  // ----------------------------------------------------
+  // 2. 6-8 GRADE STUDENT
+  // ----------------------------------------------------
+  {
+    id: "course-6-8-basic-discovery",
+    title: "Junior Career Discovery: Curiosity to Skills Blueprint",
+    slug: "junior-career-discovery-6-8-basic",
+    description: "Foundational orientation introducing middle-schoolers to modern professional industries, digital literacy, and holistic study habits.",
+    thumbnailUrl: "https://images.unsplash.com/photo-1588072432836-e10032774350?q=80&w=800",
+    tier: "basic",
+    category: "6-8 Grade Student",
+    originalPrice: 2999,
+    discountPrice: 999,
+    duration: "8 Hours",
+    level: "Beginner",
+    batch: "Regular Self-Paced Batch",
+    published: true,
+    chapters: [
+      {
+        id: "ch_68b_1",
+        title: "Chapter 1: The Modern World of Careers",
+        lessons: [
+          {
+            id: "les_68b_101",
+            title: "What Do Engineers, Designers, Doctors & Entrepreneurs Actually Do?",
+            duration: "16:00",
+            videoUrl: "https://youtu.be/RvtY1ITGcIM?si=jm9XOIzikmEcTiFx",
+            summary: "An exciting tour of 20+ exciting 21st-century professions.",
+            isFreePreview: true,
+            attachments: []
+          }
+        ]
+      }
+    ],
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "course-6-8-advance-accelerator",
+    title: "6-8 Grade STEM & Creative Intelligence Accelerator",
+    slug: "stem-creative-intelligence-accelerator-6-8",
+    description: "Deep-dive problem solving, scientific inquiry, coding fundamentals, and cognitive reasoning for ambitious 6-8 graders.",
+    thumbnailUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=800",
+    tier: "advance",
+    category: "6-8 Grade Student",
+    originalPrice: 4999,
+    discountPrice: 1799,
+    duration: "12 Hours",
+    level: "Intermediate",
+    batch: "Weekend Intensive Batch",
+    published: true,
+    chapters: [
+      {
+        id: "ch_68a_1",
+        title: "Chapter 1: Applied Scientific Logic & Mental Math",
+        lessons: [
+          {
+            id: "les_68a_101",
+            title: "Speed Mathematics & Analytical Deduction",
+            duration: "20:00",
+            videoUrl: "https://youtu.be/McsJH0IrDu8?si=N9-xvucqQnLSfYB0",
+            summary: "Vedic math shortcuts and logical puzzle techniques.",
+            isFreePreview: true,
+            attachments: []
+          }
+        ]
+      }
+    ],
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "course-6-8-pro-olympiad",
+    title: "6-8 Grade Olympiad & Future Horizons Masterclass",
+    slug: "olympiad-future-horizons-6-8-pro",
+    description: "Pro tier masterclass including NSTSE/SOF Olympiad coaching, 1:1 mentor psychometric roadmap, and national scholarship preparation.",
+    thumbnailUrl: "https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?q=80&w=800",
+    tier: "pro",
+    category: "6-8 Grade Student",
+    originalPrice: 8999,
+    discountPrice: 2999,
+    duration: "18 Hours",
+    level: "Advanced",
+    batch: "Exclusive Mentorship Batch",
+    published: true,
+    chapters: [
+      {
+        id: "ch_68p_1",
+        title: "Chapter 1: Competitive Olympiad Strategy",
+        lessons: [
+          {
+            id: "les_68p_101",
+            title: "Advanced Problem Decomposition & Time Management",
+            duration: "24:00",
+            videoUrl: "https://youtu.be/WfvZ2NsThws?si=7UbPCvXElmiuo2b-",
+            summary: "Step-by-step breakdown of top competitive Olympiad questions.",
+            isFreePreview: true,
+            attachments: []
+          }
+        ]
+      }
+    ],
+    createdAt: new Date().toISOString()
+  },
+
+  // ----------------------------------------------------
+  // 3. 8-10 GRADE STUDENT
+  // ----------------------------------------------------
+  {
+    id: "course-8-10-basic-stream",
+    title: "Secondary Stream Selection & Aptitude Foundations",
+    slug: "secondary-stream-selection-aptitude-foundations",
+    description: "Essential clarity guide on Science vs Commerce vs Humanities, subject combination nuances, and career impact.",
+    thumbnailUrl: "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=800",
+    tier: "basic",
+    category: "8-10 Grade Student",
+    originalPrice: 3499,
+    discountPrice: 1199,
+    duration: "9 Hours",
+    level: "Beginner",
+    batch: "Regular Self-Paced Batch",
+    published: true,
+    chapters: [
+      {
+        id: "ch_810b_1",
+        title: "Chapter 1: Demystifying Class 11 Streams",
+        lessons: [
+          {
+            id: "les_810b_101",
+            title: "PCM, PCB, Commerce with/without Math & Arts Reality Check",
+            duration: "21:00",
+            videoUrl: "https://youtu.be/RvtY1ITGcIM?si=jm9XOIzikmEcTiFx",
+            summary: "Comparative analysis of 50+ college degree outcomes.",
+            isFreePreview: true,
+            attachments: []
+          }
+        ]
+      }
+    ],
+    createdAt: new Date().toISOString()
+  },
+  // Existing Advance: Placement Blueprint (id: 6a7a33326c8c957c5a2c873b)
+  {
+    id: "course-8-10-pro-leadership",
+    title: "Grade 9-10 Leadership, Competitive Profiling & Career Roadmap Masterclass",
+    slug: "grade-9-10-leadership-competitive-roadmap-pro",
+    description: "Pro tier 1:1 mentorship, NTSE/Olympiad prep, psychometric DISC assessment review, and 5-year academic master roadmap.",
+    thumbnailUrl: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800",
+    tier: "pro",
+    category: "8-10 Grade Student",
+    originalPrice: 9999,
+    discountPrice: 3499,
+    duration: "20 Hours",
+    level: "Advanced",
+    batch: "Exclusive Mentorship Batch",
+    published: true,
+    chapters: [
+      {
+        id: "ch_810p_1",
+        title: "Chapter 1: Multi-Year Career Portfolio Architecture",
+        lessons: [
+          {
+            id: "les_810p_101",
+            title: "Building an Impressive Profile for Top Universities Early",
+            duration: "28:00",
+            videoUrl: "https://youtu.be/McsJH0IrDu8?si=N9-xvucqQnLSfYB0",
+            summary: "Extracurriculars, research projects, and leadership initiatives.",
+            isFreePreview: true,
+            attachments: []
+          }
+        ]
+      }
+    ],
+    createdAt: new Date().toISOString()
+  },
+
+  // ----------------------------------------------------
+  // 4. 11-12 GRADE STUDENT
+  // ----------------------------------------------------
+  {
+    id: "course-11-12-basic-spectrum",
+    title: "Class 11-12 College Entrance & Career Spectrum Essentials",
+    slug: "class-11-12-college-entrance-spectrum-basic",
+    description: "Strategic overview of CUET, JEE, NEET, CLAT, IPMAT, NID, and non-conventional university admission channels.",
+    thumbnailUrl: "https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?q=80&w=800",
+    tier: "basic",
+    category: "11-12 Grade Student",
+    originalPrice: 3999,
+    discountPrice: 1299,
+    duration: "10 Hours",
+    level: "Beginner",
+    batch: "Regular Self-Paced Batch",
+    published: true,
+    chapters: [
+      {
+        id: "ch_1112b_1",
+        title: "Chapter 1: The National Entrance Exam Matrix",
+        lessons: [
+          {
+            id: "les_1112b_101",
+            title: "Exam Calendars, Cutoffs & Backup Strategies",
+            duration: "22:00",
+            videoUrl: "https://youtu.be/RvtY1ITGcIM?si=jm9XOIzikmEcTiFx",
+            summary: "Navigating registration deadlines, quotas, and rank targets.",
+            isFreePreview: true,
+            attachments: []
+          }
+        ]
+      }
+    ],
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "course-11-12-advance-admissions",
+    title: "Class 11-12 High-Yield Exam Strategy & University Admissions Blueprint",
+    slug: "class-11-12-exam-strategy-admissions-advance",
+    description: "In-depth mock exam analytics, time allocation algorithms, subjective score optimization, and college shortlist formulation.",
+    thumbnailUrl: "https://images.unsplash.com/photo-1498243691581-b145c3f54a5a?q=80&w=800",
+    tier: "advance",
+    category: "11-12 Grade Student",
+    originalPrice: 5999,
+    discountPrice: 1999,
+    duration: "15 Hours",
+    level: "Intermediate",
+    batch: "Weekend Intensive Batch",
+    published: true,
+    chapters: [
+      {
+        id: "ch_1112a_1",
+        title: "Chapter 1: Precision Test Taking & Error Analysis",
+        lessons: [
+          {
+            id: "les_1112a_101",
+            title: "Eliminating Negative Marks & Maximizing Speed",
+            duration: "26:00",
+            videoUrl: "https://youtu.be/WfvZ2NsThws?si=7UbPCvXElmiuo2b-",
+            summary: "Advanced question filtering and cognitive stamina conditioning.",
+            isFreePreview: true,
+            attachments: []
+          }
+        ]
+      }
+    ],
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "course-11-12-pro-mentorship",
+    title: "Class 11-12 Global Admissions, Scholarship & Top-Tier College Mentorship",
+    slug: "class-11-12-global-admissions-pro",
+    description: "Pro tier personalized counseling with BITS Pilani & Ivy League alumni, SOP drafting, scholarship applications, and interview mock drills.",
+    thumbnailUrl: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=800",
+    tier: "pro",
+    category: "11-12 Grade Student",
+    originalPrice: 11999,
+    discountPrice: 3999,
+    duration: "24 Hours",
+    level: "Advanced",
+    batch: "Exclusive Mentorship Batch",
+    published: true,
+    chapters: [
+      {
+        id: "ch_1112p_1",
+        title: "Chapter 1: Elite College Application Strategy",
+        lessons: [
+          {
+            id: "les_1112p_101",
+            title: "Drafting Winning Essays & Statement of Purpose (SOP)",
+            duration: "30:00",
+            videoUrl: "https://youtu.be/McsJH0IrDu8?si=N9-xvucqQnLSfYB0",
+            summary: "Narrative building that gets college admissions committees excited.",
+            isFreePreview: true,
+            attachments: []
+          }
+        ]
+      }
+    ],
+    createdAt: new Date().toISOString()
+  },
+
+  // ----------------------------------------------------
+  // 5. UG/GRADUATE/PG
+  // ----------------------------------------------------
+  {
+    id: "course-ug-basic-discovery",
+    title: "UG & Graduate Foundation: Career Discovery & Aptitude Essentials",
+    slug: "ug-graduate-foundation-career-discovery-basic",
+    description: "Essential career navigation for college students: industry landscape, aptitude tests, skill roadmaps, and internship sourcing.",
+    thumbnailUrl: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=800",
+    tier: "basic",
+    category: "UG/Graduate/PG",
+    originalPrice: 3999,
+    discountPrice: 1299,
+    duration: "11 Hours",
+    level: "Beginner",
+    batch: "Regular Self-Paced Batch",
+    published: true,
+    chapters: [
+      {
+        id: "ch_ugb_1",
+        title: "Chapter 1: College to Career Transition Roadmap",
+        lessons: [
+          {
+            id: "les_ugb_101",
+            title: "Auditing Your Current Degree & High-Demand Market Roles",
+            duration: "20:00",
+            videoUrl: "https://youtu.be/RvtY1ITGcIM?si=jm9XOIzikmEcTiFx",
+            summary: "Mapping engineering, commerce, and humanities skills to modern corporate tracks.",
+            isFreePreview: true,
+            attachments: []
+          },
+          {
+            id: "les_ugb_102",
+            title: "Mastering Quantitative & Logical Aptitude for Placements",
+            duration: "25:00",
+            videoUrl: "https://youtu.be/McsJH0IrDu8?si=N9-xvucqQnLSfYB0",
+            summary: "High-frequency problem types in campus recruitment exams.",
+            isFreePreview: false,
+            attachments: []
+          }
+        ]
+      }
+    ],
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "course-ug-advance-corporate",
+    title: "Campus to Corporate: Resume Architecture, Technical Placement & Interview Blueprint",
+    slug: "campus-to-corporate-technical-placement-advance",
+    description: "Advance tier masterclass: ATS resume rewriting, LinkedIn personal branding, case studies, and technical interview simulations.",
+    thumbnailUrl: "https://images.unsplash.com/photo-1551836022-d5d88e9218df?q=80&w=800",
+    tier: "advance",
+    category: "UG/Graduate/PG",
+    originalPrice: 6999,
+    discountPrice: 2199,
+    duration: "16 Hours",
+    level: "Intermediate",
+    batch: "Weekend Intensive Batch",
+    published: true,
+    chapters: [
+      {
+        id: "ch_uga_1",
+        title: "Chapter 1: ATS Resume Engineering",
+        lessons: [
+          {
+            id: "les_uga_101",
+            title: "How to Build a 90+ ATS Score Resume",
+            duration: "24:00",
+            videoUrl: "https://youtu.be/WfvZ2NsThws?si=7UbPCvXElmiuo2b-",
+            summary: "Action verbs, quantifiable achievements, and recruiter psychology.",
+            isFreePreview: true,
+            attachments: []
+          },
+          {
+            id: "les_uga_102",
+            title: "Acing the HR & Behavioral Round (STAR Technique)",
+            duration: "22:00",
+            videoUrl: "https://youtu.be/RvtY1ITGcIM?si=jm9XOIzikmEcTiFx",
+            summary: "Structuring compelling answers for leadership and conflict questions.",
+            isFreePreview: false,
+            attachments: []
+          }
+        ]
+      }
+    ],
+    createdAt: new Date().toISOString()
+  },
+  // Existing Pro: Modern Masterclass (id: 6a7a33326c8c957c5a2c873f)
+
+  // ----------------------------------------------------
+  // 6. GENERALIST TO SPECIALIST
+  // ----------------------------------------------------
+  {
+    id: "course-generalist-basic-transition",
+    title: "Generalist to Specialist: Skill Auditing & Domain Transition Essentials",
+    slug: "generalist-to-specialist-skill-auditing-basic",
+    description: "Identify your transferable core skills, evaluate emerging high-growth niches, and craft an actionable career pivot strategy.",
+    thumbnailUrl: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=800",
+    tier: "basic",
+    category: "Generalist to Specialist",
+    originalPrice: 3999,
+    discountPrice: 1299,
+    duration: "10 Hours",
+    level: "Beginner",
+    batch: "Regular Self-Paced Batch",
+    published: true,
+    chapters: [
+      {
+        id: "ch_genb_1",
+        title: "Chapter 1: The Generalist Dilemma & Market Positioning",
+        lessons: [
+          {
+            id: "les_genb_101",
+            title: "Why Generalists Get Underpaid and How Specialization Multiplies Value",
+            duration: "20:00",
+            videoUrl: "https://youtu.be/RvtY1ITGcIM?si=jm9XOIzikmEcTiFx",
+            summary: "Shifting from a utility player to a recognized domain specialist.",
+            isFreePreview: true,
+            attachments: []
+          }
+        ]
+      }
+    ],
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "course-generalist-advance-authority",
+    title: "Specialist Roadmap: Niche Authority, Portfolio & Industry Pivot",
+    slug: "specialist-roadmap-niche-authority-portfolio-advance",
+    description: "Advance tier transition blueprint: Build a public proof-of-work portfolio, establish domain authority, and target high-paying specialist roles.",
+    thumbnailUrl: "https://images.unsplash.com/photo-1552664730-d307ca884978?q=80&w=800",
+    tier: "advance",
+    category: "Generalist to Specialist",
+    originalPrice: 6999,
+    discountPrice: 2299,
+    duration: "16 Hours",
+    level: "Intermediate",
+    batch: "Weekend Intensive Batch",
+    published: true,
+    chapters: [
+      {
+        id: "ch_gena_1",
+        title: "Chapter 1: Proof of Work Architecture",
+        lessons: [
+          {
+            id: "les_gena_101",
+            title: "Creating High-Impact Industry Case Studies and Portfolios",
+            duration: "26:00",
+            videoUrl: "https://youtu.be/McsJH0IrDu8?si=N9-xvucqQnLSfYB0",
+            summary: "How to showcase domain mastery before even landing the title.",
+            isFreePreview: true,
+            attachments: []
+          }
+        ]
+      }
+    ],
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "course-generalist-pro-executive",
+    title: "Executive Specialist Mastery: 1:1 Industry Transition & Career Scaling",
+    slug: "executive-specialist-mastery-pro",
+    description: "Pro tier mentorship: Direct executive coaching, compensation negotiation, high-level networking, and leadership transition.",
+    thumbnailUrl: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?q=80&w=800",
+    tier: "pro",
+    category: "Generalist to Specialist",
+    originalPrice: 12999,
+    discountPrice: 4499,
+    duration: "22 Hours",
+    level: "Advanced",
+    batch: "Exclusive Mentorship Batch",
+    published: true,
+    chapters: [
+      {
+        id: "ch_genp_1",
+        title: "Chapter 1: Executive Positioning & Compensation Multipliers",
+        lessons: [
+          {
+            id: "les_genp_101",
+            title: "Navigating High-Stakes Career Pivots & Salary Negotiations",
+            duration: "32:00",
+            videoUrl: "https://youtu.be/WfvZ2NsThws?si=7UbPCvXElmiuo2b-",
+            summary: "Advanced negotiation frameworks for mid-career specialists.",
+            isFreePreview: true,
+            attachments: []
+          }
+        ]
+      }
+    ],
+    createdAt: new Date().toISOString()
+  }
+];
+
+// Merge: Keep all existing courses, add standard courses if not already present
+const mergedCourses = [...existingCourses];
+
+for (const sc of standardCourses) {
+  const existingIndex = mergedCourses.findIndex(c => c.id === sc.id || c.slug === sc.slug);
+  if (existingIndex >= 0) {
+    mergedCourses[existingIndex] = { ...sc, ...mergedCourses[existingIndex] };
+  } else {
+    mergedCourses.push(sc);
+  }
+}
+
+fs.writeFileSync(COURSES_FILE, JSON.stringify(mergedCourses, null, 2), "utf-8");
+console.log(`✅ Saved ${mergedCourses.length} comprehensive courses to ${COURSES_FILE}`);

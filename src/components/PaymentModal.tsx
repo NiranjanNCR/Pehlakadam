@@ -642,6 +642,13 @@ export default function PaymentModal({
                           setIsOpen(false);
                           const cleanP = (submittedPhone || "").replace(/[^0-9]/g, "");
                           const emailP = (submittedEmail || "").trim().toLowerCase();
+                          if (cleanP) {
+                            localStorage.setItem("pehlakadam_student_phone", cleanP);
+                            localStorage.setItem("pehlakadam_premium_phone", cleanP);
+                          }
+                          if (emailP) {
+                            localStorage.setItem("pehlakadam_student_email", emailP);
+                          }
                           const targetUrl = cleanP || emailP
                             ? `/dashboard?phone=${encodeURIComponent(cleanP)}&email=${encodeURIComponent(emailP)}`
                             : "/dashboard";

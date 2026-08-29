@@ -227,6 +227,7 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
+app.use("/uploads", express.static(UPLOADS_DIR));
 
 if (!fs.existsSync(SUBMISSIONS_FILE)) {
   fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify([], null, 2));
@@ -2122,6 +2123,39 @@ function cleanPhoneDigits(phone: string | undefined): string {
   if (!phone) return "";
   const raw = String(phone).replace(/[^0-9]/g, "");
   return raw.length > 10 ? raw.slice(-10) : raw;
+}
+
+// Canonical tier normalization: 'basic' | 'advance' | 'pro'
+function normalizeTier(tierStr?: string | null): "basic" | "advance" | "pro" {
+  if (!tierStr) return "basic";
+  const s = String(tierStr).toLowerCase().trim();
+  if (s === "pro" || s === "premium pro" || s === "premium" || s === "3") return "pro";
+  if (s === "advance" || s === "advanced" || s === "standard" || s === "2") return "advance";
+  return "basic";
+}
+
+// Canonical program key mapping
+function getCanonicalProgramKey(nameOrKey?: string | null): string {
+  if (!nameOrKey) return "";
+  const s = String(nameOrKey).toLowerCase().trim();
+  if (s.includes("kudos") || s.includes("primary")) return "kudos";
+  if (s.includes("6-8") || s.includes("6th-8th") || s.includes("6 to 8") || s.includes("6th to 8th")) return "6-8";
+  if (s.includes("8-10") || s.includes("9-10") || s.includes("8th-10th") || s.includes("9th-10th") || s.includes("9 to 10") || s.includes("8 to 10")) return "9-10";
+  if (s.includes("11-12") || s.includes("11th-12th") || s.includes("11 to 12") || s.includes("11th to 12th")) return "11-12";
+  if (s.includes("ug") || s.includes("graduate") || s.includes("pg") || s.includes("college") || s.includes("university")) return "graduate";
+  if (s.includes("generalist") || s.includes("specialist")) return "generalist";
+  return s;
+}
+
+// Flexible academic category matching
+function doCategoriesMatch(courseCategory?: string | null, programNameOrKey?: string | null): boolean {
+  if (!courseCategory || !programNameOrKey) return false;
+  const catKey = getCanonicalProgramKey(courseCategory);
+  const progKey = getCanonicalProgramKey(programNameOrKey);
+  if (catKey && progKey && catKey === progKey) return true;
+  const c = String(courseCategory).toLowerCase().trim();
+  const p = String(programNameOrKey).toLowerCase().trim();
+  return c === p || c.includes(p) || p.includes(c);
 }
 
 // 4. Grant Whitelist Access to Student (Mongo + JSON Sync with Enrolled Programs & Courses)
@@ -7175,29 +7209,7 @@ app.get("/api/student/dashboard-data", async (req, res) => {
       };
     });
 
-    // Determine Enrolled Courses
-    const tierOrder: Record<string, number> = { basic: 1, advance: 2, pro: 3 };
-    const userTierNum = tierOrder[userTier] || 1;
-
-    let enrolledCourses: any[] = [];
-    const customEnrolledCourseIds: string[] = authDoc?.enrolledCourses || [];
-
-    if (customEnrolledCourseIds.length > 0) {
-      enrolledCourses = allCoursesList.filter((c: any) => customEnrolledCourseIds.includes(c.id) || customEnrolledCourseIds.includes(c.slug));
-    }
-
-    if (enrolledCourses.length === 0) {
-      if (isAuthorized) {
-        enrolledCourses = allCoursesList.filter((c: any) => {
-          const reqTier = tierOrder[c.tier] || 1;
-          return userTierNum >= reqTier || c.published;
-        });
-      } else {
-        enrolledCourses = allCoursesList.filter((c: any) => c.tier === "basic" || c.published);
-      }
-    }
-
-    // 4. Enrolled Academic Programs
+    // 4. Determine Enrolled Academic Programs
     const enrolledPrograms: any[] = [];
     const programDefs = [
       { key: "6-8", alias: "program1", title: "6-8 Grade Student", path: "/programs/program1" },
@@ -7209,7 +7221,7 @@ app.get("/api/student/dashboard-data", async (req, res) => {
     ];
 
     const customEnrolledPrograms: string[] = authDoc?.enrolledPrograms || [];
-    const hasAllAccess = customEnrolledPrograms.includes("all") || customEnrolledPrograms.includes("all_programs") || (isAuthorized && userTier === "pro" && customEnrolledPrograms.length === 0);
+    const hasAllAccess = customEnrolledPrograms.includes("all") || customEnrolledPrograms.includes("all_programs") || customEnrolledPrograms.includes("*") || (isAuthorized && userTier === "pro" && customEnrolledPrograms.length === 0);
 
     programDefs.forEach(prog => {
       const isCustomAssigned = hasAllAccess || customEnrolledPrograms.some(
@@ -7223,7 +7235,7 @@ app.get("/api/student/dashboard-data", async (req, res) => {
         }
       );
 
-      const hasPayment = payments.some((p: any) => {
+      const matchingPayment = payments.find((p: any) => {
         const pEmail = p.email?.trim().toLowerCase();
         const pPhone = p.number?.replace(/[^0-9]/g, "");
         const matchesUser = (cleanEmail && pEmail === cleanEmail) || (cleanPhone && (pPhone === cleanPhone || pPhone?.endsWith(cleanPhone)));
@@ -7239,17 +7251,90 @@ app.get("/api/student/dashboard-data", async (req, res) => {
 
       const matchesRole = studentRole === prog.title || studentRole.includes(prog.key) || (prog.key === "9-10" && studentRole.includes("8-10"));
 
-      if (isCustomAssigned || hasPayment || hasSub || matchesRole) {
+      if (isCustomAssigned || matchingPayment || hasSub || matchesRole) {
+        let progTier = userTier;
+        if (matchingPayment && matchingPayment.plan) {
+          const pPlan = String(matchingPayment.plan).toLowerCase();
+          if (pPlan.includes("pro") || pPlan.includes("premium")) progTier = "pro";
+          else if (pPlan.includes("advance") || pPlan.includes("standard")) progTier = "advance";
+          else if (pPlan.includes("basic")) progTier = "basic";
+        }
         enrolledPrograms.push({
           key: prog.key,
           title: prog.title,
           path: prog.path,
+          tier: progTier,
           enrolledAt: new Date().toISOString(),
-          plan: isCustomAssigned || hasPayment ? "Verified Enrolled Track" : "Active Counseling Track",
+          plan: isCustomAssigned || matchingPayment ? "Verified Enrolled Track" : "Active Counseling Track",
           status: "active"
         });
       }
     });
+
+    // =========================================================================
+    // 🎓 CATEGORY-SPECIFIC & TIER-RESTRICTED COURSE ACCESS ENGINE
+    // =========================================================================
+    // Strict Access Rule:
+    // - Students only see courses within their enrolled academic program category (e.g. Primary Kudos, 6-8 Grade, 8-10 Grade, UG/Graduate/PG, etc.).
+    // - Within that category, access is governed strictly by the student's tier:
+    //   * Basic enrolled student   => ONLY Basic courses of that category.
+    //   * Advance enrolled student => Basic + Advance courses of that category.
+    //   * Pro enrolled student     => Basic + Advance + Pro courses of that category.
+    // - If student has explicit custom course IDs assigned in authDoc.enrolledCourses, those are included.
+    // - If student has global access ("all"), tiered access applies across categories.
+    const tierOrder: Record<string, number> = { basic: 1, advance: 2, pro: 3 };
+    const userTierNum = tierOrder[normalizeTier(userTier)] || 1;
+    const enrolledCoursesMap = new Map<string, any>();
+    const customEnrolledCourseIds: string[] = authDoc?.enrolledCourses || [];
+
+    // 1. Add explicitly assigned custom courses
+    if (customEnrolledCourseIds.length > 0) {
+      allCoursesList.forEach((c: any) => {
+        if (customEnrolledCourseIds.includes(c.id) || customEnrolledCourseIds.includes(c.slug)) {
+          enrolledCoursesMap.set(c.id, c);
+        }
+      });
+    }
+
+    // 2. Add category-filtered & tier-filtered courses
+    if (isAuthorized) {
+      if (hasAllAccess) {
+        // Global / Admin Access: userTierNum determines accessible tiers across all categories
+        allCoursesList.forEach((c: any) => {
+          if (c.published !== false) {
+            const courseTierLevel = tierOrder[normalizeTier(c.tier)] || 1;
+            if (userTierNum >= courseTierLevel) {
+              enrolledCoursesMap.set(c.id, c);
+            }
+          }
+        });
+      } else if (enrolledPrograms.length > 0) {
+        // Restricted to student's enrolled program categories
+        allCoursesList.forEach((c: any) => {
+          if (c.published !== false) {
+            // Check if course category matches any of the student's enrolled programs
+            const matchedProg = enrolledPrograms.find((prog: any) =>
+              doCategoriesMatch(c.category, prog.title) || doCategoriesMatch(c.category, prog.key)
+            );
+
+            if (matchedProg) {
+              const progTier = matchedProg.tier || userTier || "basic";
+              const progTierLevel = tierOrder[normalizeTier(progTier)] || 1;
+              const courseTierLevel = tierOrder[normalizeTier(c.tier)] || 1;
+
+              // Basic tier can only access basic courses
+              // Advance tier can access basic + advance courses
+              // Pro tier can access basic + advance + pro courses
+              if (progTierLevel >= courseTierLevel) {
+                enrolledCoursesMap.set(c.id, c);
+              }
+            }
+          }
+        });
+      }
+    }
+
+    const enrolledCourses = Array.from(enrolledCoursesMap.values());
 
     // 5. Diagnostic Submissions Filtered for this user
     const userDiagRecords = diagnosticSubmissions.filter((d: any) => {

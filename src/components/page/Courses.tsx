@@ -11,6 +11,11 @@ import Footer from "../Footer";
 import PaymentModal from "../PaymentModal";
 import CourseCheckoutModal from "../CourseCheckoutModal";
 import { Course, UserTier } from "../../types";
+import { 
+  SYSTEM_LMS_CATEGORIES, 
+  doCategoriesMatch, 
+  canUserAccessCourse 
+} from "../../lib/courseAccess";
 
 export default function Courses() {
   const navigate = useNavigate();
@@ -37,11 +42,15 @@ export default function Courses() {
     checked: boolean;
     authorized: boolean;
     tier: UserTier | null;
+    enrolledPrograms: string[];
+    enrolledCourses: string[];
     message: string;
   }>({
     checked: false,
     authorized: false,
     tier: null,
+    enrolledPrograms: [],
+    enrolledCourses: [],
     message: "",
   });
   const [isVerifying, setIsVerifying] = useState(false);
@@ -79,6 +88,8 @@ export default function Courses() {
               checked: true,
               authorized: false,
               tier: null,
+              enrolledPrograms: [],
+              enrolledCourses: [],
               message: "⚠️ Account Logged Out: Your phone number was accessed on another device or tab. Parallel viewing on multiple devices is restricted to 1 active user at a time."
             });
             setStudentPhone("");
@@ -136,6 +147,8 @@ export default function Courses() {
             checked: true,
             authorized: true,
             tier: userTier,
+            enrolledPrograms: data.enrolledPrograms || [],
+            enrolledCourses: data.enrolledCourses || [],
             message: `🎉 Phone ${cleanNum} authorized! ${userTier.toUpperCase()} Tier active.`
           });
           setStudentPhone(cleanNum);
@@ -149,6 +162,8 @@ export default function Courses() {
             checked: true,
             authorized: false,
             tier: null,
+            enrolledPrograms: [],
+            enrolledCourses: [],
             message: data.message || "⚠️ Session Conflict: Your phone number is logged in on another device. Parallel access on multiple devices is restricted to 1 active device at a time."
           });
           setStudentPhone("");
@@ -160,6 +175,8 @@ export default function Courses() {
             checked: true,
             authorized: false,
             tier: null,
+            enrolledPrograms: [],
+            enrolledCourses: [],
             message: "🔒 Mobile number not found in authorized list. Please enroll to unlock."
           });
         }
@@ -170,6 +187,8 @@ export default function Courses() {
         checked: true,
         authorized: false,
         tier: null,
+        enrolledPrograms: [],
+        enrolledCourses: [],
         message: "Network error verifying access."
       });
     } finally {
@@ -199,21 +218,23 @@ export default function Courses() {
       checked: false,
       authorized: false,
       tier: null,
+      enrolledPrograms: [],
+      enrolledCourses: [],
       message: ""
     });
   };
 
-  // Helper to check if user tier permits access to a course
-  const canAccessCourse = (courseTier: UserTier): boolean => {
-    if (!authStatus.authorized || !authStatus.tier) return false;
-    const tierHierarchy: Record<UserTier, number> = {
-      basic: 1,
-      advance: 2,
-      pro: 3
-    };
-    const userLevel = tierHierarchy[authStatus.tier] || 0;
-    const requiredLevel = tierHierarchy[courseTier] || 1;
-    return userLevel >= requiredLevel;
+  // Helper to check if user category & tier permits access to a course
+  const canAccessCourse = (course: Course): boolean => {
+    return canUserAccessCourse({
+      courseId: course.id,
+      courseCategory: course.category,
+      courseTier: course.tier,
+      userTier: authStatus.tier,
+      enrolledPrograms: authStatus.enrolledPrograms,
+      enrolledCourses: authStatus.enrolledCourses,
+      isAuthorized: authStatus.authorized
+    });
   };
 
   // Deep-link to student dashboard for unified LMS player
@@ -240,12 +261,17 @@ export default function Courses() {
                           course.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           (course.batch && course.batch.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesTier = selectedTier === "all" || course.tier === selectedTier;
-    const matchesCategory = selectedCategory === "all" || course.category === selectedCategory;
+    const matchesCategory = selectedCategory === "all" || 
+                            course.category === selectedCategory || 
+                            doCategoriesMatch(course.category, selectedCategory);
     const matchesBatch = selectedBatch === "all" || course.batch === selectedBatch;
     return matchesSearch && matchesTier && matchesCategory && matchesBatch;
   });
 
-  const categories = Array.from(new Set(courses.map(c => c.category)));
+  // Ensure all 6 academic program categories are presented in the dropdown filter
+  const categories = Array.from(
+    new Set([...SYSTEM_LMS_CATEGORIES, ...courses.map(c => c.category).filter(Boolean)])
+  );
   const batches = Array.from(new Set(courses.map(c => c.batch).filter(Boolean))) as string[];
 
   return (
@@ -453,7 +479,7 @@ export default function Courses() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredCourses.map((course) => {
-              const hasAccess = canAccessCourse(course.tier);
+              const hasAccess = canAccessCourse(course);
               const totalLessons = course.chapters?.reduce((acc, ch) => acc + (ch.lessons?.length || 0), 0) || 0;
 
               return (
@@ -665,7 +691,7 @@ export default function Courses() {
                 <span className="text-lg font-black text-emerald-400">₹{previewCurriculumCourse.discountPrice.toLocaleString("en-IN")}</span>
               </div>
 
-              {canAccessCourse(previewCurriculumCourse.tier) ? (
+              {canAccessCourse(previewCurriculumCourse) ? (
                 <button
                   onClick={() => {
                     const c = previewCurriculumCourse;
@@ -713,6 +739,8 @@ export default function Courses() {
             checked: true,
             authorized: true,
             tier: (tier as UserTier) || "advance",
+            enrolledPrograms: [],
+            enrolledCourses: checkoutCourse ? [checkoutCourse.id] : [],
             message: `Instant access activated for +91 ${phone} (${tier.toUpperCase()} Tier)`
           });
         }}
