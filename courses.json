@@ -1,562 +1,83 @@
 [
   {
-    "id": "6a93df2b82faf40c004a9de9",
-    "title": "Board Exam Strategy & Stream Selection Navigator",
-    "slug": "board-exam-strategy-stream-navigator",
-    "description": "Comprehensive roadmap for cracking 10th board exams and selecting Science, Commerce, or Humanities.",
-    "thumbnailUrl": "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=800",
-    "tier": "basic",
-    "category": "8-10 Grade Student",
-    "originalPrice": 3499,
-    "discountPrice": 999,
+    "id": "6a7a33326c8c957c5a2c873b",
+    "title": "Placement Blueprint",
+    "slug": "master-psychometric-career-stream-blueprint",
+    "description": "Comprehensive step-by-step masterclass covering MBTI, DISC, Holland Code, and multi-disciplinary career mapping for Grade 8-12 students.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=800",
+    "tier": "advance",
+    "category": "8-10 Grade",
+    "originalPrice": 4999,
+    "discountPrice": 1,
     "duration": "10 Hours",
-    "level": "Board Prep",
+    "level": "All Levels",
     "batch": "Regular Self-Paced Batch",
     "published": true,
     "chapters": [
       {
-        "id": "ch_810_b_1",
-        "title": "Stream Clarity & Syllabus Roadmap",
+        "id": "ch_1786393893793",
+        "title": "Job Placement",
         "lessons": [
           {
-            "id": "les_810_b_1_1",
-            "title": "Psychometric Stream Selection & Subject Mapping",
-            "duration": "20:00",
-            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
-            "summary": "Deep dive into stream selection after class 10th aligned with your psychometric profile.",
-            "isFreePreview": true,
+            "id": "les_1786393917610",
+            "title": "Intro for Apply",
+            "duration": "15:00",
+            "videoUrl": "https://youtu.be/RvtY1ITGcIM?si=jm9XOIzikmEcTiFx",
+            "summary": "Job placement",
+            "isFreePreview": false,
             "attachments": [],
-            "_id": "6a93df3041e30ec5b84759e7"
+            "_id": "6a7a353b6c8c957c5a2c8798"
           }
         ],
-        "_id": "6a93df3041e30ec5b84759e6"
+        "_id": "6a7a35236c8c957c5a2c878e"
       }
     ],
-    "createdAt": "2026-08-30T07:40:39.735Z"
+    "createdAt": "2026-08-10T20:15:34.877Z"
   },
   {
-    "id": "6a93df2c82faf40c004a9df3",
-    "title": "Executive Niche Leadership & High-Impact Career Mastery",
-    "slug": "executive-niche-leadership-high-impact-mastery",
-    "description": "Senior leadership presence, high-ticket consulting models, executive stakeholder communication, and industry authority.",
-    "thumbnailUrl": "https://images.unsplash.com/photo-1507679799987-c73779587ccf?q=80&w=800",
+    "id": "6a7a33326c8c957c5a2c873f",
+    "title": " Modern Masterclass",
+    "slug": "pro-mentorship-modern-tech-management-placement",
+    "description": "1:1 coaching roadmap, LinkedIn positioning, resume profiling, and high-impact corporate placement guidance.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1531482615713-2afd69097998?q=80&w=800",
     "tier": "pro",
-    "category": "Generalist to Specialist",
-    "originalPrice": 9999,
-    "discountPrice": 3999,
-    "duration": "20 Hours",
-    "level": "Executive Masterclass",
-    "batch": "Regular Self-Paced Batch",
-    "published": true,
-    "chapters": [
-      {
-        "id": "ch_gen_pro_1",
-        "title": "Executive Authority & Enterprise Influence",
-        "lessons": [
-          {
-            "id": "les_gen_pro_1_1",
-            "title": "Becoming the Go-To Specialist in Your Industry",
-            "duration": "30:00",
-            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
-            "summary": "Transform from an operator into an indispensable industry authority and executive thought leader.",
-            "isFreePreview": true,
-            "attachments": [],
-            "_id": "6a93df3141e30ec5b8475a0b"
-          }
-        ],
-        "_id": "6a93df3141e30ec5b8475a0a"
-      }
-    ],
-    "createdAt": "2026-08-30T07:40:39.735Z"
-  },
-  {
-    "id": "6a93df2c82faf40c004a9df2",
-    "title": "Specialization Strategy & Professional Deep Work",
-    "slug": "specialization-strategy-professional-deep-work",
-    "description": "Mastering a high-demand niche, rapid portfolio building, and enterprise case-studies execution.",
-    "thumbnailUrl": "https://images.unsplash.com/photo-1552664730-d307ca884978?q=80&w=800",
-    "tier": "advance",
-    "category": "Generalist to Specialist",
-    "originalPrice": 6499,
-    "discountPrice": 2499,
-    "duration": "14 Hours",
-    "level": "Specialist Track",
-    "batch": "Regular Self-Paced Batch",
-    "published": true,
-    "chapters": [
-      {
-        "id": "ch_gen_adv_1",
-        "title": "Deep Competency Development",
-        "lessons": [
-          {
-            "id": "les_gen_adv_1_1",
-            "title": "Niche Dominance & Rapid Proof of Work Creation",
-            "duration": "22:00",
-            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
-            "summary": "Build indisputable proof of expertise in your chosen domain in 90 days.",
-            "isFreePreview": true,
-            "attachments": [],
-            "_id": "6a93df3141e30ec5b8475a07"
-          }
-        ],
-        "_id": "6a93df3141e30ec5b8475a06"
-      }
-    ],
-    "createdAt": "2026-08-30T07:40:39.735Z"
-  },
-  {
-    "id": "6a93df2c82faf40c004a9df1",
-    "title": "Domain Discovery & Skill Transition Fundamentals",
-    "slug": "domain-discovery-skill-transition-fundamentals",
-    "description": "Frameworks to assess your transferable skills, pinpoint high-growth industries, and map career pivot.",
-    "thumbnailUrl": "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=800",
-    "tier": "basic",
-    "category": "Generalist to Specialist",
-    "originalPrice": 3999,
-    "discountPrice": 1199,
-    "duration": "8 Hours",
-    "level": "Professional",
-    "batch": "Regular Self-Paced Batch",
-    "published": true,
-    "chapters": [
-      {
-        "id": "ch_gen_b_1",
-        "title": "Career Audit & Pivot Assessment",
-        "lessons": [
-          {
-            "id": "les_gen_b_1_1",
-            "title": "Mapping Strengths, Market Demand & Industry Trends",
-            "duration": "18:00",
-            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
-            "summary": "Step-by-step methodology to transition from general role to a high-leverage specialization.",
-            "isFreePreview": true,
-            "attachments": [],
-            "_id": "6a93df3041e30ec5b8475a03"
-          }
-        ],
-        "_id": "6a93df3041e30ec5b8475a02"
-      }
-    ],
-    "createdAt": "2026-08-30T07:40:39.735Z"
-  },
-  {
-    "id": "6a93df2c82faf40c004a9df0",
-    "title": "Industry Domain Mastery & Technical Interview Strategy",
-    "slug": "industry-domain-mastery-interview-strategy",
-    "description": "Case study solving, technical interview simulations, behavioral questions, and compensation negotiation.",
-    "thumbnailUrl": "https://images.unsplash.com/photo-1515187029135-18ee286d815b?q=80&w=800",
-    "tier": "advance",
     "category": "UG/Graduate/PG",
-    "originalPrice": 5999,
-    "discountPrice": 2199,
-    "duration": "14 Hours",
-    "level": "Job Ready",
-    "batch": "Regular Self-Paced Batch",
-    "published": true,
-    "chapters": [
-      {
-        "id": "ch_grad_adv_1",
-        "title": "Acing Interviews & Negotiations",
-        "lessons": [
-          {
-            "id": "les_grad_adv_1_1",
-            "title": "Behavioral STAR Method & Real-World Case Studies",
-            "duration": "24:00",
-            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
-            "summary": "Mastering tough interview questions and commanding top compensation offers.",
-            "isFreePreview": true,
-            "attachments": [],
-            "_id": "6a93df3041e30ec5b84759ff"
-          }
-        ],
-        "_id": "6a93df3041e30ec5b84759fe"
-      }
-    ],
-    "createdAt": "2026-08-30T07:40:39.735Z"
-  },
-  {
-    "id": "6a93df2b82faf40c004a9def",
-    "title": "Graduate Professional Readiness & Career Toolkit",
-    "slug": "graduate-professional-readiness-career-toolkit",
-    "description": "Resume building, LinkedIn optimization, ATS compliance, and networking for college graduates.",
-    "thumbnailUrl": "https://images.unsplash.com/photo-1521737711867-e3b97375f902?q=80&w=800",
-    "tier": "basic",
-    "category": "UG/Graduate/PG",
-    "originalPrice": 3499,
-    "discountPrice": 999,
-    "duration": "8 Hours",
-    "level": "College / Early Career",
-    "batch": "Regular Self-Paced Batch",
-    "published": true,
-    "chapters": [
-      {
-        "id": "ch_grad_b_1",
-        "title": "Resume & Personal Branding",
-        "lessons": [
-          {
-            "id": "les_grad_b_1_1",
-            "title": "ATS Proof Resume Architect & LinkedIn Profile That Gets Interviews",
-            "duration": "20:00",
-            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
-            "summary": "How to stand out in top corporate and startup hiring pipelines.",
-            "isFreePreview": true,
-            "attachments": [],
-            "_id": "6a93df3041e30ec5b84759fb"
-          }
-        ],
-        "_id": "6a93df3041e30ec5b84759fa"
-      }
-    ],
-    "createdAt": "2026-08-30T07:40:39.735Z"
-  },
-  {
-    "id": "6a93df2b82faf40c004a9dee",
-    "title": "Elite Career Acceleration & College Admission Portfolio",
-    "slug": "elite-career-acceleration-admission-portfolio",
-    "description": "Personal statement drafting, profile building, Ivy League/Tier-1 college strategy, and scholarship advisory.",
-    "thumbnailUrl": "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=800",
-    "tier": "pro",
-    "category": "11-12 Grade Student",
     "originalPrice": 9999,
-    "discountPrice": 3499,
-    "duration": "20 Hours",
-    "level": "Executive Mentorship",
-    "batch": "Regular Self-Paced Batch",
-    "published": true,
-    "chapters": [
-      {
-        "id": "ch_1112_pro_1",
-        "title": "High-Impact Portfolio Building",
-        "lessons": [
-          {
-            "id": "les_1112_pro_1_1",
-            "title": "Extracurriculars, Research Papers & SOP Mastery",
-            "duration": "28:00",
-            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
-            "summary": "Crafting a world-class application that stands out to top admissions committees.",
-            "isFreePreview": true,
-            "attachments": [],
-            "_id": "6a93df3041e30ec5b84759f7"
-          }
-        ],
-        "_id": "6a93df3041e30ec5b84759f6"
-      }
-    ],
-    "createdAt": "2026-08-30T07:40:39.735Z"
-  },
-  {
-    "id": "6a93df2b82faf40c004a9dec",
-    "title": "College Entrance & Competitive Exam Strategy",
-    "slug": "college-entrance-competitive-exam-strategy",
-    "description": "Targeted preparation for CUET, JEE, NEET, CLAT, IPMAT, and top national university admissions.",
-    "thumbnailUrl": "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800",
-    "tier": "advance",
-    "category": "11-12 Grade Student",
-    "originalPrice": 5999,
-    "discountPrice": 2199,
-    "duration": "14 Hours",
-    "level": "Competitive Prep",
-    "batch": "Regular Self-Paced Batch",
-    "published": true,
-    "chapters": [
-      {
-        "id": "ch_1112_adv_1",
-        "title": "Entrance Exam Mastery",
-        "lessons": [
-          {
-            "id": "les_1112_adv_1_1",
-            "title": "Mock Test Analytics, Speed Accuracy, and Elimination Tactics",
-            "duration": "22:00",
-            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
-            "summary": "How top percentile rankers optimize mock exams and time allocation.",
-            "isFreePreview": true,
-            "attachments": [],
-            "_id": "6a93df3041e30ec5b84759f3"
-          }
-        ],
-        "_id": "6a93df3041e30ec5b84759f2"
-      }
-    ],
-    "createdAt": "2026-08-30T07:40:39.735Z"
-  },
-  {
-    "id": "6a93df2b82faf40c004a9deb",
-    "title": "Higher Secondary Academic Excellence & Board Prep",
-    "slug": "higher-secondary-academic-excellence-boards",
-    "description": "Master Grade 11-12 core concepts, revision cycles, and high-scoring board exam strategies.",
-    "thumbnailUrl": "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?q=80&w=800",
-    "tier": "basic",
-    "category": "11-12 Grade Student",
-    "originalPrice": 3999,
-    "discountPrice": 1199,
-    "duration": "10 Hours",
-    "level": "Senior Secondary",
-    "batch": "Regular Self-Paced Batch",
-    "published": true,
-    "chapters": [
-      {
-        "id": "ch_1112_b_1",
-        "title": "Balancing Boards and Competitive Syllabi",
-        "lessons": [
-          {
-            "id": "les_1112_b_1_1",
-            "title": "Concept Retention & Revision Timetables",
-            "duration": "18:00",
-            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
-            "summary": "Frameworks to stay consistent throughout class 11 and 12 without burnout.",
-            "isFreePreview": true,
-            "attachments": [],
-            "_id": "6a93df3041e30ec5b84759ef"
-          }
-        ],
-        "_id": "6a93df3041e30ec5b84759ee"
-      }
-    ],
-    "createdAt": "2026-08-30T07:40:39.735Z"
-  },
-  {
-    "id": "6a93df2b82faf40c004a9dea",
-    "title": "Advanced Aptitude & Competitive Exam Foundations",
-    "slug": "advanced-aptitude-competitive-foundations",
-    "description": "Early foundation for NTSE, Olympiads, JEE/NEET basics, and CUET analytical skill sets.",
-    "thumbnailUrl": "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?q=80&w=800",
-    "tier": "pro",
-    "category": "8-10 Grade Student",
-    "originalPrice": 8999,
-    "discountPrice": 2999,
+    "discountPrice": 3,
     "duration": "18 Hours",
     "level": "Advanced",
     "batch": "Regular Self-Paced Batch",
     "published": true,
     "chapters": [
       {
-        "id": "ch_810_pro_1",
-        "title": "Competitive Excellence Framework",
+        "id": "ch-21",
+        "title": "Chapter 1: Corporate Resume & LinkedIn Optimization",
         "lessons": [
           {
-            "id": "les_810_pro_1_1",
-            "title": "Speed Mathematics, Verbal Reasoning & Science Aptitude",
-            "duration": "24:00",
-            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
-            "summary": "Techniques to master competitive problem solving early.",
-            "isFreePreview": true,
-            "attachments": [],
-            "_id": "6a93df3041e30ec5b84759eb"
-          }
-        ],
-        "_id": "6a93df3041e30ec5b84759ea"
-      }
-    ],
-    "createdAt": "2026-08-30T07:40:39.735Z"
-  },
-  {
-    "id": "6a93df2b82faf40c004a9de8",
-    "title": "Young Innovators: Science, Olympiad & Tech Explorer",
-    "slug": "young-innovators-science-tech-explorer",
-    "description": "Comprehensive stem mentorship, coding basics, and Olympiad competition prep for Grade 6-8.",
-    "thumbnailUrl": "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=800",
-    "tier": "pro",
-    "category": "6-8 Grade Student",
-    "originalPrice": 7999,
-    "discountPrice": 2999,
-    "duration": "16 Hours",
-    "level": "Advanced",
-    "batch": "Regular Self-Paced Batch",
-    "published": true,
-    "chapters": [
-      {
-        "id": "ch_68_pro_1",
-        "title": "STEM & Future Technologies",
-        "lessons": [
-          {
-            "id": "les_68_pro_1_1",
-            "title": "Introduction to Algorithmic Thinking & Science Projects",
-            "duration": "25:00",
-            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
-            "summary": "Hands-on scientific inquiry and algorithmic problem-solving for junior innovators.",
-            "isFreePreview": true,
-            "attachments": [],
-            "_id": "6a93df3041e30ec5b84759e3"
-          }
-        ],
-        "_id": "6a93df3041e30ec5b84759e2"
-      }
-    ],
-    "createdAt": "2026-08-30T07:40:39.735Z"
-  },
-  {
-    "id": "6a93df2b82faf40c004a9de7",
-    "title": "Cognitive Aptitude & Logic Building Masterclass",
-    "slug": "cognitive-aptitude-logic-building-grade68",
-    "description": "Structured mathematical thinking, puzzle solving, and scientific curiosity for Grade 6-8 achievers.",
-    "thumbnailUrl": "https://images.unsplash.com/photo-1509062522246-3755977927d7?q=80&w=800",
-    "tier": "advance",
-    "category": "6-8 Grade Student",
-    "originalPrice": 4999,
-    "discountPrice": 1999,
-    "duration": "12 Hours",
-    "level": "Intermediate",
-    "batch": "Regular Self-Paced Batch",
-    "published": true,
-    "chapters": [
-      {
-        "id": "ch_68_adv_1",
-        "title": "Analytical & Problem Solving Skills",
-        "lessons": [
-          {
-            "id": "les_68_adv_1_1",
-            "title": "First Principles Thinking & Mental Models for Kids",
-            "duration": "22:00",
-            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
-            "summary": "Master logical reasoning, Olympiad foundation techniques, and structured problem decomposition.",
-            "isFreePreview": true,
-            "attachments": [],
-            "_id": "6a93df3041e30ec5b84759df"
-          }
-        ],
-        "_id": "6a93df3041e30ec5b84759de"
-      }
-    ],
-    "createdAt": "2026-08-30T07:40:39.735Z"
-  },
-  {
-    "id": "6a93df2b82faf40c004a9de6",
-    "title": "Middle School Study Mastery & Foundational Habits",
-    "slug": "middle-school-study-mastery-habits",
-    "description": "Master efficient note-taking, active recall, and confident exam preparation for classes 6th to 8th.",
-    "thumbnailUrl": "https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?q=80&w=800",
-    "tier": "basic",
-    "category": "6-8 Grade Student",
-    "originalPrice": 2999,
-    "discountPrice": 999,
-    "duration": "8 Hours",
-    "level": "Middle School",
-    "batch": "Regular Self-Paced Batch",
-    "published": true,
-    "chapters": [
-      {
-        "id": "ch_68_b_1",
-        "title": "Effective Learning Systems",
-        "lessons": [
-          {
-            "id": "les_68_b_1_1",
-            "title": "Time Management & Study Scheduling for Grade 6-8",
-            "duration": "18:00",
-            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
-            "summary": "How middle school students can plan their study hours without stress.",
-            "isFreePreview": true,
-            "attachments": [],
-            "_id": "6a93df3041e30ec5b84759db"
-          }
-        ],
-        "_id": "6a93df3041e30ec5b84759da"
-      }
-    ],
-    "createdAt": "2026-08-30T07:40:39.735Z"
-  },
-  {
-    "id": "6a93df2b82faf40c004a9de5",
-    "title": "Primary Kudos: Holistic Child Growth & Cognitive Mastery",
-    "slug": "primary-kudos-holistic-growth-cognitive-mastery",
-    "description": "Advanced developmental coaching, emotional intelligence, and cognitive milestones for early childhood.",
-    "thumbnailUrl": "https://images.unsplash.com/photo-1588072432836-e10032774350?q=80&w=800",
-    "tier": "pro",
-    "category": "Primary Kudos",
-    "originalPrice": 6999,
-    "discountPrice": 2499,
-    "duration": "10 Hours",
-    "level": "Comprehensive",
-    "batch": "Regular Self-Paced Batch",
-    "published": true,
-    "chapters": [
-      {
-        "id": "ch_kudos_pro_1",
-        "title": "Cognitive Architecture for Young Explorers",
-        "lessons": [
-          {
-            "id": "les_kudos_pro_1_1",
-            "title": "Early Logic, Spatial Reasoning & Creative Expression",
-            "duration": "20:00",
-            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
-            "summary": "Cultivating emotional resilience, critical thinking, and structured play.",
-            "isFreePreview": true,
-            "attachments": [],
-            "_id": "6a93df3041e30ec5b84759d7"
-          }
-        ],
-        "_id": "6a93df3041e30ec5b84759d6"
-      }
-    ],
-    "createdAt": "2026-08-30T07:40:39.735Z"
-  },
-  {
-    "id": "6a93df2b82faf40c004a9de4",
-    "title": "Primary Kudos: Creative Skills & Foundational Habits",
-    "slug": "primary-kudos-creative-skills-habits",
-    "description": "Foundational creativity, reading comprehension, and playful cognitive habits for early young learners.",
-    "thumbnailUrl": "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?q=80&w=800",
-    "tier": "advance",
-    "category": "Primary Kudos",
-    "originalPrice": 3999,
-    "discountPrice": 1499,
-    "duration": "6 Hours",
-    "level": "Elementary",
-    "batch": "Regular Self-Paced Batch",
-    "published": true,
-    "chapters": [
-      {
-        "id": "ch_kudos_adv_1",
-        "title": "Curiosity & Playful Learning",
-        "lessons": [
-          {
-            "id": "les_kudos_adv_1_1",
-            "title": "Nurturing Inquisitive Minds & Daily Habits",
+            "id": "les_1786394033665",
+            "title": "Tech Career intro",
             "duration": "15:00",
-            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
-            "summary": "Practical frameworks for developing curiosity and focus at an early age.",
-            "isFreePreview": true,
+            "videoUrl": "https://youtu.be/RvtY1ITGcIM?si=jm9XOIzikmEcTiFx",
+            "summary": "Tech start...",
+            "isFreePreview": false,
             "attachments": [],
-            "_id": "6a93df2f41e30ec5b84759d3"
+            "_id": "6a7a35af6c8c957c5a2c87bd"
+          },
+          {
+            "id": "les_1788169747334",
+            "title": "Introduction Pro",
+            "duration": "15:00",
+            "videoUrl": "https://youtu.be/pejWYwTcvWo?si=1d-nY3HqNLEXAa86",
+            "summary": "",
+            "isFreePreview": false,
+            "attachments": [],
+            "_id": "6a954e1015f13da752b5fef4"
           }
         ],
-        "_id": "6a93df2f41e30ec5b84759d2"
+        "_id": "6a7a33326c8c957c5a2c8740"
       }
     ],
-    "createdAt": "2026-08-30T07:40:39.734Z"
-  },
-  {
-    "id": "6a93db821a1125c8fac0f18e",
-    "title": "Primary kudos",
-    "slug": "primary-kudos",
-    "description": "",
-    "thumbnailUrl": "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=800",
-    "tier": "pro",
-    "category": "Primary Kudos",
-    "originalPrice": 234,
-    "discountPrice": 1999,
-    "duration": "10 Hours",
-    "level": "All Levels",
-    "batch": "Regular Self-Paced Batch",
-    "published": true,
-    "chapters": [],
-    "createdAt": "2026-08-30T07:28:02.682Z"
-  },
-  {
-    "id": "6a93db551a1125c8fac0f184",
-    "title": "Primary kudos",
-    "slug": "primary-kudos",
-    "description": "",
-    "thumbnailUrl": "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=800",
-    "tier": "pro",
-    "category": "Primary Kudos",
-    "originalPrice": 234,
-    "discountPrice": 1999,
-    "duration": "10 Hours",
-    "level": "All Levels",
-    "batch": "Regular Self-Paced Batch",
-    "published": true,
-    "chapters": [],
-    "createdAt": "2026-08-30T07:28:02.682Z"
+    "createdAt": "2026-08-10T20:15:34.877Z"
   },
   {
     "id": "6a7a33d26c8c957c5a2c8749",
@@ -621,73 +142,582 @@
     "createdAt": "2026-08-10T20:25:54.445Z"
   },
   {
-    "id": "6a7a33326c8c957c5a2c873b",
-    "title": "Placement Blueprint",
-    "slug": "master-psychometric-career-stream-blueprint",
-    "description": "Comprehensive step-by-step masterclass covering MBTI, DISC, Holland Code, and multi-disciplinary career mapping for Grade 8-12 students.",
+    "id": "6a93db551a1125c8fac0f184",
+    "title": "Primary kudos",
+    "slug": "primary-kudos",
+    "description": "",
     "thumbnailUrl": "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=800",
-    "tier": "advance",
-    "category": "8-10 Grade",
-    "originalPrice": 4999,
-    "discountPrice": 1,
+    "tier": "pro",
+    "category": "Primary Kudos",
+    "originalPrice": 234,
+    "discountPrice": 1999,
     "duration": "10 Hours",
     "level": "All Levels",
     "batch": "Regular Self-Paced Batch",
     "published": true,
-    "chapters": [
-      {
-        "id": "ch_1786393893793",
-        "title": "Job Placement",
-        "lessons": [
-          {
-            "id": "les_1786393917610",
-            "title": "Intro for Apply",
-            "duration": "15:00",
-            "videoUrl": "https://youtu.be/RvtY1ITGcIM?si=jm9XOIzikmEcTiFx",
-            "summary": "Job placement",
-            "isFreePreview": false,
-            "attachments": [],
-            "_id": "6a7a353b6c8c957c5a2c8798"
-          }
-        ],
-        "_id": "6a7a35236c8c957c5a2c878e"
-      }
-    ],
-    "createdAt": "2026-08-10T20:15:34.877Z"
+    "chapters": [],
+    "createdAt": "2026-08-30T07:28:02.682Z"
   },
   {
-    "id": "6a7a33326c8c957c5a2c873f",
-    "title": " Modern Masterclass",
-    "slug": "pro-mentorship-modern-tech-management-placement",
-    "description": "1:1 coaching roadmap, LinkedIn positioning, resume profiling, and high-impact corporate placement guidance.",
-    "thumbnailUrl": "https://images.unsplash.com/photo-1531482615713-2afd69097998?q=80&w=800",
+    "id": "6a93db821a1125c8fac0f18e",
+    "title": "Primary kudos",
+    "slug": "primary-kudos",
+    "description": "",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=800",
     "tier": "pro",
-    "category": "UG/Graduate/PG",
-    "originalPrice": 9999,
-    "discountPrice": 3,
+    "category": "Primary Kudos",
+    "originalPrice": 234,
+    "discountPrice": 1999,
+    "duration": "10 Hours",
+    "level": "All Levels",
+    "batch": "Regular Self-Paced Batch",
+    "published": true,
+    "chapters": [],
+    "createdAt": "2026-08-30T07:28:02.682Z"
+  },
+  {
+    "id": "6a93df2b82faf40c004a9de4",
+    "title": "Primary Kudos: Creative Skills & Foundational Habits",
+    "slug": "primary-kudos-creative-skills-habits",
+    "description": "Foundational creativity, reading comprehension, and playful cognitive habits for early young learners.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?q=80&w=800",
+    "tier": "advance",
+    "category": "Primary Kudos",
+    "originalPrice": 3999,
+    "discountPrice": 1499,
+    "duration": "6 Hours",
+    "level": "Elementary",
+    "batch": "Regular Self-Paced Batch",
+    "published": true,
+    "chapters": [
+      {
+        "id": "ch_kudos_adv_1",
+        "title": "Curiosity & Playful Learning",
+        "lessons": [
+          {
+            "id": "les_kudos_adv_1_1",
+            "title": "Nurturing Inquisitive Minds & Daily Habits",
+            "duration": "15:00",
+            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "summary": "Practical frameworks for developing curiosity and focus at an early age.",
+            "isFreePreview": true,
+            "attachments": [],
+            "_id": "6a93df2f41e30ec5b84759d3"
+          }
+        ],
+        "_id": "6a93df2f41e30ec5b84759d2"
+      }
+    ],
+    "createdAt": "2026-08-30T07:40:39.734Z"
+  },
+  {
+    "id": "6a93df2b82faf40c004a9de5",
+    "title": "Primary Kudos: Holistic Child Growth & Cognitive Mastery",
+    "slug": "primary-kudos-holistic-growth-cognitive-mastery",
+    "description": "Advanced developmental coaching, emotional intelligence, and cognitive milestones for early childhood.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1588072432836-e10032774350?q=80&w=800",
+    "tier": "pro",
+    "category": "Primary Kudos",
+    "originalPrice": 6999,
+    "discountPrice": 2499,
+    "duration": "10 Hours",
+    "level": "Comprehensive",
+    "batch": "Regular Self-Paced Batch",
+    "published": true,
+    "chapters": [
+      {
+        "id": "ch_kudos_pro_1",
+        "title": "Cognitive Architecture for Young Explorers",
+        "lessons": [
+          {
+            "id": "les_kudos_pro_1_1",
+            "title": "Early Logic, Spatial Reasoning & Creative Expression",
+            "duration": "20:00",
+            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "summary": "Cultivating emotional resilience, critical thinking, and structured play.",
+            "isFreePreview": true,
+            "attachments": [],
+            "_id": "6a93df3041e30ec5b84759d7"
+          }
+        ],
+        "_id": "6a93df3041e30ec5b84759d6"
+      }
+    ],
+    "createdAt": "2026-08-30T07:40:39.735Z"
+  },
+  {
+    "id": "6a93df2b82faf40c004a9de6",
+    "title": "Middle School Study Mastery & Foundational Habits",
+    "slug": "middle-school-study-mastery-habits",
+    "description": "Master efficient note-taking, active recall, and confident exam preparation for classes 6th to 8th.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?q=80&w=800",
+    "tier": "basic",
+    "category": "6-8 Grade Student",
+    "originalPrice": 2999,
+    "discountPrice": 999,
+    "duration": "8 Hours",
+    "level": "Middle School",
+    "batch": "Regular Self-Paced Batch",
+    "published": true,
+    "chapters": [
+      {
+        "id": "ch_68_b_1",
+        "title": "Effective Learning Systems",
+        "lessons": [
+          {
+            "id": "les_68_b_1_1",
+            "title": "Time Management & Study Scheduling for Grade 6-8",
+            "duration": "18:00",
+            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "summary": "How middle school students can plan their study hours without stress.",
+            "isFreePreview": true,
+            "attachments": [],
+            "_id": "6a93df3041e30ec5b84759db"
+          }
+        ],
+        "_id": "6a93df3041e30ec5b84759da"
+      }
+    ],
+    "createdAt": "2026-08-30T07:40:39.735Z"
+  },
+  {
+    "id": "6a93df2b82faf40c004a9de7",
+    "title": "Cognitive Aptitude & Logic Building Masterclass",
+    "slug": "cognitive-aptitude-logic-building-grade68",
+    "description": "Structured mathematical thinking, puzzle solving, and scientific curiosity for Grade 6-8 achievers.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1509062522246-3755977927d7?q=80&w=800",
+    "tier": "advance",
+    "category": "6-8 Grade Student",
+    "originalPrice": 4999,
+    "discountPrice": 1999,
+    "duration": "12 Hours",
+    "level": "Intermediate",
+    "batch": "Regular Self-Paced Batch",
+    "published": true,
+    "chapters": [
+      {
+        "id": "ch_68_adv_1",
+        "title": "Analytical & Problem Solving Skills",
+        "lessons": [
+          {
+            "id": "les_68_adv_1_1",
+            "title": "First Principles Thinking & Mental Models for Kids",
+            "duration": "22:00",
+            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "summary": "Master logical reasoning, Olympiad foundation techniques, and structured problem decomposition.",
+            "isFreePreview": true,
+            "attachments": [],
+            "_id": "6a93df3041e30ec5b84759df"
+          }
+        ],
+        "_id": "6a93df3041e30ec5b84759de"
+      }
+    ],
+    "createdAt": "2026-08-30T07:40:39.735Z"
+  },
+  {
+    "id": "6a93df2b82faf40c004a9de8",
+    "title": "Young Innovators: Science, Olympiad & Tech Explorer",
+    "slug": "young-innovators-science-tech-explorer",
+    "description": "Comprehensive stem mentorship, coding basics, and Olympiad competition prep for Grade 6-8.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=800",
+    "tier": "pro",
+    "category": "6-8 Grade Student",
+    "originalPrice": 7999,
+    "discountPrice": 2999,
+    "duration": "16 Hours",
+    "level": "Advanced",
+    "batch": "Regular Self-Paced Batch",
+    "published": true,
+    "chapters": [
+      {
+        "id": "ch_68_pro_1",
+        "title": "STEM & Future Technologies",
+        "lessons": [
+          {
+            "id": "les_68_pro_1_1",
+            "title": "Introduction to Algorithmic Thinking & Science Projects",
+            "duration": "25:00",
+            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "summary": "Hands-on scientific inquiry and algorithmic problem-solving for junior innovators.",
+            "isFreePreview": true,
+            "attachments": [],
+            "_id": "6a93df3041e30ec5b84759e3"
+          }
+        ],
+        "_id": "6a93df3041e30ec5b84759e2"
+      }
+    ],
+    "createdAt": "2026-08-30T07:40:39.735Z"
+  },
+  {
+    "id": "6a93df2b82faf40c004a9de9",
+    "title": "Board Exam Strategy & Stream Selection Navigator",
+    "slug": "board-exam-strategy-stream-navigator",
+    "description": "Comprehensive roadmap for cracking 10th board exams and selecting Science, Commerce, or Humanities.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=800",
+    "tier": "basic",
+    "category": "8-10 Grade Student",
+    "originalPrice": 3499,
+    "discountPrice": 999,
+    "duration": "10 Hours",
+    "level": "Board Prep",
+    "batch": "Regular Self-Paced Batch",
+    "published": true,
+    "chapters": [
+      {
+        "id": "ch_810_b_1",
+        "title": "Stream Clarity & Syllabus Roadmap",
+        "lessons": [
+          {
+            "id": "les_810_b_1_1",
+            "title": "Psychometric Stream Selection & Subject Mapping",
+            "duration": "20:00",
+            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "summary": "Deep dive into stream selection after class 10th aligned with your psychometric profile.",
+            "isFreePreview": true,
+            "attachments": [],
+            "_id": "6a93df3041e30ec5b84759e7"
+          }
+        ],
+        "_id": "6a93df3041e30ec5b84759e6"
+      }
+    ],
+    "createdAt": "2026-08-30T07:40:39.735Z"
+  },
+  {
+    "id": "6a93df2b82faf40c004a9dea",
+    "title": "Advanced Aptitude & Competitive Exam Foundations",
+    "slug": "advanced-aptitude-competitive-foundations",
+    "description": "Early foundation for NTSE, Olympiads, JEE/NEET basics, and CUET analytical skill sets.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?q=80&w=800",
+    "tier": "pro",
+    "category": "8-10 Grade Student",
+    "originalPrice": 8999,
+    "discountPrice": 2999,
     "duration": "18 Hours",
     "level": "Advanced",
     "batch": "Regular Self-Paced Batch",
     "published": true,
     "chapters": [
       {
-        "id": "ch-21",
-        "title": "Chapter 1: Corporate Resume & LinkedIn Optimization",
+        "id": "ch_810_pro_1",
+        "title": "Competitive Excellence Framework",
         "lessons": [
           {
-            "id": "les_1786394033665",
-            "title": "Tech Career intro",
-            "duration": "15:00",
-            "videoUrl": "https://youtu.be/RvtY1ITGcIM?si=jm9XOIzikmEcTiFx",
-            "summary": "Tech start...",
-            "isFreePreview": false,
+            "id": "les_810_pro_1_1",
+            "title": "Speed Mathematics, Verbal Reasoning & Science Aptitude",
+            "duration": "24:00",
+            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "summary": "Techniques to master competitive problem solving early.",
+            "isFreePreview": true,
             "attachments": [],
-            "_id": "6a7a35af6c8c957c5a2c87bd"
+            "_id": "6a93df3041e30ec5b84759eb"
           }
         ],
-        "_id": "6a7a33326c8c957c5a2c8740"
+        "_id": "6a93df3041e30ec5b84759ea"
       }
     ],
-    "createdAt": "2026-08-10T20:15:34.877Z"
+    "createdAt": "2026-08-30T07:40:39.735Z"
+  },
+  {
+    "id": "6a93df2b82faf40c004a9deb",
+    "title": "Higher Secondary Academic Excellence & Board Prep",
+    "slug": "higher-secondary-academic-excellence-boards",
+    "description": "Master Grade 11-12 core concepts, revision cycles, and high-scoring board exam strategies.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?q=80&w=800",
+    "tier": "basic",
+    "category": "11-12 Grade Student",
+    "originalPrice": 3999,
+    "discountPrice": 1199,
+    "duration": "10 Hours",
+    "level": "Senior Secondary",
+    "batch": "Regular Self-Paced Batch",
+    "published": true,
+    "chapters": [
+      {
+        "id": "ch_1112_b_1",
+        "title": "Balancing Boards and Competitive Syllabi",
+        "lessons": [
+          {
+            "id": "les_1112_b_1_1",
+            "title": "Concept Retention & Revision Timetables",
+            "duration": "18:00",
+            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "summary": "Frameworks to stay consistent throughout class 11 and 12 without burnout.",
+            "isFreePreview": true,
+            "attachments": [],
+            "_id": "6a93df3041e30ec5b84759ef"
+          }
+        ],
+        "_id": "6a93df3041e30ec5b84759ee"
+      }
+    ],
+    "createdAt": "2026-08-30T07:40:39.735Z"
+  },
+  {
+    "id": "6a93df2b82faf40c004a9dec",
+    "title": "College Entrance & Competitive Exam Strategy",
+    "slug": "college-entrance-competitive-exam-strategy",
+    "description": "Targeted preparation for CUET, JEE, NEET, CLAT, IPMAT, and top national university admissions.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=800",
+    "tier": "advance",
+    "category": "11-12 Grade Student",
+    "originalPrice": 5999,
+    "discountPrice": 2199,
+    "duration": "14 Hours",
+    "level": "Competitive Prep",
+    "batch": "Regular Self-Paced Batch",
+    "published": true,
+    "chapters": [
+      {
+        "id": "ch_1112_adv_1",
+        "title": "Entrance Exam Mastery",
+        "lessons": [
+          {
+            "id": "les_1112_adv_1_1",
+            "title": "Mock Test Analytics, Speed Accuracy, and Elimination Tactics",
+            "duration": "22:00",
+            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "summary": "How top percentile rankers optimize mock exams and time allocation.",
+            "isFreePreview": true,
+            "attachments": [],
+            "_id": "6a93df3041e30ec5b84759f3"
+          }
+        ],
+        "_id": "6a93df3041e30ec5b84759f2"
+      }
+    ],
+    "createdAt": "2026-08-30T07:40:39.735Z"
+  },
+  {
+    "id": "6a93df2b82faf40c004a9dee",
+    "title": "Elite Career Acceleration & College Admission Portfolio",
+    "slug": "elite-career-acceleration-admission-portfolio",
+    "description": "Personal statement drafting, profile building, Ivy League/Tier-1 college strategy, and scholarship advisory.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=800",
+    "tier": "pro",
+    "category": "11-12 Grade Student",
+    "originalPrice": 9999,
+    "discountPrice": 3499,
+    "duration": "20 Hours",
+    "level": "Executive Mentorship",
+    "batch": "Regular Self-Paced Batch",
+    "published": true,
+    "chapters": [
+      {
+        "id": "ch_1112_pro_1",
+        "title": "High-Impact Portfolio Building",
+        "lessons": [
+          {
+            "id": "les_1112_pro_1_1",
+            "title": "Extracurriculars, Research Papers & SOP Mastery",
+            "duration": "28:00",
+            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "summary": "Crafting a world-class application that stands out to top admissions committees.",
+            "isFreePreview": true,
+            "attachments": [],
+            "_id": "6a93df3041e30ec5b84759f7"
+          }
+        ],
+        "_id": "6a93df3041e30ec5b84759f6"
+      }
+    ],
+    "createdAt": "2026-08-30T07:40:39.735Z"
+  },
+  {
+    "id": "6a93df2b82faf40c004a9def",
+    "title": "Graduate Professional Readiness & Career Toolkit",
+    "slug": "graduate-professional-readiness-career-toolkit",
+    "description": "Resume building, LinkedIn optimization, ATS compliance, and networking for college graduates.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1521737711867-e3b97375f902?q=80&w=800",
+    "tier": "basic",
+    "category": "UG/Graduate/PG",
+    "originalPrice": 3499,
+    "discountPrice": 999,
+    "duration": "8 Hours",
+    "level": "College / Early Career",
+    "batch": "Regular Self-Paced Batch",
+    "published": true,
+    "chapters": [
+      {
+        "id": "ch_grad_b_1",
+        "title": "Resume & Personal Branding",
+        "lessons": [
+          {
+            "id": "les_grad_b_1_1",
+            "title": "ATS Proof Resume Architect & LinkedIn Profile That Gets Interviews",
+            "duration": "20:00",
+            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "summary": "How to stand out in top corporate and startup hiring pipelines.",
+            "isFreePreview": true,
+            "attachments": [],
+            "_id": "6a93df3041e30ec5b84759fb"
+          },
+          {
+            "id": "les_1788169724498",
+            "title": "Introduction basic",
+            "duration": "15:00",
+            "videoUrl": "https://youtu.be/pejWYwTcvWo?si=1d-nY3HqNLEXAa86",
+            "summary": "",
+            "isFreePreview": false,
+            "attachments": [],
+            "_id": "6a954dfa15f13da752b5fec6"
+          }
+        ],
+        "_id": "6a93df3041e30ec5b84759fa"
+      }
+    ],
+    "createdAt": "2026-08-30T07:40:39.735Z"
+  },
+  {
+    "id": "6a93df2c82faf40c004a9df0",
+    "title": "Industry Domain Mastery & Technical Interview Strategy",
+    "slug": "industry-domain-mastery-interview-strategy",
+    "description": "Case study solving, technical interview simulations, behavioral questions, and compensation negotiation.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1515187029135-18ee286d815b?q=80&w=800",
+    "tier": "advance",
+    "category": "UG/Graduate/PG",
+    "originalPrice": 5999,
+    "discountPrice": 2199,
+    "duration": "14 Hours",
+    "level": "Job Ready",
+    "batch": "Regular Self-Paced Batch",
+    "published": true,
+    "chapters": [
+      {
+        "id": "ch_grad_adv_1",
+        "title": "Acing Interviews & Negotiations",
+        "lessons": [
+          {
+            "id": "les_grad_adv_1_1",
+            "title": "Behavioral STAR Method & Real-World Case Studies",
+            "duration": "24:00",
+            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "summary": "Mastering tough interview questions and commanding top compensation offers.",
+            "isFreePreview": true,
+            "attachments": [],
+            "_id": "6a93df3041e30ec5b84759ff"
+          },
+          {
+            "id": "les_1788169702029",
+            "title": "Introduction",
+            "duration": "15:00",
+            "videoUrl": "https://youtu.be/pejWYwTcvWo?si=1d-nY3HqNLEXAa86",
+            "summary": "",
+            "isFreePreview": false,
+            "attachments": [],
+            "_id": "6a954de315f13da752b5fe99"
+          }
+        ],
+        "_id": "6a93df3041e30ec5b84759fe"
+      }
+    ],
+    "createdAt": "2026-08-30T07:40:39.735Z"
+  },
+  {
+    "id": "6a93df2c82faf40c004a9df1",
+    "title": "Domain Discovery & Skill Transition Fundamentals",
+    "slug": "domain-discovery-skill-transition-fundamentals",
+    "description": "Frameworks to assess your transferable skills, pinpoint high-growth industries, and map career pivot.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=800",
+    "tier": "basic",
+    "category": "Generalist to Specialist",
+    "originalPrice": 3999,
+    "discountPrice": 1199,
+    "duration": "8 Hours",
+    "level": "Professional",
+    "batch": "Regular Self-Paced Batch",
+    "published": true,
+    "chapters": [
+      {
+        "id": "ch_gen_b_1",
+        "title": "Career Audit & Pivot Assessment",
+        "lessons": [
+          {
+            "id": "les_gen_b_1_1",
+            "title": "Mapping Strengths, Market Demand & Industry Trends",
+            "duration": "18:00",
+            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "summary": "Step-by-step methodology to transition from general role to a high-leverage specialization.",
+            "isFreePreview": true,
+            "attachments": [],
+            "_id": "6a93df3041e30ec5b8475a03"
+          }
+        ],
+        "_id": "6a93df3041e30ec5b8475a02"
+      }
+    ],
+    "createdAt": "2026-08-30T07:40:39.735Z"
+  },
+  {
+    "id": "6a93df2c82faf40c004a9df2",
+    "title": "Specialization Strategy & Professional Deep Work",
+    "slug": "specialization-strategy-professional-deep-work",
+    "description": "Mastering a high-demand niche, rapid portfolio building, and enterprise case-studies execution.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1552664730-d307ca884978?q=80&w=800",
+    "tier": "advance",
+    "category": "Generalist to Specialist",
+    "originalPrice": 6499,
+    "discountPrice": 2499,
+    "duration": "14 Hours",
+    "level": "Specialist Track",
+    "batch": "Regular Self-Paced Batch",
+    "published": true,
+    "chapters": [
+      {
+        "id": "ch_gen_adv_1",
+        "title": "Deep Competency Development",
+        "lessons": [
+          {
+            "id": "les_gen_adv_1_1",
+            "title": "Niche Dominance & Rapid Proof of Work Creation",
+            "duration": "22:00",
+            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "summary": "Build indisputable proof of expertise in your chosen domain in 90 days.",
+            "isFreePreview": true,
+            "attachments": [],
+            "_id": "6a93df3141e30ec5b8475a07"
+          }
+        ],
+        "_id": "6a93df3141e30ec5b8475a06"
+      }
+    ],
+    "createdAt": "2026-08-30T07:40:39.735Z"
+  },
+  {
+    "id": "6a93df2c82faf40c004a9df3",
+    "title": "Executive Niche Leadership & High-Impact Career Mastery",
+    "slug": "executive-niche-leadership-high-impact-mastery",
+    "description": "Senior leadership presence, high-ticket consulting models, executive stakeholder communication, and industry authority.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1507679799987-c73779587ccf?q=80&w=800",
+    "tier": "pro",
+    "category": "Generalist to Specialist",
+    "originalPrice": 9999,
+    "discountPrice": 3999,
+    "duration": "20 Hours",
+    "level": "Executive Masterclass",
+    "batch": "Regular Self-Paced Batch",
+    "published": true,
+    "chapters": [
+      {
+        "id": "ch_gen_pro_1",
+        "title": "Executive Authority & Enterprise Influence",
+        "lessons": [
+          {
+            "id": "les_gen_pro_1_1",
+            "title": "Becoming the Go-To Specialist in Your Industry",
+            "duration": "30:00",
+            "videoUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "summary": "Transform from an operator into an indispensable industry authority and executive thought leader.",
+            "isFreePreview": true,
+            "attachments": [],
+            "_id": "6a93df3141e30ec5b8475a0b"
+          }
+        ],
+        "_id": "6a93df3141e30ec5b8475a0a"
+      }
+    ],
+    "createdAt": "2026-08-30T07:40:39.735Z"
   }
 ]

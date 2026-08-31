@@ -2621,6 +2621,9 @@ async function reconcileAllStudentEnrollments(): Promise<{ reconciledCount: numb
             if (!student.enrolledCourses.includes(cid)) {
               student.enrolledCourses.push(cid);
             }
+            if (matchedCourse.category && (!student.enrolledPrograms || student.enrolledPrograms.length === 0)) {
+              student.enrolledPrograms = [matchedCourse.category];
+            }
           }
         }
       });
@@ -2801,13 +2804,23 @@ app.post("/api/payment-submit", async (req, res) => {
 
     // If Auto-Approval is active, automatically whitelist student phone for Instant Access with all category and tier courses!
     if (autoApprovalActive) {
-      const assignedPrograms = role ? [role] : [];
+      let assignedPrograms = role ? [role] : [];
+      let assignedCourses: string[] = [];
+      if (role && role.startsWith("Course:")) {
+        const cTitle = role.replace("Course:", "").trim();
+        const allSystemCourses = await getSystemCoursesList();
+        const targetCourse = allSystemCourses.find((c: any) => doCategoriesMatch(c.title, cTitle) || c.title.toLowerCase().includes(cTitle.toLowerCase()));
+        if (targetCourse) {
+          assignedPrograms = targetCourse.category ? [targetCourse.category] : [];
+          assignedCourses = [String(targetCourse.id || targetCourse._id)];
+        }
+      }
       await grantStudentAccess(
         cleanNum,
         studentFullName,
         selectedPlan,
         assignedPrograms,
-        [],
+        assignedCourses,
         email ? String(email).trim().toLowerCase() : ""
       );
     }
@@ -7048,7 +7061,11 @@ app.post("/api/courses/enroll", async (req, res) => {
 
     // 2. Automatically Whitelist Student Phone for Instant LMS Access if auto approval is active
     if (autoApprovalActive) {
-      await grantStudentAccess(cleanPhone, studentFullName, courseTier);
+      const allSystemCourses = await getSystemCoursesList();
+      const targetCourse = allSystemCourses.find((c: any) => (courseId && (c.id === courseId || c._id === courseId)) || (courseTitle && c.title.toLowerCase().includes(courseTitle.toLowerCase())));
+      const progList = targetCourse?.category ? [targetCourse.category] : [];
+      const courseList = courseId ? [courseId] : targetCourse ? [String(targetCourse.id || targetCourse._id)] : [];
+      await grantStudentAccess(cleanPhone, studentFullName, courseTier, progList, courseList, cleanEmail);
     }
 
     // 3. Initialize Course Progress Entry if courseId is available
@@ -7868,7 +7885,12 @@ app.get("/api/student/dashboard-data", async (req, res) => {
     ];
 
     const customEnrolledPrograms: string[] = authDoc?.enrolledPrograms || [];
-    const hasAllAccess = customEnrolledPrograms.includes("all") || customEnrolledPrograms.includes("all_programs") || customEnrolledPrograms.includes("*") || (isAuthorized && userTier === "pro" && customEnrolledPrograms.length === 0);
+    const ADMIN_PHONES = ["7428613102", "917428613102", "7428613104"];
+    const hasAllAccess = (cleanPhone && ADMIN_PHONES.includes(cleanPhone)) ||
+      customEnrolledPrograms.some(p => {
+        const s = String(p).toLowerCase().trim();
+        return s === "all" || s === "all_programs" || s === "*";
+      });
 
     programDefs.forEach(prog => {
       const isCustomAssigned = hasAllAccess || customEnrolledPrograms.some(
@@ -7878,7 +7900,8 @@ app.get("/api/student/dashboard-data", async (req, res) => {
                  norm === prog.alias || 
                  norm === prog.title.toLowerCase() || 
                  prog.title.toLowerCase().includes(norm) ||
-                 norm.includes(prog.key);
+                 norm.includes(prog.key) ||
+                 doCategoriesMatch(prog.title, cp);
         }
       );
 
@@ -7886,7 +7909,14 @@ app.get("/api/student/dashboard-data", async (req, res) => {
         const pEmail = p.email?.trim().toLowerCase();
         const pPhone = p.number?.replace(/[^0-9]/g, "");
         const matchesUser = (cleanEmail && pEmail === cleanEmail) || (cleanPhone && (pPhone === cleanPhone || pPhone?.endsWith(cleanPhone)));
-        return matchesUser && (p.role === prog.title || p.plan?.includes(prog.title) || p.role?.includes(prog.key));
+        if (!matchesUser) return false;
+        if (p.role === prog.title || p.plan?.includes(prog.title) || p.role?.includes(prog.key)) return true;
+        if (p.role && p.role.startsWith("Course:")) {
+          const courseTitle = p.role.replace("Course:", "").trim().toLowerCase();
+          const matchedCrs = allCoursesList.find((c: any) => c.title.toLowerCase().includes(courseTitle) || courseTitle.includes(c.title.toLowerCase()));
+          if (matchedCrs && doCategoriesMatch(matchedCrs.category, prog.title)) return true;
+        }
+        return false;
       });
 
       const hasSub = submissions.some((s: any) => {
@@ -7896,7 +7926,7 @@ app.get("/api/student/dashboard-data", async (req, res) => {
         return matchesUser && (s.role === prog.title || s.role?.includes(prog.key));
       });
 
-      const matchesRole = studentRole === prog.title || studentRole.includes(prog.key) || (prog.key === "9-10" && studentRole.includes("8-10"));
+      const matchesRole = studentRole && !studentRole.startsWith("Course:") && (studentRole === prog.title || studentRole.includes(prog.key) || (prog.key === "9-10" && studentRole.includes("8-10")));
 
       if (isCustomAssigned || matchingPayment || hasSub || matchesRole) {
         let progTier = userTier;
