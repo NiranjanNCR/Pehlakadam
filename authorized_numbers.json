@@ -30,7 +30,7 @@
       "6a93df2c82faf40c004a9df3"
     ],
     "createdAt": "2026-08-10T10:48:06.799Z",
-    "updatedAt": "2026-08-30T07:59:19.793Z"
+    "updatedAt": "2026-08-31T08:16:22.617Z"
   },
   {
     "id": "6a79afa4d801907db02e585b",
@@ -63,7 +63,7 @@
       "6a93df2c82faf40c004a9df3"
     ],
     "createdAt": "2026-08-10T11:01:56.301Z",
-    "updatedAt": "2026-08-30T07:59:20.777Z"
+    "updatedAt": "2026-08-31T08:16:25.727Z"
   },
   {
     "id": "6a831329ba905e3a4f2a5788",
@@ -83,25 +83,29 @@
       "6a93df2b82faf40c004a9de8"
     ],
     "createdAt": "2026-08-21T12:07:45.685Z",
-    "updatedAt": "2026-08-30T07:59:22.787Z"
+    "updatedAt": "2026-08-31T08:16:28.877Z"
   },
   {
     "id": "6a831329ba905e3a4f2a5789",
     "number": "9123456789",
+    "studentName": "Enrolled Student",
+    "email": "",
     "tier": "pro",
     "enrolledPrograms": [],
     "enrolledCourses": [],
     "createdAt": "2026-08-17T13:56:57.827Z",
-    "updatedAt": "2026-08-30T07:59:24.116Z"
+    "updatedAt": "2026-08-31T08:16:31.483Z"
   },
   {
     "id": "6a831342ba905e3a4f2a578b",
     "number": "9811223344",
+    "studentName": "Enrolled Student",
+    "email": "",
     "tier": "pro",
     "enrolledPrograms": [],
     "enrolledCourses": [],
     "createdAt": "2026-08-17T13:58:52.512Z",
-    "updatedAt": "2026-08-30T07:59:24.847Z"
+    "updatedAt": "2026-08-31T08:16:34.324Z"
   },
   {
     "id": "6a8d89f92134d3e0092846aa",
@@ -114,7 +118,7 @@
       "6a7a33326c8c957c5a2c873f"
     ],
     "createdAt": "2026-08-25T12:26:33.604Z",
-    "updatedAt": "2026-08-30T07:59:26.230Z"
+    "updatedAt": "2026-08-31T08:16:37.789Z"
   },
   {
     "id": "6a927c3382faf40c0049a8ed",
@@ -130,7 +134,7 @@
       "6a93df2b82faf40c004a9de4"
     ],
     "createdAt": "2026-08-29T06:29:07.619Z",
-    "updatedAt": "2026-08-30T07:59:27.492Z"
+    "updatedAt": "2026-08-31T08:16:40.588Z"
   },
   {
     "id": "6a92a28b82faf40c0049c633",
@@ -147,7 +151,7 @@
       "6a93df2c82faf40c004a9df0"
     ],
     "createdAt": "2026-08-29T09:12:43.071Z",
-    "updatedAt": "2026-08-30T07:59:28.752Z"
+    "updatedAt": "2026-08-31T08:16:44.347Z"
   },
   {
     "id": "6a92a43782faf40c0049c780",
@@ -163,7 +167,7 @@
       "6a93df2c82faf40c004a9df0"
     ],
     "createdAt": "2026-08-29T09:19:51.159Z",
-    "updatedAt": "2026-08-30T07:59:29.957Z"
+    "updatedAt": "2026-08-31T08:16:47.136Z"
   },
   {
     "id": "6a93df5e82faf40c004a9e25",
@@ -180,7 +184,7 @@
       "6a93df2c82faf40c004a9df0"
     ],
     "createdAt": "2026-08-30T07:44:30.393Z",
-    "updatedAt": "2026-08-30T07:59:31.090Z"
+    "updatedAt": "2026-08-31T08:16:50.079Z"
   },
   {
     "id": "6a93dfbe82faf40c004a9e8d",
@@ -195,7 +199,7 @@
       "6a7a33d26c8c957c5a2c8749"
     ],
     "createdAt": "2026-08-30T07:46:06.764Z",
-    "updatedAt": "2026-08-30T07:59:32.226Z"
+    "updatedAt": "2026-08-31T08:16:52.856Z"
   },
   {
     "id": "6a93dfc182faf40c004a9e90",
@@ -211,7 +215,7 @@
       "6a93df2b82faf40c004a9de7"
     ],
     "createdAt": "2026-08-30T07:46:09.206Z",
-    "updatedAt": "2026-08-30T07:59:33.299Z"
+    "updatedAt": "2026-08-31T08:16:55.205Z"
   },
   {
     "id": "6a93dfc382faf40c004a9e96",
@@ -228,6 +232,6 @@
       "6a93df2c82faf40c004a9df0"
     ],
     "createdAt": "2026-08-30T07:46:11.256Z",
-    "updatedAt": "2026-08-30T07:59:34.397Z"
+    "updatedAt": "2026-08-31T08:16:57.093Z"
   }
 ]

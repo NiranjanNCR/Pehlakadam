@@ -1,62 +1,207 @@
 [
   {
-    "_id": "1787314014081",
-    "id": "1787314014081",
+    "id": "6a8d8cb5b0c952e5b49952a9",
     "user": {
-      "name": "Test Student",
-      "email": "test.student@example.com",
-      "phone": "9876543210",
-      "classGrade": "10th",
-      "school": "Pehlakadam Academy"
+      "name": "user2 singh",
+      "email": "user1@gmail.com",
+      "phone": "9560369796",
+      "role": "Enrolled Scholar",
+      "specialDetail": "Auto-detected Enrolled Profile"
     },
-    "testKey": "stream-selector",
-    "testTitle": "Scientific Diagnostics Evaluation",
+    "testKey": "enneagram",
+    "testTitle": "Enneagram Core Test",
     "answers": {
-      "1": "A",
-      "2": "B",
-      "3": "A",
-      "4": "C"
+      "en_q1": "Type 1 - Reformer",
+      "en_q2": "Type 5 - Investigator",
+      "en_q3": "Type 2 - Helper",
+      "en_q4": "Type 6 - Loyalist",
+      "en_q5": "Type 1 - Reformer"
     },
     "score": {
       "breakdown": {
-        "A": 50,
-        "B": 25,
-        "C": 25
+        "Type 1 - Reformer": 40,
+        "Type 2 - Helper": 20,
+        "Type 3 - Achiever": 0,
+        "Type 4 - Individualist": 0,
+        "Type 5 - Investigator": 20,
+        "Type 6 - Loyalist": 20,
+        "Type 7 - Enthusiast": 0,
+        "Type 8 - Challenger": 0,
+        "Type 9 - Peacemaker": 0
       },
-      "dominant": "A",
-      "summary": "Your assessment shows a dominant preference for the A dimension. This represents your primary behavior, analytical approach, and thinking pattern.",
-      "title": "A Dimension Profile"
+      "dominantType": "Type 1 - Reformer",
+      "summary": "Your core driving motivator is represented by Type 1 - Reformer. This defines your path of personal integration, helping you align with authentic career callings.",
+      "title": "Enneagram Profile: Type 1 - Reformer",
+      "overallCorrectnessPercentage": 0,
+      "percentage": 0,
+      "correctCount": 0,
+      "incorrectCount": 5,
+      "skippedCount": 0,
+      "totalCount": 5,
+      "questionCorrectnessBreakdown": [
+        {
+          "questionId": "en_q1",
+          "questionText": "What is your deepest core desire or ultimate goal in life?",
+          "selectedOptionText": "To be perfect, upright, and have high moral standards.",
+          "selectedOptionValue": "Type 1 - Reformer",
+          "correctOptionText": "N/A",
+          "correctOptionValue": "N/A",
+          "earnedCorrectnessPercentage": 0,
+          "status": "incorrect"
+        },
+        {
+          "questionId": "en_q2",
+          "questionText": "How do you typically react when a problem arises?",
+          "selectedOptionText": "Analyze it intellectually, seeking knowledge.",
+          "selectedOptionValue": "Type 5 - Investigator",
+          "correctOptionText": "N/A",
+          "correctOptionValue": "N/A",
+          "earnedCorrectnessPercentage": 0,
+          "status": "incorrect"
+        },
+        {
+          "questionId": "en_q3",
+          "questionText": "When working in a team, you feel most comfortable when:",
+          "selectedOptionText": "You can support members and ensure warmth.",
+          "selectedOptionValue": "Type 2 - Helper",
+          "correctOptionText": "N/A",
+          "correctOptionValue": "N/A",
+          "earnedCorrectnessPercentage": 0,
+          "status": "incorrect"
+        },
+        {
+          "questionId": "en_q4",
+          "questionText": "Your attitude towards rules and security is usually:",
+          "selectedOptionText": "You respect rules for safety but prepare for the worst.",
+          "selectedOptionValue": "Type 6 - Loyalist",
+          "correctOptionText": "N/A",
+          "correctOptionValue": "N/A",
+          "earnedCorrectnessPercentage": 0,
+          "status": "incorrect"
+        },
+        {
+          "questionId": "en_q5",
+          "questionText": "If someone disagrees with you, your immediate reaction is to:",
+          "selectedOptionText": "Correct them with facts and objective logic.",
+          "selectedOptionValue": "Type 1 - Reformer",
+          "correctOptionText": "N/A",
+          "correctOptionValue": "N/A",
+          "earnedCorrectnessPercentage": 0,
+          "status": "incorrect"
+        }
+      ]
     },
-    "createdAt": "2026-08-21T12:06:54.081Z"
+    "createdAt": "2026-08-25T12:38:13.832Z"
   },
   {
-    "_id": "1787314021467",
-    "id": "1787314021467",
+    "id": "6a8095d87f1f39f724899dec",
     "user": {
-      "name": "Test Student",
-      "email": "test.student@example.com",
-      "phone": "9876543210",
-      "classGrade": "10th",
-      "school": "Pehlakadam Academy"
+      "name": "Raju",
+      "email": "panjak@gmail.com",
+      "phone": "5896741425",
+      "role": "Graduate / Placements Track",
+      "specialDetail": "Testing"
     },
-    "testKey": "stream-selector",
-    "testTitle": "Scientific Diagnostics Evaluation",
+    "testKey": "custom-1786798021937",
+    "testTitle": "Curiosity Quest (Student Test)",
     "answers": {
-      "1": "A",
-      "2": "B",
-      "3": "A",
-      "4": "C"
+      "custom-1786798021937_q1": "Logic",
+      "custom-1786798021937_q2": "Creativity"
     },
     "score": {
       "breakdown": {
-        "A": 50,
-        "B": 25,
-        "C": 25
+        "Logic": 50,
+        "Creativity": 50
       },
-      "dominant": "A",
-      "summary": "Your assessment shows a dominant preference for the A dimension. This represents your primary behavior, analytical approach, and thinking pattern.",
-      "title": "A Dimension Profile"
+      "dominant": "Logic",
+      "summary": "Your assessment shows a dominant preference for the Logic style. This dimension represents your primary behavior, thinking, and communication pattern in professional settings.",
+      "title": "Logic-Style Behavioral Profile",
+      "overallCorrectnessPercentage": 0,
+      "questionCorrectnessBreakdown": [
+        {
+          "questionId": "custom-1786798021937_q1",
+          "questionText": "Which activity looks most fun?",
+          "selectedOptionText": "Solving a puzzle",
+          "selectedOptionValue": "Logic",
+          "earnedCorrectnessPercentage": 0
+        },
+        {
+          "questionId": "custom-1786798021937_q2",
+          "questionText": "When you see a new toy/game, you…",
+          "selectedOptionText": "Imagine stories",
+          "selectedOptionValue": "Creativity",
+          "earnedCorrectnessPercentage": 0
+        }
+      ]
     },
-    "createdAt": "2026-08-21T12:07:01.467Z"
+    "createdAt": "2026-08-15T16:37:44.861Z"
+  },
+  {
+    "id": "6a804c7206837255ca902bf2",
+    "user": {
+      "name": "Ajay Kumar",
+      "email": "ajay@gmail.com",
+      "phone": "9647853212",
+      "role": "Graduate / Placements Track",
+      "specialDetail": "Want to be placed "
+    },
+    "testKey": "mmpi",
+    "testTitle": "Minnesota Multiphasic Test",
+    "answers": {
+      "mmp_q1": "Somatic Stability",
+      "mmp_q2": "Social Confidence",
+      "mmp_q3": "Hypomania Tendency",
+      "mmp_q4": "Social Extraversion",
+      "mmp_q5": "Anxiety Tendency"
+    },
+    "score": {
+      "breakdown": {
+        "Somatic Stress Resilience": 90,
+        "Social Confidence & Trust": 85,
+        "Mental Energy & Drive": 40,
+        "Emotional Stability & Control": 15
+      },
+      "summary": "Clinical psychometric indicators: Somatic Stress Resilience, High Social Confidence. Displays steady emotional resilience, structured coping strategies, and optimal cognitive adaptability under high work/study stress.",
+      "title": "MMPI Psychometric Insight",
+      "overallCorrectnessPercentage": 0,
+      "questionCorrectnessBreakdown": [
+        {
+          "questionId": "mmp_q1",
+          "questionText": "Under high academic or professional pressure, how do you feel physically?",
+          "selectedOptionText": "Your physical state remains stable; you manage stress mentally.",
+          "selectedOptionValue": "Somatic Stability",
+          "earnedCorrectnessPercentage": 0
+        },
+        {
+          "questionId": "mmp_q2",
+          "questionText": "Do you occasionally feel like people around you are critical or talking about you?",
+          "selectedOptionText": "No, you rarely worry about what others say or think behind your back.",
+          "selectedOptionValue": "Social Confidence",
+          "earnedCorrectnessPercentage": 0
+        },
+        {
+          "questionId": "mmp_q3",
+          "questionText": "How would you describe your level of daily energy and excitement?",
+          "selectedOptionText": "Extremely high; you often take on too many projects and speak rapidly.",
+          "selectedOptionValue": "Hypomania Tendency",
+          "earnedCorrectnessPercentage": 0
+        },
+        {
+          "questionId": "mmp_q4",
+          "questionText": "When in a social setting, how comfortable do you feel interacting?",
+          "selectedOptionText": "You are highly comfortable, outgoing, and thrive in group environments.",
+          "selectedOptionValue": "Social Extraversion",
+          "earnedCorrectnessPercentage": 0
+        },
+        {
+          "questionId": "mmp_q5",
+          "questionText": "How often do you find yourself double-checking your actions, thoughts, or doors?",
+          "selectedOptionText": "Constantly; you worry excessively about mistakes and small details.",
+          "selectedOptionValue": "Anxiety Tendency",
+          "earnedCorrectnessPercentage": 0
+        }
+      ]
+    },
+    "createdAt": "2026-08-15T11:24:34.916Z"
   }
 ]

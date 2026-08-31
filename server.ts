@@ -43,6 +43,9 @@ const RESOURCE_HISTORY_FILE = path.join(process.cwd(), "resource_history.json");
 const COURSE_PROGRESS_FILE = path.join(process.cwd(), "course_progress.json");
 const UPLOADS_DIR = path.join(process.cwd(), "uploads");
 
+let isMongoConnected = false;
+const isMongoLive = () => mongoose.connection.readyState === 1 || isMongoConnected;
+
 // =========================================================================================
 // ⚡ HIGH-PERFORMANCE MULTI-TIER IN-MEMORY CACHING ENGINE
 // =========================================================================================
@@ -589,7 +592,7 @@ app.get("/api/health", (req, res) => {
     healthy: true,
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    storageMode: isMongoConnected ? "mongodb" : "local-json"
+    storageMode: isMongoLive() ? "mongodb" : "local-json"
   });
 });
 
@@ -1079,10 +1082,7 @@ if (isInvalidScheme) {
 }
 
 const MONGODB_URI = sanitizeMongoDBUri(rawUri);
-let isMongoConnected = false;
 mongoose.set("bufferCommands", true);
-
-const isMongoLive = () => mongoose.connection.readyState === 1 || isMongoConnected;
 
 /**
  * Executes a MongoDB query with high-reliability fallback.
@@ -2114,7 +2114,7 @@ let g_autoApprovalEnabled = true;
 
 async function getAutoApprovalSetting(): Promise<boolean> {
   try {
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const stats = await SystemStatsModel.findOne();
       if (stats && (stats as any).autoApprovalEnabled !== undefined) {
         return !!(stats as any).autoApprovalEnabled;
@@ -2132,7 +2132,7 @@ async function getAutoApprovalSetting(): Promise<boolean> {
 async function setAutoApprovalSetting(enabled: boolean): Promise<void> {
   g_autoApprovalEnabled = enabled;
   try {
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       await SystemStatsModel.findOneAndUpdate(
         {},
         { $set: { autoApprovalEnabled: enabled } },
@@ -2168,7 +2168,7 @@ async function isDuplicateUtr(utr: string, currentPaymentId?: string): Promise<b
   if (!utr) return false;
   const clean = utr.trim().toUpperCase();
   try {
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const query: any = {
         transactionId: { $regex: new RegExp(`^${clean}$`, "i") },
         status: { $ne: "revoked" }
@@ -2426,7 +2426,7 @@ async function revokeStudentAccess(phone: string): Promise<void> {
   const cleanPhone = cleanPhoneDigits(phone);
   if (!cleanPhone) return;
 
-  if (isMongoConnected) {
+  if (isMongoLive()) {
     await AuthorizedNumberModel.deleteMany({
       $or: [
         { number: cleanPhone },
@@ -2751,7 +2751,7 @@ app.post("/api/payment-submit", async (req, res) => {
     const verificationMethod = autoApprovalActive ? "AUTO_UTR_OCR" : "MANUAL_APPROVAL";
 
     // Save to Mongo if connected, otherwise save to payments.json file
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const newPayment = new PaymentModel({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
@@ -3039,7 +3039,7 @@ app.post("/api/razorpay/verify-payment", async (req, res) => {
       createdAt: new Date()
     };
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const newPay = new PaymentModel(paymentItem);
       await newPay.save();
       console.log(`⚡ [Pehlakadam MongoDB] Logged verified Razorpay payment for ${studentFullName} (+91 ${cleanNum})`);
@@ -3152,6 +3152,7 @@ app.post("/api/razorpay/webhook", async (req, res) => {
 app.get("/api/payments", verifyAdmin, async (req, res) => {
   try {
     let payments: any[] = [];
+    let mongoQueried = false;
     if (isMongoLive()) {
       try {
         const docs = await PaymentModel.find().sort({ createdAt: -1 });
@@ -3173,15 +3174,18 @@ app.get("/api/payments", verifyAdmin, async (req, res) => {
           verificationMethod: (doc as any).verificationMethod || "AUTO_UTR_OCR",
           verifiedAt: (doc as any).verifiedAt ? (doc as any).verifiedAt.toISOString() : undefined,
           couponCode: (doc as any).couponCode || "",
-          createdAt: doc.createdAt.toISOString()
+          createdAt: doc.createdAt ? (doc.createdAt.toISOString ? doc.createdAt.toISOString() : doc.createdAt) : new Date().toISOString()
         }));
+        mongoQueried = true;
+        try {
+          fs.writeFileSync(PAYMENTS_FILE, JSON.stringify(payments, null, 2));
+        } catch (e) {}
       } catch (err: any) {
         console.warn("⚠️ [Pehlakadam API] Mongo error reading payments:", err?.message);
-        payments = [];
       }
     }
 
-    if (payments.length === 0 && fs.existsSync(PAYMENTS_FILE)) {
+    if (!mongoQueried && fs.existsSync(PAYMENTS_FILE)) {
       try {
         payments = JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8"));
       } catch (e) {
@@ -3189,6 +3193,7 @@ app.get("/api/payments", verifyAdmin, async (req, res) => {
       }
     }
 
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.status(200).json(payments);
   } catch (error) {
     console.error("[Pehlakadam API] Error reading payments:", error);
@@ -3208,7 +3213,7 @@ app.post("/api/admin/payments/approve", verifyAdmin, async (req, res) => {
 
     // If phone is missing, lookup from payment record
     if (paymentId) {
-      if (isMongoConnected && mongoose.Types.ObjectId.isValid(paymentId)) {
+      if (isMongoLive() && mongoose.Types.ObjectId.isValid(paymentId)) {
         const foundPay = await PaymentModel.findById(paymentId);
         if (foundPay) {
           if (!targetPhone) targetPhone = foundPay.number;
@@ -3242,7 +3247,7 @@ app.post("/api/admin/payments/approve", verifyAdmin, async (req, res) => {
     studentName = studentName || "Enrolled Student";
 
     // 1. Update Payment Status in DB
-    if (isMongoConnected && paymentId) {
+    if (isMongoLive() && paymentId) {
       if (mongoose.Types.ObjectId.isValid(paymentId)) {
         await PaymentModel.findByIdAndUpdate(paymentId, {
           status: "approved",
@@ -3251,7 +3256,9 @@ app.post("/api/admin/payments/approve", verifyAdmin, async (req, res) => {
           verifiedAt: new Date()
         });
       }
-    } else if (fs.existsSync(PAYMENTS_FILE)) {
+    }
+    
+    if (fs.existsSync(PAYMENTS_FILE)) {
       try {
         const payments = JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8"));
         const idx = payments.findIndex((p: any) => p.id === paymentId || p._id === paymentId || cleanPhoneDigits(p.number) === cleanNum);
@@ -3289,7 +3296,7 @@ app.post("/api/admin/payments/revoke", verifyAdmin, async (req, res) => {
 
     // If phone is missing, lookup from payment record
     if (!targetPhone && paymentId) {
-      if (isMongoConnected && mongoose.Types.ObjectId.isValid(paymentId)) {
+      if (isMongoLive() && mongoose.Types.ObjectId.isValid(paymentId)) {
         const foundPay = await PaymentModel.findById(paymentId);
         if (foundPay) targetPhone = foundPay.number;
       } else if (fs.existsSync(PAYMENTS_FILE)) {
@@ -3302,13 +3309,15 @@ app.post("/api/admin/payments/revoke", verifyAdmin, async (req, res) => {
     const cleanNum = cleanPhoneDigits(targetPhone);
 
     // 1. Update status to revoked
-    if (isMongoConnected && paymentId) {
+    if (isMongoLive() && paymentId) {
       if (mongoose.Types.ObjectId.isValid(paymentId)) {
         await PaymentModel.findByIdAndUpdate(paymentId, {
           status: "revoked"
         });
       }
-    } else if (fs.existsSync(PAYMENTS_FILE)) {
+    }
+    
+    if (fs.existsSync(PAYMENTS_FILE)) {
       try {
         const payments = JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8"));
         const idx = payments.findIndex((p: any) => p.id === paymentId || p._id === paymentId || cleanPhoneDigits(p.number) === cleanNum);
@@ -3364,7 +3373,7 @@ app.delete("/api/payments/:id", verifyAdmin, async (req, res) => {
     const { id } = req.params;
     let deletedDoc: any = null;
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       if (mongoose.Types.ObjectId.isValid(id)) {
         deletedDoc = await PaymentModel.findByIdAndDelete(id);
       }
@@ -3991,7 +4000,7 @@ app.post("/api/diagnostic-tests/submit", async (req, res) => {
     // Load test definition to check custom fields & scoring method
     let testDef: any = null;
     try {
-      if (isMongoConnected) {
+      if (isMongoLive()) {
         testDef = await DiagnosticTestModel.findOne({ key: testKey });
       } else {
         const content = fs.readFileSync(DIAGNOSTIC_TESTS_FILE, "utf-8");
@@ -4477,7 +4486,7 @@ app.post("/api/diagnostic-tests/submit", async (req, res) => {
     const testTitle = testTitles[testKey] || testDef?.title || "Scientific Diagnostics Evaluation";
 
     try {
-      if (isMongoConnected) {
+      if (isMongoLive()) {
         const doc = new DiagnosticSubmissionModel({
           user,
           testKey,
@@ -4572,7 +4581,7 @@ app.post("/api/diagnostic-tests/register", async (req, res) => {
 
     // 💾 STEP 1: SAVE TO SPECIFIC DIAGNOSTIC REGISTRATIONS DEPOSITORY
     let savedRegistration;
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const newReg = new DiagnosticRegistrationModel({
         name,
         email,
@@ -4617,7 +4626,7 @@ app.post("/api/diagnostic-tests/register", async (req, res) => {
     const lastName = nameParts.slice(1).join(" ") || "Student";
     const leadMessage = `[Diagnostic pre-test registration] Test: ${testTitle}. Detail: ${specialDetail}`;
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const newSubDoc = new SubmissionModel({
         firstName,
         lastName,
@@ -4854,7 +4863,7 @@ app.put("/api/submissions/:id/counselling", verifyAdmin, async (req, res) => {
 
     let updatedLead: any = null;
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const doc = await SubmissionModel.findById(id);
       if (doc) {
         doc.counsellingDate = counsellingDate !== undefined ? counsellingDate : doc.counsellingDate;
@@ -4932,7 +4941,7 @@ app.post("/api/submissions/:id/notify", verifyAdmin, async (req, res) => {
 
     let lead: any = null;
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const doc = await SubmissionModel.findById(id);
       if (doc) {
         lead = doc.toObject();
@@ -5011,7 +5020,7 @@ app.post("/api/submissions/:id/notify", verifyAdmin, async (req, res) => {
     }
 
     // Save notification audit log to lead record
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       await SubmissionModel.findByIdAndUpdate(id, {
         $push: { notifications: notificationRecord }
       });
@@ -5045,7 +5054,7 @@ app.delete("/api/submissions/:id", verifyAdmin, async (req, res) => {
     const { id } = req.params;
     let deletedDoc: any = null;
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       if (mongoose.Types.ObjectId.isValid(id)) {
         deletedDoc = await SubmissionModel.findByIdAndDelete(id);
       }
@@ -5356,7 +5365,7 @@ app.post("/api/resources", verifyAdmin, async (req, res) => {
       format = `PDF (${(fileBuffer.length / (1024 * 1024)).toFixed(2)} MB)`;
     }
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       // Save metadata and base64 cache securely into the MongoDB cluster
       const newResDoc = new ResourceModel({
         title,
@@ -5508,7 +5517,7 @@ app.get("/api/resources/download/:id", async (req, res) => {
     let title = "";
     let fileDataHex = "";
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const resource = await ResourceModel.findById(id);
       if (!resource || resource.type !== "pdf" || !resource.fileUrl) {
         return res.status(404).json({ error: "Resource file not found in MongoDB catalog" });
@@ -5569,7 +5578,7 @@ app.get("/api/resources/view/:id", async (req, res) => {
     const { id } = req.params;
     let resourceItem: any = null;
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       if (mongoose.Types.ObjectId.isValid(id)) {
         resourceItem = await ResourceModel.findById(id).exec();
       }
@@ -5797,7 +5806,7 @@ app.get("/api/programs/brochure/view/:programKey", async (req, res) => {
     const { programKey } = req.params;
     let config: any = null;
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       config = await ProgramConfigModel.findOne({ programKey }).exec();
     }
 
@@ -5890,7 +5899,7 @@ app.post("/api/updates", verifyAdmin, async (req, res) => {
     }
 
     let recipients: any[] = [];
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const submissions = await SubmissionModel.find();
       recipients = submissions.map((sub) => ({
         name: `${sub.firstName} ${sub.lastName}`,
@@ -6248,7 +6257,7 @@ app.delete("/api/authorized-numbers/:number", verifyAdmin, async (req, res) => {
       return res.status(400).json({ error: "Invalid phone number." });
     }
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       // Match exact, suffix or clean variation
       const last10 = targetNum.length >= 10 ? targetNum.slice(-10) : targetNum;
       await AuthorizedNumberModel.deleteMany({
@@ -6297,7 +6306,7 @@ app.post("/api/check-access", async (req, res) => {
     let enrolledPrograms: string[] = [];
     let enrolledCourses: string[] = [];
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const conditions: any[] = [];
       if (cleanedNum) {
         conditions.push({ number: cleanedNum });
@@ -6383,7 +6392,7 @@ app.post("/api/check-premium-access", async (req, res) => {
     let enrolledCourses: string[] = [];
 
     // 1. Check Mongo Authorized Numbers if connected
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const authConditions: any[] = [];
       if (cleanedNum) {
         authConditions.push({ number: cleanedNum });
@@ -6947,7 +6956,7 @@ app.post("/api/courses/enroll", async (req, res) => {
     const verificationMethod = autoApprovalActive ? "AUTO_UTR_OCR" : "MANUAL_APPROVAL";
 
     // 1. Save Payment Record to Payment Collection / payments.json
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const newPayment = new PaymentModel({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
@@ -7007,7 +7016,7 @@ app.post("/api/courses/enroll", async (req, res) => {
 
     // 3. Initialize Course Progress Entry if courseId is available
     if (courseId) {
-      if (isMongoConnected) {
+      if (isMongoLive()) {
         await CourseProgressModel.findOneAndUpdate(
           { phone: cleanPhone, courseId },
           {
@@ -7098,7 +7107,7 @@ app.get("/api/coupons", verifyAdmin, async (req, res) => {
       return res.status(200).json(cached.data);
     }
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       let docs = await CouponModel.find().sort({ createdAt: -1 });
       if (docs.length === 0) {
         const seeded = await CouponModel.insertMany(defaultCoupons);
@@ -7135,7 +7144,7 @@ app.post("/api/coupons", verifyAdmin, async (req, res) => {
     const code = (req.body.code || "").trim().toUpperCase();
     if (!code) return res.status(400).json({ error: "Code required" });
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const existing = await CouponModel.findOne({ code });
       if (existing) return res.status(400).json({ error: "Coupon code already exists." });
     }
@@ -7154,7 +7163,7 @@ app.post("/api/coupons", verifyAdmin, async (req, res) => {
 
     let newCoupon: any = null;
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const created = new CouponModel(couponData);
       await created.save();
       newCoupon = {
@@ -7276,7 +7285,7 @@ app.post("/api/coupons/validate", async (req, res) => {
 
     let foundCoupon: any = null;
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const doc = await CouponModel.findOne({ code: normalizedCode, active: true });
       if (doc) {
         foundCoupon = {
@@ -7439,7 +7448,7 @@ app.post("/api/student/login", async (req, res) => {
     }
 
     // 3. Check Submissions
-    if (!foundStudent && isMongoConnected) {
+    if (!foundStudent && isMongoLive()) {
       const submissions = await SubmissionModel.find();
       foundStudent = submissions.find(sub => {
         const subEmail = sub.email?.trim().toLowerCase();
@@ -7475,9 +7484,13 @@ app.post("/api/student/login", async (req, res) => {
         student: {
           firstName: foundStudent.firstName,
           lastName: foundStudent.lastName,
+          studentName: `${foundStudent.firstName || ""} ${foundStudent.lastName || ""}`.trim() || foundStudent.studentName || "Enrolled Student",
           email: foundStudent.email,
           number: foundStudent.number,
           role: foundStudent.role,
+          tier: foundStudent.tier || "pro",
+          enrolledPrograms: foundStudent.enrolledPrograms || (foundStudent.role ? [foundStudent.role] : []),
+          enrolledCourses: foundStudent.enrolledCourses || [],
           message: foundStudent.message || ""
         }
       });
@@ -7519,7 +7532,7 @@ app.post("/api/student/track-resource", async (req, res) => {
       accessedAt: new Date().toISOString()
     };
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       await ResourceHistoryModel.create({
         phone: cleanPhone,
         email: cleanEmail,
@@ -7573,7 +7586,7 @@ app.post("/api/student/update-course-progress", async (req, res) => {
 
     const pct = progressPercentage !== undefined ? Number(progressPercentage) : 0;
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const conditions: any[] = [];
       if (cleanPhone) conditions.push({ phone: cleanPhone });
       if (cleanEmail) conditions.push({ email: cleanEmail });
@@ -8536,7 +8549,7 @@ app.get("/api/policies", async (req, res) => {
     }
 
     let stats: any = {};
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       stats = await SystemStatsModel.findOne() || {};
     } else {
       try {
@@ -8645,7 +8658,7 @@ app.post("/api/career-tips-join", async (req, res) => {
       createdAt: new Date()
     };
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const subscriber = new CareerTipSubscriberModel({
         email,
         phone: phone || "",
@@ -8669,7 +8682,7 @@ app.post("/api/career-tips-join", async (req, res) => {
     // Retrieve system stats to get redirects / groups
     let whatsappGroupUrl = "";
     let forumJoinUrl = "";
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const stats = await SystemStatsModel.findOne();
       if (stats) {
         whatsappGroupUrl = stats.whatsappGroupUrl || "";
@@ -8698,7 +8711,7 @@ app.post("/api/career-tips-join", async (req, res) => {
 
 app.get("/api/career-tips-subscribers", verifyAdmin, async (req, res) => {
   try {
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       const subs = await CareerTipSubscriberModel.find().sort({ createdAt: -1 });
       const formatted = subs.map(s => ({
         id: s._id.toString(),
