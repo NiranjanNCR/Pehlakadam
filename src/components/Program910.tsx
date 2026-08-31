@@ -120,7 +120,7 @@ export default function Program910() {
       </section>
 
       {/* Pricing courses */}
-      <CartCourse />
+      <CartCourse programName="8-10 Grade Student" />
 
       <Footer />
     </motion.div>

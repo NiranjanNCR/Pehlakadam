@@ -1,13 +1,233 @@
 [
   {
-    "id": "1787314065685",
+    "id": "6a79ac66d801907db02e5859",
+    "number": "7428613102",
+    "studentName": "Administrator (Pehlakadam Team)",
+    "email": "admin@pehlakadam.com",
+    "tier": "pro",
+    "enrolledPrograms": [
+      "all"
+    ],
+    "enrolledCourses": [
+      "6a7a33326c8c957c5a2c873b",
+      "6a7a33326c8c957c5a2c873f",
+      "6a7a33d26c8c957c5a2c8749",
+      "6a93db821a1125c8fac0f18e",
+      "6a93df2b82faf40c004a9de4",
+      "6a93df2b82faf40c004a9de5",
+      "6a93df2b82faf40c004a9de6",
+      "6a93df2b82faf40c004a9de7",
+      "6a93df2b82faf40c004a9de8",
+      "6a93df2b82faf40c004a9de9",
+      "6a93df2b82faf40c004a9dea",
+      "6a93df2b82faf40c004a9deb",
+      "6a93df2b82faf40c004a9dec",
+      "6a93df2b82faf40c004a9dee",
+      "6a93df2b82faf40c004a9def",
+      "6a93df2c82faf40c004a9df0",
+      "6a93df2c82faf40c004a9df1",
+      "6a93df2c82faf40c004a9df2",
+      "6a93df2c82faf40c004a9df3"
+    ],
+    "createdAt": "2026-08-10T10:48:06.799Z",
+    "updatedAt": "2026-08-30T07:59:19.793Z"
+  },
+  {
+    "id": "6a79afa4d801907db02e585b",
+    "number": "7428613104",
+    "studentName": "Administrator (Pehlakadam Team)",
+    "email": "admin@pehlakadam.com",
+    "tier": "pro",
+    "enrolledPrograms": [
+      "all"
+    ],
+    "enrolledCourses": [
+      "6a7a33326c8c957c5a2c873b",
+      "6a7a33326c8c957c5a2c873f",
+      "6a7a33d26c8c957c5a2c8749",
+      "6a93db821a1125c8fac0f18e",
+      "6a93df2b82faf40c004a9de4",
+      "6a93df2b82faf40c004a9de5",
+      "6a93df2b82faf40c004a9de6",
+      "6a93df2b82faf40c004a9de7",
+      "6a93df2b82faf40c004a9de8",
+      "6a93df2b82faf40c004a9de9",
+      "6a93df2b82faf40c004a9dea",
+      "6a93df2b82faf40c004a9deb",
+      "6a93df2b82faf40c004a9dec",
+      "6a93df2b82faf40c004a9dee",
+      "6a93df2b82faf40c004a9def",
+      "6a93df2c82faf40c004a9df0",
+      "6a93df2c82faf40c004a9df1",
+      "6a93df2c82faf40c004a9df2",
+      "6a93df2c82faf40c004a9df3"
+    ],
+    "createdAt": "2026-08-10T11:01:56.301Z",
+    "updatedAt": "2026-08-30T07:59:20.777Z"
+  },
+  {
+    "id": "6a831329ba905e3a4f2a5788",
     "number": "9876543210",
-    "studentName": "Test Student",
-    "email": "",
-    "tier": "Pro",
+    "studentName": "Aarav Sharma",
+    "email": "aarav.sharma@example.com",
+    "tier": "pro",
+    "enrolledPrograms": [
+      "6-8 Grade Student"
+    ],
+    "enrolledCourses": [
+      "grade68-basic-01",
+      "grade68-advance-01",
+      "grade68-pro-01",
+      "6a93df2b82faf40c004a9de6",
+      "6a93df2b82faf40c004a9de7",
+      "6a93df2b82faf40c004a9de8"
+    ],
+    "createdAt": "2026-08-21T12:07:45.685Z",
+    "updatedAt": "2026-08-30T07:59:22.787Z"
+  },
+  {
+    "id": "6a831329ba905e3a4f2a5789",
+    "number": "9123456789",
+    "tier": "pro",
     "enrolledPrograms": [],
     "enrolledCourses": [],
-    "createdAt": "2026-08-21T12:07:45.685Z",
-    "updatedAt": "2026-08-21T12:07:45.685Z"
+    "createdAt": "2026-08-17T13:56:57.827Z",
+    "updatedAt": "2026-08-30T07:59:24.116Z"
+  },
+  {
+    "id": "6a831342ba905e3a4f2a578b",
+    "number": "9811223344",
+    "tier": "pro",
+    "enrolledPrograms": [],
+    "enrolledCourses": [],
+    "createdAt": "2026-08-17T13:58:52.512Z",
+    "updatedAt": "2026-08-30T07:59:24.847Z"
+  },
+  {
+    "id": "6a8d89f92134d3e0092846aa",
+    "number": "1234567891",
+    "studentName": "user2 singh",
+    "email": "user1@gmail.com",
+    "tier": "pro",
+    "enrolledPrograms": [],
+    "enrolledCourses": [
+      "6a7a33326c8c957c5a2c873f"
+    ],
+    "createdAt": "2026-08-25T12:26:33.604Z",
+    "updatedAt": "2026-08-30T07:59:26.230Z"
+  },
+  {
+    "id": "6a927c3382faf40c0049a8ed",
+    "number": "7503919271",
+    "studentName": "Abhishek Rana",
+    "email": "abhishekkumar720988@gmail.com",
+    "tier": "advance",
+    "enrolledPrograms": [
+      "Primary Kudos"
+    ],
+    "enrolledCourses": [
+      "6a7a33d26c8c957c5a2c8749",
+      "6a93df2b82faf40c004a9de4"
+    ],
+    "createdAt": "2026-08-29T06:29:07.619Z",
+    "updatedAt": "2026-08-30T07:59:27.492Z"
+  },
+  {
+    "id": "6a92a28b82faf40c0049c633",
+    "number": "1234567893",
+    "studentName": "user3 Singh",
+    "email": "user3@gmail.com",
+    "tier": "pro",
+    "enrolledPrograms": [
+      "UG/Graduate/PG"
+    ],
+    "enrolledCourses": [
+      "6a7a33326c8c957c5a2c873f",
+      "6a93df2b82faf40c004a9def",
+      "6a93df2c82faf40c004a9df0"
+    ],
+    "createdAt": "2026-08-29T09:12:43.071Z",
+    "updatedAt": "2026-08-30T07:59:28.752Z"
+  },
+  {
+    "id": "6a92a43782faf40c0049c780",
+    "number": "1234567894",
+    "studentName": "user4 singh",
+    "email": "user4@gmail.com",
+    "tier": "advance",
+    "enrolledPrograms": [
+      "UG/Graduate/PG"
+    ],
+    "enrolledCourses": [
+      "6a93df2b82faf40c004a9def",
+      "6a93df2c82faf40c004a9df0"
+    ],
+    "createdAt": "2026-08-29T09:19:51.159Z",
+    "updatedAt": "2026-08-30T07:59:29.957Z"
+  },
+  {
+    "id": "6a93df5e82faf40c004a9e25",
+    "number": "9111222333",
+    "studentName": "Priya Verma",
+    "email": "priya.verma@example.com",
+    "tier": "advance",
+    "enrolledPrograms": [
+      "UG/Graduate/PG"
+    ],
+    "enrolledCourses": [
+      "grad-basic-01",
+      "6a93df2b82faf40c004a9def",
+      "6a93df2c82faf40c004a9df0"
+    ],
+    "createdAt": "2026-08-30T07:44:30.393Z",
+    "updatedAt": "2026-08-30T07:59:31.090Z"
+  },
+  {
+    "id": "6a93dfbe82faf40c004a9e8d",
+    "number": "9000000001",
+    "studentName": "TestKudos BasicUser",
+    "email": "kudos.basic@example.com",
+    "tier": "basic",
+    "enrolledPrograms": [
+      "Primary Kudos"
+    ],
+    "enrolledCourses": [
+      "6a7a33d26c8c957c5a2c8749"
+    ],
+    "createdAt": "2026-08-30T07:46:06.764Z",
+    "updatedAt": "2026-08-30T07:59:32.226Z"
+  },
+  {
+    "id": "6a93dfc182faf40c004a9e90",
+    "number": "9000000002",
+    "studentName": "TestMiddle AdvanceUser",
+    "email": "middle.adv@example.com",
+    "tier": "advance",
+    "enrolledPrograms": [
+      "6-8 Grade Student"
+    ],
+    "enrolledCourses": [
+      "6a93df2b82faf40c004a9de6",
+      "6a93df2b82faf40c004a9de7"
+    ],
+    "createdAt": "2026-08-30T07:46:09.206Z",
+    "updatedAt": "2026-08-30T07:59:33.299Z"
+  },
+  {
+    "id": "6a93dfc382faf40c004a9e96",
+    "number": "9000000003",
+    "studentName": "TestGrad ProUser",
+    "email": "grad.pro@example.com",
+    "tier": "pro",
+    "enrolledPrograms": [
+      "UG/Graduate/PG"
+    ],
+    "enrolledCourses": [
+      "6a7a33326c8c957c5a2c873f",
+      "6a93df2b82faf40c004a9def",
+      "6a93df2c82faf40c004a9df0"
+    ],
+    "createdAt": "2026-08-30T07:46:11.256Z",
+    "updatedAt": "2026-08-30T07:59:34.397Z"
   }
 ]

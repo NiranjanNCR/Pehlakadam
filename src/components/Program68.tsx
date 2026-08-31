@@ -119,7 +119,7 @@ export default function Program68() {
       </section>
 
       {/* Pricing & Modal Details */}
-      <CartCourse />
+      <CartCourse programName="6-8 Grade Student" />
 
       <Footer />
     </motion.div>

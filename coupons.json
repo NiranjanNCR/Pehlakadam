@@ -1,38 +1,52 @@
 [
   {
-    "id": "coup-1",
+    "_id": "6a7a35e16c8c957c5a2c87d4",
     "code": "PEHLA50",
     "discountType": "percentage",
     "discountValue": 50,
     "minOrderAmount": 0,
     "active": true,
-    "createdAt": "2026-08-21T10:06:53.868Z"
+    "createdAt": "2026-08-10T20:15:34.877Z",
+    "__v": 0
   },
   {
-    "id": "coup-2",
+    "_id": "6a7a35e16c8c957c5a2c87d5",
     "code": "FESTIVE100",
     "discountType": "percentage",
     "discountValue": 100,
     "minOrderAmount": 0,
     "active": true,
-    "createdAt": "2026-08-21T10:06:53.868Z"
+    "createdAt": "2026-08-10T20:15:34.877Z",
+    "__v": 0
   },
   {
-    "id": "coup-3",
+    "_id": "6a7a35e16c8c957c5a2c87d6",
     "code": "WELCOME20",
     "discountType": "percentage",
     "discountValue": 20,
     "minOrderAmount": 0,
     "active": true,
-    "createdAt": "2026-08-21T10:06:53.868Z"
+    "createdAt": "2026-08-10T20:15:34.877Z",
+    "__v": 0
   },
   {
-    "id": "coup-4",
-    "code": "PRO100",
+    "_id": "6a7a36056c8c957c5a2c87d8",
+    "code": "FIRST20",
     "discountType": "percentage",
-    "discountValue": 100,
+    "discountValue": 20,
+    "minOrderAmount": 333,
+    "active": true,
+    "createdAt": "2026-08-10T20:35:17.436Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a927961a8122fc4d885ed70",
+    "code": "NEW90",
+    "discountType": "percentage",
+    "discountValue": 99,
     "minOrderAmount": 0,
     "active": true,
-    "createdAt": "2026-08-21T10:06:53.868Z"
+    "createdAt": "2026-08-29T06:17:05.599Z",
+    "__v": 0
   }
 ]

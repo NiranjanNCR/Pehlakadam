@@ -1136,67 +1136,84 @@ mongoose.connection.on("error", (err) => {
 // Attempt to connect to the MongoDB instance if it starts with a valid connection scheme
 const hasValidScheme = MONGODB_URI && (MONGODB_URI.startsWith("mongodb://") || MONGODB_URI.startsWith("mongodb+srv://"));
 
-if (hasValidScheme) {
-  console.log(`🔌 [Pehlakadam Server] Attempting connection to MongoDB Database...`);
+let mongoConnectTimer: any = null;
+let isMongoConnecting = false;
+
+async function connectToMongoDB() {
+  if (!hasValidScheme || isMongoConnecting) return;
+  if (mongoose.connection.readyState === 1) {
+    isMongoConnected = true;
+    return;
+  }
+
+  isMongoConnecting = true;
+  console.log(`🔌 [Pehlakadam Server] Attempting connection to MongoDB Atlas...`);
   console.log(`   Target URI (Masked): ${maskUri(MONGODB_URI)}`);
-  
-  mongoose.connect(MONGODB_URI, {
-    serverSelectionTimeoutMS: 15000,
-    connectTimeoutMS: 15000,
-    socketTimeoutMS: 30000,
-    maxPoolSize: 10,
-    minPoolSize: 1,
-    maxIdleTimeMS: 45000,
-    heartbeatFrequencyMS: 10000,
-    retryWrites: true,
-    w: "majority"
-  })
-    .then(() => {
-      isMongoConnected = true;
-      console.log("🟢 [Pehlakadam Server] Successfully connected to MongoDB Database Cluster.");
-      syncDatabaseOnStartup();
-      seedDefaultResourcesIfEmpty(); // Seeds default resources if database is empty
-      seedDefaultProgramConfigsIfEmpty(); // Seeds default program configs if database is empty
-      seedDefaultDiagnosticsIfEmpty(); // Seeds default diagnostic tests if empty
-      seedDefaultSystemStatsIfEmpty(); // Seeds default system stats if empty
-      seedDefaultTestimonialsIfEmpty(); // Seeds default testimonials if empty
-    })
-    .catch((err) => {
-      isMongoConnected = false;
-      console.warn("🔴 [Pehlakadam Server] MongoDB initial connection failed:", err.message);
-      if (err.message && (err.message.includes("Authentication failed") || err.message.includes("auth failed"))) {
-        console.log("💡 [Pehlakadam Server] Tip: Your database username or password may be incorrect.");
-        console.log("   Please check that your MongoDB Atlas user has the correct password and readWrite permissions.");
-      } else if (err.message && err.message.includes("ENOTFOUND")) {
-        console.log("💡 [Pehlakadam Server] Tip: The MongoDB cluster host could not be resolved. Please verify your connection string host.");
-      }
-      console.log("⚠️ [Pehlakadam Server] Falling back to high-reliability local JSON databases.");
+
+  try {
+    await mongoose.connect(MONGODB_URI, {
+      serverSelectionTimeoutMS: 15000,
+      connectTimeoutMS: 15000,
+      socketTimeoutMS: 30000,
+      maxPoolSize: 10,
+      minPoolSize: 1,
+      maxIdleTimeMS: 45000,
+      heartbeatFrequencyMS: 10000,
+      retryWrites: true,
+      w: "majority"
     });
+    isMongoConnected = true;
+    isMongoConnecting = false;
+    console.log("🟢 [Pehlakadam Server] Successfully connected to MongoDB Database Cluster.");
+    await syncDatabaseOnStartup();
+    seedDefaultResourcesIfEmpty();
+    seedDefaultProgramConfigsIfEmpty();
+    seedDefaultDiagnosticsIfEmpty();
+    seedDefaultSystemStatsIfEmpty();
+    seedDefaultTestimonialsIfEmpty();
+  } catch (err: any) {
+    isMongoConnected = false;
+    isMongoConnecting = false;
+    console.warn("🔴 [Pehlakadam Server] MongoDB connection failed:", err.message);
+    if (err.message && (err.message.includes("Authentication failed") || err.message.includes("auth failed"))) {
+      console.log("💡 [Pehlakadam Server] Tip: Your database username or password may be incorrect.");
+    }
+    console.log("⚠️ [Pehlakadam Server] Operating in resilient JSON fallback mode. Will auto-retry connection in 10s...");
+    if (mongoConnectTimer) clearTimeout(mongoConnectTimer);
+    mongoConnectTimer = setTimeout(() => {
+      connectToMongoDB();
+    }, 10000);
+  }
+}
+
+if (hasValidScheme) {
+  connectToMongoDB();
 } else {
   console.log("ℹ️ [Pehlakadam Server] MONGODB_URI connection scheme is missing or invalid. Operating in high-reliability JSON fallback database mode.");
 }
 
 /**
  * 🔄 BIDIRECTIONAL STARTUP DATABASE SYNCHRONIZER
- * When MongoDB connects, this routine ensures that MongoDB and local files are completely in sync.
+ * MongoDB Atlas is strictly treated as the authoritative Primary Source of Truth.
  * 1. If MongoDB has records, it updates the local file cache so local files reflect live MongoDB.
  * 2. If MongoDB is empty, it populates MongoDB from the local JSON files so no content is ever lost!
+ * 3. Never overwrites existing MongoDB records with stale or undefined local disk data.
  */
 async function syncDatabaseOnStartup() {
   if (!isMongoLive()) return;
-  console.log("🔄 [Pehlakadam Server] Performing startup synchronization with MongoDB Atlas...");
+  console.log("🔄 [Pehlakadam Server] Performing startup synchronization with MongoDB Atlas (Authoritative Master)...");
   try {
-    // 1. Courses Synchronization
+    // 1. Courses Synchronization (MongoDB is Primary)
     const mongoCourseCount = await CourseModel.countDocuments();
     if (mongoCourseCount > 0) {
-      const docs = await CourseModel.find().lean();
-      const formatted = docs.map((doc: any) => ({
+      const allMongoCourses = await CourseModel.find().lean();
+      const formatted = allMongoCourses.map((doc: any) => ({
         id: doc._id ? doc._id.toString() : (doc.id || doc.slug),
         title: doc.title,
         slug: doc.slug,
         description: doc.description,
         thumbnailUrl: doc.thumbnailUrl,
-        tier: doc.tier,
+        tier: normalizeTier(doc.tier),
         category: doc.category,
         originalPrice: doc.originalPrice,
         discountPrice: doc.discountPrice,
@@ -1208,19 +1225,31 @@ async function syncDatabaseOnStartup() {
         createdAt: doc.createdAt ? (doc.createdAt.toISOString ? doc.createdAt.toISOString() : doc.createdAt) : new Date().toISOString()
       }));
       fs.writeFileSync(COURSES_FILE, JSON.stringify(formatted, null, 2));
-      console.log(`✅ [Sync] Cached ${formatted.length} courses from MongoDB Atlas.`);
+      console.log(`✅ [Sync] Cached ${formatted.length} live courses from MongoDB Atlas to local cache.`);
+
+      // If local file has any course completely missing from MongoDB by slug/title, safely import it
+      if (fs.existsSync(COURSES_FILE)) {
+        try {
+          const localCourses = JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8"));
+          if (Array.isArray(localCourses)) {
+            for (const c of localCourses) {
+              const exists = allMongoCourses.some((mc: any) => mc.slug === c.slug || mc.title === c.title);
+              if (!exists && (c.title || c.slug)) {
+                await CourseModel.create({ ...c, _id: undefined });
+                console.log(`✅ [Sync] Safely uploaded new local course "${c.title}" to MongoDB Atlas.`);
+              }
+            }
+          }
+        } catch (e) {}
+      }
     } else if (fs.existsSync(COURSES_FILE)) {
       try {
         const localCourses = JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8"));
         if (Array.isArray(localCourses) && localCourses.length > 0) {
           for (const c of localCourses) {
-            await CourseModel.findOneAndUpdate(
-              { $or: [{ slug: c.slug }, { title: c.title }] },
-              { ...c, _id: undefined },
-              { upsert: true, new: true }
-            );
+            await CourseModel.create({ ...c, _id: undefined });
           }
-          console.log(`✅ [Sync] Uploaded ${localCourses.length} local courses to newly connected MongoDB Atlas.`);
+          console.log(`✅ [Sync] Seeded ${localCourses.length} initial courses to empty MongoDB Atlas.`);
         }
       } catch (e) {}
     }
@@ -1274,15 +1303,38 @@ async function syncDatabaseOnStartup() {
       } catch (e) {}
     }
 
-    // 5. Authorized Numbers Synchronization
+    // 5. Authorized Numbers Synchronization (MongoDB is Primary Authority)
     const mongoAuthCount = await AuthorizedNumberModel.countDocuments();
     if (mongoAuthCount > 0) {
-      const authDocs = await AuthorizedNumberModel.find().lean();
-      const formatted = authDocs.map((a: any) => ({
+      const allAuthDocs = await AuthorizedNumberModel.find().lean();
+      const formatted = allAuthDocs.map((a: any) => ({
         id: a._id ? a._id.toString() : a.id,
         ...a
       }));
       fs.writeFileSync(AUTHORIZED_NUMBERS_FILE, JSON.stringify(formatted, null, 2));
+      console.log(`✅ [Sync] Cached ${formatted.length} authorized students from MongoDB Atlas to local cache.`);
+
+      // If local file has any student numbers not present in MongoDB, safely import without overwriting
+      if (fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
+        try {
+          const localAuth = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
+          if (Array.isArray(localAuth)) {
+            for (const a of localAuth) {
+              const cleanNum = cleanPhoneDigits(a.number);
+              if (cleanNum && !allAuthDocs.some((ma: any) => cleanPhoneDigits(ma.number) === cleanNum)) {
+                await AuthorizedNumberModel.create({
+                  number: cleanNum,
+                  studentName: a.studentName || "Enrolled Student",
+                  email: a.email || "",
+                  tier: a.tier || "pro",
+                  enrolledPrograms: a.enrolledPrograms || [],
+                  enrolledCourses: a.enrolledCourses || []
+                });
+              }
+            }
+          }
+        } catch (e) {}
+      }
     } else if (fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
       try {
         const localAuth = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
@@ -1290,11 +1342,14 @@ async function syncDatabaseOnStartup() {
           for (const a of localAuth) {
             const cleanNum = cleanPhoneDigits(a.number);
             if (cleanNum) {
-              await AuthorizedNumberModel.findOneAndUpdate(
-                { number: cleanNum },
-                { ...a, number: cleanNum, _id: undefined },
-                { upsert: true }
-              );
+              await AuthorizedNumberModel.create({
+                number: cleanNum,
+                studentName: a.studentName || "Enrolled Student",
+                email: a.email || "",
+                tier: a.tier || "pro",
+                enrolledPrograms: a.enrolledPrograms || [],
+                enrolledCourses: a.enrolledCourses || []
+              });
             }
           }
         }
@@ -1356,6 +1411,26 @@ async function syncDatabaseOnStartup() {
         }
       } catch (e) {}
     }
+
+    // 9. Submissions & Leads Synchronization
+    const mongoSubCount = await SubmissionModel.countDocuments();
+    if (mongoSubCount > 0) {
+      const subDocs = await SubmissionModel.find().lean();
+      fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(subDocs, null, 2));
+    } else if (fs.existsSync(SUBMISSIONS_FILE)) {
+      try {
+        const localSubs = JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, "utf-8"));
+        if (Array.isArray(localSubs) && localSubs.length > 0) {
+          for (const s of localSubs) {
+            await SubmissionModel.create({ ...s, _id: undefined });
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 10. Student Enrollment & Course Access Auto-Reconciliation
+    console.log("🔄 [Pehlakadam Server] Reconciling all student profiles and enrolled courses...");
+    await reconcileAllStudentEnrollments();
 
     console.log("🟢 [Pehlakadam Server] Database startup sync completed successfully.");
   } catch (err: any) {
@@ -2152,13 +2227,84 @@ function doCategoriesMatch(courseCategory?: string | null, programNameOrKey?: st
   if (!courseCategory || !programNameOrKey) return false;
   const catKey = getCanonicalProgramKey(courseCategory);
   const progKey = getCanonicalProgramKey(programNameOrKey);
-  if (catKey && progKey && catKey === progKey) return true;
+  if (catKey && progKey) {
+    return catKey === progKey;
+  }
   const c = String(courseCategory).toLowerCase().trim();
   const p = String(programNameOrKey).toLowerCase().trim();
-  return c === p || c.includes(p) || p.includes(c);
+  return c === p;
 }
 
-// 4. Grant Whitelist Access to Student (Mongo + JSON Sync with Enrolled Programs & Courses)
+// 📚 Helper to retrieve all system courses from Mongo and/or JSON fallback
+async function getSystemCoursesList(): Promise<any[]> {
+  let courses: any[] = [];
+  if (isMongoLive()) {
+    try {
+      courses = await CourseModel.find().lean();
+    } catch (e) {
+      console.warn("[SystemCourses] Mongo fetch error:", (e as any)?.message);
+    }
+  }
+  if ((!courses || courses.length === 0) && fs.existsSync(COURSES_FILE)) {
+    try {
+      courses = JSON.parse(fs.readFileSync(COURSES_FILE, "utf-8"));
+    } catch (e) {}
+  }
+  if (!Array.isArray(courses)) courses = [];
+  return courses.map((doc: any, docIdx: number) => {
+    const cId = (doc.id || (doc._id ? doc._id.toString() : "") || doc.slug || `course-${docIdx + 1}`).trim();
+    return {
+      ...doc,
+      id: cId,
+      tier: normalizeTier(doc.tier),
+      published: doc.published ?? true
+    };
+  });
+}
+
+// 🎓 Automatically resolves course IDs that a student can access based on category & tier
+async function resolveCoursesForStudent(
+  programs: string[],
+  studentTier: string,
+  explicitCourses: string[] = []
+): Promise<string[]> {
+  const allCourses = await getSystemCoursesList();
+  const tierOrder: Record<string, number> = { basic: 1, advance: 2, pro: 3 };
+  const userTierLevel = tierOrder[normalizeTier(studentTier)] || 1;
+  const accessibleCourseIds = new Set<string>();
+
+  // Add explicitly assigned courses
+  (explicitCourses || []).forEach(id => {
+    if (id && typeof id === "string") accessibleCourseIds.add(id.trim());
+  });
+
+  const hasAll = (programs || []).some(p => {
+    const s = String(p).toLowerCase().trim();
+    return s === "all" || s === "all_programs" || s === "*";
+  });
+
+  for (const c of allCourses) {
+    if (c.published === false) continue;
+    const courseTierLevel = tierOrder[normalizeTier(c.tier)] || 1;
+    const courseId = String(c.id || (c._id ? c._id.toString() : "")).trim();
+    if (!courseId) continue;
+
+    if (hasAll) {
+      if (userTierLevel >= courseTierLevel) {
+        accessibleCourseIds.add(courseId);
+      }
+    } else {
+      const matchesCategory = (programs || []).some(prog => doCategoriesMatch(c.category, prog));
+      if (matchesCategory && userTierLevel >= courseTierLevel) {
+        accessibleCourseIds.add(courseId);
+      }
+    }
+  }
+
+  return Array.from(accessibleCourseIds);
+}
+
+// 4. Grant Whitelist Access to Student (Mongo + JSON Sync with Enrolled Programs & Category-Tier Courses)
 async function grantStudentAccess(
   phone: string,
   studentName: string = "Enrolled Student",
@@ -2170,62 +2316,109 @@ async function grantStudentAccess(
   const cleanPhone = cleanPhoneDigits(phone);
   if (!cleanPhone) return;
 
-  if (isMongoConnected) {
-    await AuthorizedNumberModel.findOneAndUpdate(
-      { number: cleanPhone },
-      {
-        number: cleanPhone,
-        studentName,
-        email: studentEmail,
-        tier: studentTier,
-        enrolledPrograms: programs,
-        enrolledCourses: courses,
-        updatedAt: new Date()
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
-  } else {
-    let authList: any[] = [];
+  const normTier = normalizeTier(studentTier);
+  const tierHierarchy: Record<string, number> = { basic: 1, advance: 2, pro: 3 };
+
+  // 1. Fetch existing student record from Mongo and/or JSON to avoid data loss
+  let existingAuth: any = null;
+  if (isMongoLive()) {
     try {
-      if (fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
-        authList = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
-      }
+      existingAuth = await AuthorizedNumberModel.findOne({
+        $or: [
+          { number: cleanPhone },
+          { number: { $regex: cleanPhone + "$" } },
+          ...(studentEmail ? [{ email: studentEmail.trim().toLowerCase() }] : [])
+        ]
+      }).lean();
+    } catch (e) {}
+  }
+
+  if (!existingAuth && fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
+    try {
+      const authList = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
+      existingAuth = authList.find((a: any) => {
+        const num = cleanPhoneDigits(a.number);
+        const emailMatch = studentEmail && a.email && a.email.toLowerCase() === studentEmail.trim().toLowerCase();
+        return (num && (num === cleanPhone || num.endsWith(cleanPhone) || cleanPhone.endsWith(num))) || emailMatch;
+      });
+    } catch (e) {}
+  }
+
+  // 2. Merge enrolled programs
+  const prevPrograms: string[] = Array.isArray(existingAuth?.enrolledPrograms) ? existingAuth.enrolledPrograms : [];
+  const mergedPrograms = Array.from(new Set([...prevPrograms, ...programs].filter(Boolean)));
+
+  // 3. Compute highest tier (never downgrade a previously higher tier)
+  const existingTierNorm = normalizeTier(existingAuth?.tier);
+  const existingTierLevel = tierHierarchy[existingTierNorm] || 0;
+  const newTierLevel = tierHierarchy[normTier] || 1;
+  const finalTierLevel = Math.max(existingTierLevel, newTierLevel);
+  const finalTier: "basic" | "advance" | "pro" = finalTierLevel >= 3 ? "pro" : finalTierLevel === 2 ? "advance" : "basic";
+
+  // 4. Automatically resolve all category and tier courses from system catalog
+  const prevCourses: string[] = Array.isArray(existingAuth?.enrolledCourses) ? existingAuth.enrolledCourses : [];
+  const resolvedCategoryTierCourses = await resolveCoursesForStudent(mergedPrograms, finalTier, [...prevCourses, ...courses]);
+  const mergedCourses = Array.from(new Set([...prevCourses, ...courses, ...resolvedCategoryTierCourses].filter(Boolean)));
+
+  const finalName = studentName && studentName !== "Enrolled Student" ? studentName : (existingAuth?.studentName || studentName || "Enrolled Student");
+  const finalEmail = (studentEmail || existingAuth?.email || "").trim().toLowerCase();
+
+  // 5. Update MongoDB
+  if (isMongoLive()) {
+    try {
+      await AuthorizedNumberModel.findOneAndUpdate(
+        { number: cleanPhone },
+        {
+          number: cleanPhone,
+          studentName: finalName,
+          email: finalEmail,
+          tier: finalTier,
+          enrolledPrograms: mergedPrograms,
+          enrolledCourses: mergedCourses,
+          updatedAt: new Date()
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
     } catch (e) {
-      authList = [];
+      console.warn("[Access Manager] Mongo update error:", (e as any)?.message);
+    }
+  }
+
+  // 6. Update JSON file (always keep 100% in sync with MongoDB)
+  try {
+    let authList: any[] = [];
+    if (fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
+      authList = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
     }
     const existingIdx = authList.findIndex((a: any) => {
       const num = cleanPhoneDigits(a.number);
-      return num && (num === cleanPhone || num.endsWith(cleanPhone) || cleanPhone.endsWith(num));
+      const emailMatch = finalEmail && a.email && a.email.toLowerCase() === finalEmail;
+      return (num && (num === cleanPhone || num.endsWith(cleanPhone) || cleanPhone.endsWith(num))) || emailMatch;
     });
+
+    const updatedItem = {
+      id: existingIdx !== -1 ? (authList[existingIdx].id || Date.now().toString()) : Date.now().toString(),
+      number: cleanPhone,
+      studentName: finalName,
+      email: finalEmail,
+      tier: finalTier,
+      enrolledPrograms: mergedPrograms,
+      enrolledCourses: mergedCourses,
+      createdAt: existingIdx !== -1 ? (authList[existingIdx].createdAt || new Date().toISOString()) : new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
     if (existingIdx !== -1) {
-      const prevPrograms = Array.isArray(authList[existingIdx].enrolledPrograms) ? authList[existingIdx].enrolledPrograms : [];
-      const prevCourses = Array.isArray(authList[existingIdx].enrolledCourses) ? authList[existingIdx].enrolledCourses : [];
-      authList[existingIdx] = {
-        ...authList[existingIdx],
-        number: cleanPhone,
-        studentName: studentName || authList[existingIdx].studentName,
-        email: studentEmail || authList[existingIdx].email || "",
-        tier: studentTier || authList[existingIdx].tier || "pro",
-        enrolledPrograms: programs.length > 0 ? programs : prevPrograms,
-        enrolledCourses: courses.length > 0 ? courses : prevCourses,
-        updatedAt: new Date().toISOString()
-      };
+      authList[existingIdx] = updatedItem;
     } else {
-      authList.push({
-        id: Date.now().toString(),
-        number: cleanPhone,
-        studentName,
-        email: studentEmail,
-        tier: studentTier,
-        enrolledPrograms: programs,
-        enrolledCourses: courses,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
+      authList.push(updatedItem);
     }
     fs.writeFileSync(AUTHORIZED_NUMBERS_FILE, JSON.stringify(authList, null, 2));
+  } catch (e) {
+    console.error("[Access Manager] Error saving to JSON:", e);
   }
-  console.log(`⚡ [Access Manager] Access GRANTED & WHITELISTED for: ${studentName} (+91 ${cleanPhone}) [${studentTier}] [Programs: ${programs.join(", ") || "All"}]`);
+
+  console.log(`⚡ [Access Manager] Access GRANTED & WHITELISTED for: ${finalName} (+91 ${cleanPhone}) [${finalTier}] [Programs: ${mergedPrograms.join(", ")}] [Unlocked Courses: ${mergedCourses.length}]`);
 }
 
 // 5. Revoke Student Whitelist & Course Access
@@ -2251,6 +2444,251 @@ async function revokeStudentAccess(phone: string): Promise<void> {
     } catch (e) {}
   }
   console.log(`🔒 [Access Manager] Access REVOKED for: +91 ${cleanPhone}`);
+}
+
+// 🔄 Comprehensive Student Enrollment & Course Reconciliation Engine
+// Ensures all past/previous users in MongoDB Atlas and local storage have their exact details and enrolled courses
+async function reconcileAllStudentEnrollments(): Promise<{ reconciledCount: number; users: any[] }> {
+  try {
+    const allCourses = await getSystemCoursesList();
+    
+    // 1. Gather all payments
+    let allPayments: any[] = [];
+    if (isMongoLive()) {
+      try {
+        allPayments = await PaymentModel.find().lean();
+      } catch (e) {}
+    }
+    if (allPayments.length === 0 && fs.existsSync(PAYMENTS_FILE)) {
+      try {
+        allPayments = JSON.parse(fs.readFileSync(PAYMENTS_FILE, "utf-8"));
+      } catch (e) {}
+    }
+
+    // 2. Gather all submissions / leads
+    let allSubmissions: any[] = [];
+    if (isMongoLive()) {
+      try {
+        allSubmissions = await SubmissionModel.find().lean();
+      } catch (e) {}
+    }
+    if (allSubmissions.length === 0 && fs.existsSync(SUBMISSIONS_FILE)) {
+      try {
+        allSubmissions = JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, "utf-8"));
+      } catch (e) {}
+    }
+
+    // 3. Gather all authorized numbers
+    let authDocs: any[] = [];
+    if (isMongoLive()) {
+      try {
+        authDocs = await AuthorizedNumberModel.find().lean();
+      } catch (e) {}
+    }
+    let localAuthList: any[] = [];
+    if (fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
+      try {
+        localAuthList = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
+      } catch (e) {}
+    }
+
+    // Combine unique students by cleaned phone number
+    const studentMap = new Map<string, any>();
+
+    // Add from Mongo authDocs
+    authDocs.forEach((doc: any) => {
+      const cleanNum = cleanPhoneDigits(doc.number);
+      if (cleanNum) {
+        studentMap.set(cleanNum, {
+          id: doc._id ? doc._id.toString() : doc.id,
+          number: cleanNum,
+          studentName: doc.studentName,
+          email: doc.email,
+          tier: doc.tier,
+          enrolledPrograms: Array.isArray(doc.enrolledPrograms) ? doc.enrolledPrograms : [],
+          enrolledCourses: Array.isArray(doc.enrolledCourses) ? doc.enrolledCourses : [],
+          createdAt: doc.createdAt,
+          updatedAt: doc.updatedAt
+        });
+      }
+    });
+
+    // Merge from localAuthList
+    localAuthList.forEach((doc: any) => {
+      const cleanNum = cleanPhoneDigits(doc.number);
+      if (!cleanNum) return;
+      const existing = studentMap.get(cleanNum);
+      if (!existing) {
+        studentMap.set(cleanNum, {
+          id: doc.id || (doc._id ? doc._id.toString() : ""),
+          number: cleanNum,
+          studentName: doc.studentName,
+          email: doc.email,
+          tier: doc.tier,
+          enrolledPrograms: Array.isArray(doc.enrolledPrograms) ? doc.enrolledPrograms : [],
+          enrolledCourses: Array.isArray(doc.enrolledCourses) ? doc.enrolledCourses : [],
+          createdAt: doc.createdAt,
+          updatedAt: doc.updatedAt
+        });
+      } else {
+        if (!existing.studentName || existing.studentName === "Enrolled Student") {
+          existing.studentName = doc.studentName;
+        }
+        if (!existing.email) existing.email = doc.email;
+        if (Array.isArray(doc.enrolledPrograms) && doc.enrolledPrograms.length > 0) {
+          existing.enrolledPrograms = Array.from(new Set([...existing.enrolledPrograms, ...doc.enrolledPrograms]));
+        }
+        if (Array.isArray(doc.enrolledCourses) && doc.enrolledCourses.length > 0) {
+          existing.enrolledCourses = Array.from(new Set([...existing.enrolledCourses, ...doc.enrolledCourses]));
+        }
+      }
+    });
+
+    // Also include every student who completed an approved payment
+    allPayments.forEach((p: any) => {
+      const cleanNum = cleanPhoneDigits(p.number);
+      if (!cleanNum) return;
+      const existing = studentMap.get(cleanNum);
+      const fullName = `${p.firstName || ""} ${p.lastName || ""}`.trim();
+      const pEmail = (p.email || "").trim().toLowerCase();
+      const pRole = p.role || "";
+      const pTier = normalizeTier(p.plan || p.tier || "pro");
+
+      if (!existing) {
+        studentMap.set(cleanNum, {
+          id: p._id ? p._id.toString() : Date.now().toString(),
+          number: cleanNum,
+          studentName: fullName || "Enrolled Student",
+          email: pEmail,
+          tier: pTier,
+          enrolledPrograms: pRole && !pRole.startsWith("Course:") ? [pRole] : [],
+          enrolledCourses: [],
+          createdAt: p.createdAt || new Date().toISOString()
+        });
+      } else {
+        if (!existing.studentName || existing.studentName === "Enrolled Student") {
+          existing.studentName = fullName || existing.studentName;
+        }
+        if (!existing.email) existing.email = pEmail;
+        if (pRole && !pRole.startsWith("Course:") && !existing.enrolledPrograms.includes(pRole)) {
+          existing.enrolledPrograms.push(pRole);
+        }
+        const tierHierarchy: Record<string, number> = { basic: 1, advance: 2, pro: 3 };
+        const curLevel = tierHierarchy[normalizeTier(existing.tier)] || 1;
+        const payLevel = tierHierarchy[pTier] || 1;
+        if (payLevel > curLevel) {
+          existing.tier = pTier;
+        }
+      }
+    });
+
+    // 4. Reconcile each student
+    const reconciledList: any[] = [];
+    const ADMIN_PHONES = ["7428613102", "917428613102", "7428613104"];
+
+    for (const [cleanNum, student] of studentMap.entries()) {
+      // Cross reference with submissions if name or email still missing
+      if (!student.studentName || student.studentName === "Enrolled Student") {
+        const sub = allSubmissions.find((s: any) => cleanPhoneDigits(s.number) === cleanNum);
+        if (sub) {
+          student.studentName = `${sub.firstName || ""} ${sub.lastName || ""}`.trim() || student.studentName;
+          if (!student.email) student.email = (sub.email || "").trim().toLowerCase();
+          if (sub.role && (!student.enrolledPrograms || student.enrolledPrograms.length === 0)) {
+            student.enrolledPrograms = [sub.role];
+          }
+        }
+      }
+
+      // Special handling for admin phone numbers
+      if (ADMIN_PHONES.includes(cleanNum)) {
+        student.studentName = student.studentName && student.studentName !== "Enrolled Student" ? student.studentName : "Administrator (Pehlakadam Team)";
+        student.email = student.email || "admin@pehlakadam.com";
+        student.tier = "pro";
+        student.enrolledPrograms = ["all"];
+      }
+
+      const finalTier = normalizeTier(student.tier || "pro");
+      student.tier = finalTier;
+
+      // Handle course specific payment if any (e.g. "Course: Modern Masterclass")
+      const userPayments = allPayments.filter((p: any) => cleanPhoneDigits(p.number) === cleanNum);
+      userPayments.forEach((p: any) => {
+        if (p.role && p.role.startsWith("Course:")) {
+          const cTitle = p.role.replace("Course:", "").trim();
+          const matchedCourse = allCourses.find(c => doCategoriesMatch(c.title, cTitle) || c.title.toLowerCase().includes(cTitle.toLowerCase()));
+          if (matchedCourse) {
+            const cid = String(matchedCourse.id || matchedCourse._id);
+            if (!student.enrolledCourses.includes(cid)) {
+              student.enrolledCourses.push(cid);
+            }
+          }
+        }
+      });
+
+      // Automatically resolve full list of courses based on their enrolled programs and tier
+      const resolvedCourses = await resolveCoursesForStudent(student.enrolledPrograms, finalTier, student.enrolledCourses);
+      student.enrolledCourses = Array.from(new Set([...student.enrolledCourses, ...resolvedCourses].filter(Boolean)));
+      student.updatedAt = new Date().toISOString();
+
+      // Persist to MongoDB
+      if (isMongoLive()) {
+        try {
+          await AuthorizedNumberModel.findOneAndUpdate(
+            { number: cleanNum },
+            {
+              number: cleanNum,
+              studentName: student.studentName || "Enrolled Student",
+              email: student.email || "",
+              tier: student.tier,
+              enrolledPrograms: student.enrolledPrograms,
+              enrolledCourses: student.enrolledCourses,
+              updatedAt: new Date()
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          );
+
+          // Update any non-normalized documents that end with cleanNum
+          await AuthorizedNumberModel.updateMany(
+            {
+              number: { $regex: cleanNum + "$" },
+              $or: [
+                { studentName: { $exists: false } },
+                { studentName: null },
+                { studentName: "Enrolled Student" },
+                { tier: { $exists: false } },
+                { tier: null }
+              ]
+            },
+            {
+              studentName: student.studentName || "Enrolled Student",
+              email: student.email || "",
+              tier: student.tier,
+              enrolledPrograms: student.enrolledPrograms,
+              enrolledCourses: student.enrolledCourses,
+              updatedAt: new Date()
+            }
+          );
+        } catch (e) {
+          console.warn("[Reconciliation] Mongo update error for", cleanNum, (e as any)?.message);
+        }
+      }
+
+      reconciledList.push(student);
+    }
+
+    // Persist all reconciled students to authorized_numbers.json for complete resilience
+    try {
+      fs.writeFileSync(AUTHORIZED_NUMBERS_FILE, JSON.stringify(reconciledList, null, 2));
+    } catch (e) {
+      console.warn("[Reconciliation] Failed to write authorized_numbers.json:", e);
+    }
+
+    console.log(`✅ [Reconciliation Engine] Successfully reconciled ${reconciledList.length} student records with exact enrolled courses.`);
+    return { reconciledCount: reconciledList.length, users: reconciledList };
+  } catch (err: any) {
+    console.error("❌ [Reconciliation Engine] Error during student reconciliation:", err?.message);
+    return { reconciledCount: 0, users: [] };
+  }
 }
 
 // =========================================================================================
@@ -2361,9 +2799,17 @@ app.post("/api/payment-submit", async (req, res) => {
       console.log(`[Pehlakadam JSON] Saved payment submission (${paymentStatus}) for ${studentFullName} (${selectedPlan} - ₹${paymentAmount})`);
     }
 
-    // If Auto-Approval is active, automatically whitelist student phone for Instant Access!
+    // If Auto-Approval is active, automatically whitelist student phone for Instant Access with all category and tier courses!
     if (autoApprovalActive) {
-      await grantStudentAccess(cleanNum, studentFullName, selectedPlan);
+      const assignedPrograms = role ? [role] : [];
+      await grantStudentAccess(
+        cleanNum,
+        studentFullName,
+        selectedPlan,
+        assignedPrograms,
+        [],
+        email ? String(email).trim().toLowerCase() : ""
+      );
     }
 
     // compile a WhatsApp message alert
@@ -4212,6 +4658,7 @@ app.post("/api/diagnostic-tests/register", async (req, res) => {
 app.get("/api/diagnostic-tests/submissions", verifyAdmin, async (req, res) => {
   try {
     let submissions: any[] = [];
+    let mongoQueried = false;
     if (isMongoLive()) {
       try {
         const docs = await DiagnosticSubmissionModel.find().sort({ createdAt: -1 });
@@ -4224,13 +4671,16 @@ app.get("/api/diagnostic-tests/submissions", verifyAdmin, async (req, res) => {
           score: doc.score,
           createdAt: doc.createdAt.toISOString()
         }));
+        mongoQueried = true;
+        try {
+          fs.writeFileSync(DIAGNOSTIC_SUBMISSIONS_FILE, JSON.stringify(submissions, null, 2));
+        } catch (e) {}
       } catch (err: any) {
         console.warn("⚠️ [Pehlakadam API] Mongo error on DiagnosticSubmissionModel:", err?.message);
-        submissions = [];
       }
     }
 
-    if (submissions.length === 0 && fs.existsSync(DIAGNOSTIC_SUBMISSIONS_FILE)) {
+    if (!mongoQueried && fs.existsSync(DIAGNOSTIC_SUBMISSIONS_FILE)) {
       try {
         const content = fs.readFileSync(DIAGNOSTIC_SUBMISSIONS_FILE, "utf-8");
         submissions = JSON.parse(content || "[]");
@@ -4239,6 +4689,7 @@ app.get("/api/diagnostic-tests/submissions", verifyAdmin, async (req, res) => {
       }
     }
 
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.status(200).json(submissions);
   } catch (error) {
     console.error("[Pehlakadam API] Error reading diagnostic submissions:", error);
@@ -4256,6 +4707,7 @@ app.get("/api/diagnostic-tests/my-submissions", async (req, res) => {
     const cleanEmail = String(email).trim().toLowerCase();
 
     let submissions: any[] = [];
+    let mongoQueried = false;
     if (isMongoLive()) {
       try {
         const docs = await DiagnosticSubmissionModel.find({ "user.email": { $regex: new RegExp(`^${cleanEmail}$`, "i") } }).sort({ createdAt: -1 });
@@ -4268,13 +4720,13 @@ app.get("/api/diagnostic-tests/my-submissions", async (req, res) => {
           score: doc.score,
           createdAt: doc.createdAt.toISOString()
         }));
+        mongoQueried = true;
       } catch (err: any) {
         console.warn("⚠️ [Pehlakadam API] Mongo error reading my-submissions:", err?.message);
-        submissions = [];
       }
     }
 
-    if (submissions.length === 0 && fs.existsSync(DIAGNOSTIC_SUBMISSIONS_FILE)) {
+    if (!mongoQueried && fs.existsSync(DIAGNOSTIC_SUBMISSIONS_FILE)) {
       try {
         const content = fs.readFileSync(DIAGNOSTIC_SUBMISSIONS_FILE, "utf-8");
         const list = JSON.parse(content || "[]");
@@ -4293,6 +4745,7 @@ app.get("/api/diagnostic-tests/my-submissions", async (req, res) => {
       }
     }
 
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.status(200).json(submissions);
   } catch (error) {
     console.error("[Pehlakadam API] Error reading user submissions:", error);
@@ -4348,6 +4801,7 @@ app.delete("/api/diagnostic-tests/submissions/:id", verifyAdmin, async (req, res
 app.get("/api/submissions", verifyAdmin, async (req, res) => {
   try {
     let submissions: any[] = [];
+    let mongoQueried = false;
     if (isMongoLive()) {
       try {
         const docs = await SubmissionModel.find().sort({ createdAt: -1 });
@@ -4367,13 +4821,16 @@ app.get("/api/submissions", verifyAdmin, async (req, res) => {
           notifications: doc.notifications || [],
           createdAt: doc.createdAt ? doc.createdAt.toISOString() : new Date().toISOString()
         }));
+        mongoQueried = true;
+        try {
+          fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(submissions, null, 2));
+        } catch (e) {}
       } catch (err: any) {
         console.warn("⚠️ [Pehlakadam API] Mongo error reading submissions:", err?.message);
-        submissions = [];
       }
     }
 
-    if (submissions.length === 0 && fs.existsSync(SUBMISSIONS_FILE)) {
+    if (!mongoQueried && fs.existsSync(SUBMISSIONS_FILE)) {
       try {
         submissions = JSON.parse(fs.readFileSync(SUBMISSIONS_FILE, "utf-8"));
       } catch (e) {
@@ -4381,6 +4838,7 @@ app.get("/api/submissions", verifyAdmin, async (req, res) => {
       }
     }
 
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.status(200).json(submissions);
   } catch (error) {
     console.error("[Pehlakadam API] Error reading submissions:", error);
@@ -4790,6 +5248,7 @@ app.get("/api/resources", async (req, res) => {
     }
 
     let resources: any[] = [];
+    let mongoQueried = false;
     if (isMongoLive()) {
       try {
         const docs = await ResourceModel.find().sort({ createdAt: -1 });
@@ -4806,13 +5265,16 @@ app.get("/api/resources", async (req, res) => {
           isPaid: !!doc.isPaid,
           createdAt: doc.createdAt ? doc.createdAt.toISOString() : new Date().toISOString()
         }));
+        mongoQueried = true;
+        try {
+          fs.writeFileSync(RESOURCES_FILE, JSON.stringify(resources, null, 2));
+        } catch (e) {}
       } catch (err: any) {
         console.warn("⚠️ [Pehlakadam API] Mongo error reading resources, using JSON fallback:", err?.message);
-        resources = [];
       }
     }
 
-    if (resources.length === 0 && fs.existsSync(RESOURCES_FILE)) {
+    if (!mongoQueried && fs.existsSync(RESOURCES_FILE)) {
       try {
         const data = fs.readFileSync(RESOURCES_FILE, "utf-8");
         resources = JSON.parse(data).map((r: any) => ({
@@ -4825,7 +5287,7 @@ app.get("/api/resources", async (req, res) => {
       }
     }
 
-    if (resources.length === 0) {
+    if (!mongoQueried && resources.length === 0) {
       resources = defaultResources.map((r: any) => ({
         ...r,
         fileData: r.fileData,
@@ -4833,9 +5295,7 @@ app.get("/api/resources", async (req, res) => {
       }));
     }
 
-    const etag = apiCache.set("resources", resources, 300);
-    res.setHeader("ETag", etag);
-    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.status(200).json(resources);
   } catch (error) {
     console.error("[Pehlakadam API] Error reading resources:", error);
@@ -5562,6 +6022,7 @@ function handleStudentSession(
 app.get("/api/authorized-numbers", verifyAdmin, async (req, res) => {
   try {
     let numbersList: any[] = [];
+    let mongoQueried = false;
     if (isMongoLive()) {
       try {
         const docs = await AuthorizedNumberModel.find().sort({ createdAt: -1 });
@@ -5576,13 +6037,16 @@ app.get("/api/authorized-numbers", verifyAdmin, async (req, res) => {
           createdAt: doc.createdAt,
           updatedAt: (doc as any).updatedAt
         }));
+        mongoQueried = true;
+        try {
+          fs.writeFileSync(AUTHORIZED_NUMBERS_FILE, JSON.stringify(numbersList, null, 2));
+        } catch (e) {}
       } catch (err: any) {
         console.warn("⚠️ [Pehlakadam API] Mongo error on AuthorizedNumberModel:", err?.message);
-        numbersList = [];
       }
     }
 
-    if (numbersList.length === 0 && fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
+    if (!mongoQueried && fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
       try {
         numbersList = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
       } catch (e) {
@@ -5590,10 +6054,37 @@ app.get("/api/authorized-numbers", verifyAdmin, async (req, res) => {
       }
     }
 
+    // Ensure all students have their exact enrolled courses resolved
+    for (const item of numbersList) {
+      if ((!item.enrolledCourses || item.enrolledCourses.length === 0) && (item.enrolledPrograms && item.enrolledPrograms.length > 0)) {
+        try {
+          const resolved = await resolveCoursesForStudent(item.enrolledPrograms, item.tier, item.enrolledCourses || []);
+          if (resolved.length > 0) {
+            item.enrolledCourses = resolved;
+          }
+        } catch (e) {}
+      }
+    }
+
     return res.status(200).json(numbersList);
   } catch (error) {
     console.error("[Pehlakadam API] Error reading authorized numbers:", error);
     return res.status(200).json([]);
+  }
+});
+
+// 1b. RE-SYNC & RECONCILE ALL STUDENT ENROLLMENTS & COURSES
+app.post("/api/admin/reconcile-enrollments", verifyAdmin, async (req, res) => {
+  try {
+    const result = await reconcileAllStudentEnrollments();
+    return res.status(200).json({
+      success: true,
+      message: `Successfully reconciled ${result.reconciledCount} student profiles and updated their enrolled courses in MongoDB and local cache.`,
+      users: result.users
+    });
+  } catch (error: any) {
+    console.error("[Pehlakadam API] Error reconciling enrollments:", error);
+    return res.status(500).json({ error: error.message || "Failed to reconcile student enrollments." });
   }
 });
 
@@ -5650,7 +6141,7 @@ app.put("/api/authorized-numbers/:id", verifyAdmin, async (req, res) => {
     const courses = Array.isArray(enrolledCourses) ? enrolledCourses : [];
     const mail = email ? String(email).trim().toLowerCase() : "";
 
-    if (isMongoConnected) {
+    if (isMongoLive()) {
       let doc = null;
       if (mongoose.Types.ObjectId.isValid(id)) {
         doc = await AuthorizedNumberModel.findByIdAndUpdate(
@@ -5681,6 +6172,33 @@ app.put("/api/authorized-numbers/:id", verifyAdmin, async (req, res) => {
           { new: true, upsert: true }
         );
       }
+
+      // Also keep local file cache in sync
+      try {
+        let list = [];
+        if (fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
+          list = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
+        }
+        const idx = list.findIndex((item: any) => item.id === id || cleanPhoneDigits(item.number) === cleanedNum);
+        const updatedItem = {
+          id: id || (doc ? doc._id.toString() : Date.now().toString()),
+          number: cleanedNum || (doc ? doc.number : ""),
+          studentName: name,
+          email: mail,
+          tier: userTier,
+          enrolledPrograms: programs,
+          enrolledCourses: courses,
+          createdAt: idx !== -1 ? (list[idx].createdAt || new Date().toISOString()) : new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        if (idx !== -1) {
+          list[idx] = updatedItem;
+        } else {
+          list.push(updatedItem);
+        }
+        fs.writeFileSync(AUTHORIZED_NUMBERS_FILE, JSON.stringify(list, null, 2));
+      } catch (e) {}
+
       return res.status(200).json({ success: true, item: doc });
     } else {
       let list = [];
@@ -5826,6 +6344,12 @@ app.post("/api/check-access", async (req, res) => {
         sessionConflict: true,
         message: "⚠️ Session Conflict: This phone number was logged in on another device or tab. Simultaneous access is restricted to 1 active device at a time."
       });
+    }
+
+    if (authorized) {
+      tier = normalizeTier(tier);
+      const unlockedCourseIds = await resolveCoursesForStudent(enrolledPrograms, tier, enrolledCourses);
+      enrolledCourses = unlockedCourseIds;
     }
 
     return res.status(200).json({
@@ -5988,6 +6512,12 @@ app.post("/api/check-premium-access", async (req, res) => {
       });
     }
 
+    if (authorized) {
+      tier = normalizeTier(tier);
+      const unlockedCourseIds = await resolveCoursesForStudent(enrolledPrograms, tier, enrolledCourses);
+      enrolledCourses = unlockedCourseIds;
+    }
+
     return res.status(200).json({
       authorized: true,
       tier,
@@ -6060,19 +6590,9 @@ app.post("/api/logout-session", async (req, res) => {
   }
 });
 
-// LMS COURSES ENDPOINTS (HIGH-SPEED CACHED)
+// LMS COURSES ENDPOINTS (ALWAYS FRESH FROM MONGODB)
 app.get("/api/courses", async (req, res) => {
   try {
-    const cached = apiCache.get<any[]>("courses");
-    if (cached) {
-      res.setHeader("ETag", cached.etag);
-      res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
-      if (req.headers["if-none-match"] === cached.etag) {
-        return res.status(304).end();
-      }
-      return res.status(200).json(cached.data);
-    }
-
     let formatted: any[] = [];
     let mongoQueriedSuccessfully = false;
 
@@ -6097,6 +6617,11 @@ app.get("/api/courses", async (req, res) => {
           createdAt: doc.createdAt ? (doc.createdAt.toISOString ? doc.createdAt.toISOString() : doc.createdAt) : new Date().toISOString()
         }));
         mongoQueriedSuccessfully = true;
+
+        // Keep local cache file updated with live MongoDB
+        try {
+          fs.writeFileSync(COURSES_FILE, JSON.stringify(formatted, null, 2));
+        } catch (e) {}
       } catch (err: any) {
         console.warn("⚠️ [Pehlakadam API] Mongo error reading courses:", err?.message);
       }
@@ -6112,9 +6637,7 @@ app.get("/api/courses", async (req, res) => {
       }
     }
 
-    const etag = apiCache.set("courses", formatted, 300);
-    res.setHeader("ETag", etag);
-    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     return res.status(200).json(formatted);
   } catch (err) {
     console.error("[Pehlakadam API] Error fetching courses:", err);
@@ -6842,23 +7365,95 @@ app.post("/api/student/login", async (req, res) => {
 
     let foundStudent: any = null;
 
-    if (isMongoConnected) {
+    // 1. Check Authorized Numbers (highest priority for enrolled students)
+    if (isMongoLive()) {
+      try {
+        const auth = await AuthorizedNumberModel.findOne({
+          $or: [
+            { number: cleanedInputPhone },
+            { number: { $regex: cleanedInputPhone + "$" } },
+            ...(normalizedEmail ? [{ email: normalizedEmail }] : [])
+          ]
+        }).lean();
+        if (auth) {
+          const parts = (auth.studentName || "Enrolled Student").split(" ");
+          foundStudent = {
+            firstName: parts[0] || "Enrolled",
+            lastName: parts.slice(1).join(" ") || "Student",
+            email: auth.email || normalizedEmail,
+            number: auth.number || cleanedInputPhone,
+            role: (auth.enrolledPrograms && auth.enrolledPrograms[0]) || "Enrolled Student",
+            tier: auth.tier || "pro",
+            enrolledPrograms: auth.enrolledPrograms || [],
+            enrolledCourses: auth.enrolledCourses || []
+          };
+        }
+      } catch (e) {}
+    }
+
+    if (!foundStudent && fs.existsSync(AUTHORIZED_NUMBERS_FILE)) {
+      try {
+        const list = JSON.parse(fs.readFileSync(AUTHORIZED_NUMBERS_FILE, "utf-8"));
+        const match = list.find((item: any) => {
+          const num = cleanPhoneDigits(item.number);
+          const mailMatch = normalizedEmail && item.email && item.email.toLowerCase() === normalizedEmail;
+          return (num && (num === cleanedInputPhone || num.endsWith(cleanedInputPhone) || cleanedInputPhone.endsWith(num))) || mailMatch;
+        });
+        if (match) {
+          const parts = (match.studentName || "Enrolled Student").split(" ");
+          foundStudent = {
+            firstName: parts[0] || "Enrolled",
+            lastName: parts.slice(1).join(" ") || "Student",
+            email: match.email || normalizedEmail,
+            number: match.number || cleanedInputPhone,
+            role: (match.enrolledPrograms && match.enrolledPrograms[0]) || "Enrolled Student",
+            tier: match.tier || "pro",
+            enrolledPrograms: match.enrolledPrograms || [],
+            enrolledCourses: match.enrolledCourses || []
+          };
+        }
+      } catch (e) {}
+    }
+
+    // 2. Check Payments
+    if (!foundStudent && isMongoLive()) {
+      try {
+        const pay = await PaymentModel.findOne({
+          $or: [
+            { number: cleanedInputPhone },
+            { number: { $regex: cleanedInputPhone + "$" } },
+            ...(normalizedEmail ? [{ email: normalizedEmail }] : [])
+          ]
+        }).lean();
+        if (pay) {
+          foundStudent = {
+            firstName: pay.firstName,
+            lastName: pay.lastName,
+            email: pay.email,
+            number: pay.number,
+            role: pay.role,
+            tier: pay.plan || "pro"
+          };
+        }
+      } catch (e) {}
+    }
+
+    // 3. Check Submissions
+    if (!foundStudent && isMongoConnected) {
       const submissions = await SubmissionModel.find();
       foundStudent = submissions.find(sub => {
         const subEmail = sub.email?.trim().toLowerCase();
         const subPhone = sub.number?.replace(/[^0-9]/g, "");
         return subEmail === normalizedEmail && (subPhone === cleanedInputPhone || subPhone?.endsWith(cleanedInputPhone) || cleanedInputPhone.endsWith(subPhone || ""));
       });
-    } else {
-      if (fs.existsSync(SUBMISSIONS_FILE)) {
-        const fileData = fs.readFileSync(SUBMISSIONS_FILE, "utf-8");
-        const submissions = JSON.parse(fileData);
-        foundStudent = submissions.find((sub: any) => {
-          const subEmail = sub.email?.trim().toLowerCase();
-          const subPhone = sub.number?.replace(/[^0-9]/g, "");
-          return subEmail === normalizedEmail && (subPhone === cleanedInputPhone || subPhone?.endsWith(cleanedInputPhone) || cleanedInputPhone.endsWith(subPhone || ""));
-        });
-      }
+    } else if (!foundStudent && fs.existsSync(SUBMISSIONS_FILE)) {
+      const fileData = fs.readFileSync(SUBMISSIONS_FILE, "utf-8");
+      const submissions = JSON.parse(fileData);
+      foundStudent = submissions.find((sub: any) => {
+        const subEmail = sub.email?.trim().toLowerCase();
+        const subPhone = sub.number?.replace(/[^0-9]/g, "");
+        return subEmail === normalizedEmail && (subPhone === cleanedInputPhone || subPhone?.endsWith(cleanedInputPhone) || cleanedInputPhone.endsWith(subPhone || ""));
+      });
     }
 
     // Default student fallback for demo / testing ease
@@ -7153,9 +7748,11 @@ app.get("/api/student/dashboard-data", async (req, res) => {
       studentPhone = studentPhone || matchedPayment.number || "";
       studentRole = matchedPayment.role || studentRole;
       isAuthorized = true;
-      if (matchedPayment.plan === "Advance") userTier = "advance";
-      else if (matchedPayment.plan === "Basic") userTier = "basic";
-      else userTier = "pro";
+      if (authDoc?.tier) {
+        userTier = normalizeTier(authDoc.tier);
+      } else {
+        userTier = normalizeTier(matchedPayment.plan);
+      }
     } else if (matchedSub) {
       studentName = `${matchedSub.firstName || ""} ${matchedSub.lastName || ""}`.trim() || studentName;
       studentEmail = studentEmail || matchedSub.email || "";
@@ -7319,7 +7916,7 @@ app.get("/api/student/dashboard-data", async (req, res) => {
 
             if (matchedProg) {
               const progTier = matchedProg.tier || userTier || "basic";
-              const progTierLevel = tierOrder[normalizeTier(progTier)] || 1;
+              const progTierLevel = Math.max(tierOrder[normalizeTier(progTier)] || 1, userTierNum);
               const courseTierLevel = tierOrder[normalizeTier(c.tier)] || 1;
 
               // Basic tier can only access basic courses
@@ -8333,6 +8930,12 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[Pehlakadam Server] Running on http://localhost:${PORT}`);
+    // Run student enrollment reconciliation in background shortly after boot
+    setTimeout(() => {
+      reconcileAllStudentEnrollments().catch(err => {
+        console.warn("[Pehlakadam Server] Background enrollment reconciliation notice:", err?.message);
+      });
+    }, 2500);
   });
 }
 

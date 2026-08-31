@@ -1,4 +1,4 @@
-import { useState, useEffect, ChangeEvent, FormEvent } from "react";
+import { useState, useEffect, useMemo, ChangeEvent, FormEvent } from "react";
 import NavigationBar from "../NavigationBar";
 import Footer from "../Footer";
 import AdminProgramsConfig from "../AdminProgramsConfig";
@@ -102,6 +102,9 @@ export default function AdminSubmissions() {
   const [resources, setResources] = useState<ResourceMaterial[]>([]);
   const [broadcasts, setBroadcasts] = useState<SessionUpdate[]>([]);
   const [authorizedNumbers, setAuthorizedNumbers] = useState<AuthorizedStudent[]>([]);
+  const [coursesList, setCoursesList] = useState<any[]>([]);
+  const [isReconciling, setIsReconciling] = useState<boolean>(false);
+  const [reconcileMessage, setReconcileMessage] = useState<string>("");
   const [programsConfigs, setProgramsConfigs] = useState<any[]>([]);
   const [subscribers, setSubscribers] = useState<{ id: string; email: string; phone?: string; createdAt: string }[]>([]);
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
@@ -508,6 +511,46 @@ export default function AdminSubmissions() {
     }
   };
 
+  // 📚 Consolidate active catalog courses with default courses for complete coverage
+  const allCatalogCourses = useMemo(() => {
+    if (coursesList && coursesList.length > 0) {
+      return coursesList.map((c: any) => ({
+        id: String(c.id || c._id || c.slug),
+        _id: c._id ? String(c._id) : undefined,
+        title: c.title,
+        category: c.category || "",
+        tier: c.tier || "pro"
+      }));
+    }
+    return SYSTEM_DEFAULT_COURSES;
+  }, [coursesList]);
+
+  // 🔄 Trigger student reconciliation across MongoDB and local storage
+  const handleReconcileEnrollments = async () => {
+    try {
+      setIsReconciling(true);
+      setReconcileMessage("");
+      const token = localStorage.getItem("pehlakadam_admin_token");
+      const res = await fetch("/api/admin/reconcile-enrollments", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setReconcileMessage(data.message || "All student enrollments and courses successfully reconciled.");
+        await fetchAllData();
+        setTimeout(() => setReconcileMessage(""), 6000);
+      } else {
+        alert(data.error || "Failed to reconcile student enrollments.");
+      }
+    } catch (err: any) {
+      console.error("Error reconciling enrollments:", err);
+      alert("Failed to connect with enrollment reconciliation service.");
+    } finally {
+      setIsReconciling(false);
+    }
+  };
+
   /**
    * 🔄 DB SYNCHRONIZATION ROUTINE
    * Fetches data in parallel/sequence from the backend endpoints with high fault tolerance.
@@ -526,6 +569,19 @@ export default function AdminSubmissions() {
       }
       return false;
     };
+
+    // 0. Fetch Courses Catalog
+    try {
+      const resCourses = await fetch("/api/courses");
+      if (resCourses.ok) {
+        const cData = await resCourses.json();
+        if (Array.isArray(cData) && cData.length > 0) {
+          setCoursesList(cData);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading courses:", err);
+    }
 
     // 1. Fetch Submissions
     try {
@@ -2927,19 +2983,19 @@ export default function AdminSubmissions() {
                             <button
                               type="button"
                               onClick={() => {
-                                if (authSelectedCourses.length === SYSTEM_DEFAULT_COURSES.length) {
+                                if (authSelectedCourses.length === allCatalogCourses.length) {
                                   setAuthSelectedCourses([]);
                                 } else {
-                                  setAuthSelectedCourses(SYSTEM_DEFAULT_COURSES.map(c => c.id));
+                                  setAuthSelectedCourses(allCatalogCourses.map(c => c.id));
                                 }
                               }}
                               className="text-[10px] text-blue-600 hover:text-blue-700 font-bold underline cursor-pointer"
                             >
-                              {authSelectedCourses.length === SYSTEM_DEFAULT_COURSES.length ? "Clear All" : "Select All"}
+                              {authSelectedCourses.length === allCatalogCourses.length ? "Clear All" : "Select All"}
                             </button>
                           </label>
                           <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 border border-zinc-100 rounded-xl p-2 bg-zinc-50/50">
-                            {SYSTEM_DEFAULT_COURSES.map((course) => {
+                            {allCatalogCourses.map((course: any) => {
                               const isChecked = authSelectedCourses.includes(course.id);
                               return (
                                 <label
@@ -2958,9 +3014,19 @@ export default function AdminSubmissions() {
                                         setAuthSelectedCourses(prev => prev.filter(k => k !== course.id));
                                       }
                                     }}
-                                    className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                                    className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4 shrink-0"
                                   />
                                   <span className="flex-1 line-clamp-1">{course.title}</span>
+                                  {course.category && (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-200/70 text-zinc-700 font-medium shrink-0">
+                                      {course.category}
+                                    </span>
+                                  )}
+                                  {course.tier && (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 uppercase font-bold shrink-0">
+                                      {course.tier}
+                                    </span>
+                                  )}
                                 </label>
                               );
                             })}
@@ -3008,14 +3074,33 @@ export default function AdminSubmissions() {
                       </div>
 
                       {/* Header */}
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-base font-bold font-sans text-zinc-950">
-                          Active Enrolled Students ({authorizedNumbers.length})
-                        </h3>
-                        <span className="text-[11px] text-zinc-400 font-medium">
-                          Auto-detected on tests & resources
-                        </span>
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                          <h3 className="text-base font-bold font-sans text-zinc-950">
+                            Active Enrolled Students ({authorizedNumbers.length})
+                          </h3>
+                          <span className="text-[11px] text-zinc-400 font-medium">
+                            Auto-detected on tests, LMS & resources
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleReconcileEnrollments}
+                          disabled={isReconciling}
+                          className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs border border-emerald-200 flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-60"
+                          title="Reconcile and sync previous student records and courses across MongoDB and JSON"
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 ${isReconciling ? "animate-spin" : ""}`} />
+                          <span>{isReconciling ? "Syncing Roster..." : "Reconcile & Sync Roster"}</span>
+                        </button>
                       </div>
+
+                      {reconcileMessage && (
+                        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-medium flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
+                          <span>{reconcileMessage}</span>
+                        </div>
+                      )}
 
                       {/* Roster Cards */}
                       {(() => {
@@ -3057,7 +3142,7 @@ export default function AdminSubmissions() {
                               });
 
                               const courseLabels = (item.enrolledCourses || []).map(cid => {
-                                const opt = SYSTEM_DEFAULT_COURSES.find(c => c.id === cid);
+                                const opt = allCatalogCourses.find((c: any) => c.id === cid || c._id === cid || c.slug === cid);
                                 return opt ? opt.title : cid;
                               });
 
@@ -4844,19 +4929,19 @@ export default function AdminSubmissions() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (editSelectedCourses.length === SYSTEM_DEFAULT_COURSES.length) {
+                        if (editSelectedCourses.length === allCatalogCourses.length) {
                           setEditSelectedCourses([]);
                         } else {
-                          setEditSelectedCourses(SYSTEM_DEFAULT_COURSES.map(c => c.id));
+                          setEditSelectedCourses(allCatalogCourses.map(c => c.id));
                         }
                       }}
                       className="text-[10px] text-blue-600 hover:text-blue-700 font-bold underline cursor-pointer"
                     >
-                      {editSelectedCourses.length === SYSTEM_DEFAULT_COURSES.length ? "Clear All" : "Select All"}
+                      {editSelectedCourses.length === allCatalogCourses.length ? "Clear All" : "Select All"}
                     </button>
                   </label>
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1 border border-zinc-100 rounded-xl p-2 bg-zinc-50/50">
-                    {SYSTEM_DEFAULT_COURSES.map((course) => {
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1 border border-zinc-100 rounded-xl p-2 bg-zinc-50/50">
+                    {allCatalogCourses.map((course: any) => {
                       const isChecked = editSelectedCourses.includes(course.id);
                       return (
                         <label
@@ -4875,9 +4960,19 @@ export default function AdminSubmissions() {
                                 setEditSelectedCourses(prev => prev.filter(k => k !== course.id));
                               }
                             }}
-                            className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                            className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4 shrink-0"
                           />
                           <span className="flex-1 line-clamp-1">{course.title}</span>
+                          {course.category && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-200/70 text-zinc-700 font-medium shrink-0">
+                              {course.category}
+                            </span>
+                          )}
+                          {course.tier && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 uppercase font-bold shrink-0">
+                              {course.tier}
+                            </span>
+                          )}
                         </label>
                       );
                     })}

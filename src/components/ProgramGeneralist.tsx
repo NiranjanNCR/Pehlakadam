@@ -120,7 +120,7 @@ export default function ProgramGeneralist() {
       </section>
 
       {/* Pricing tracks */}
-      <CartCourse />
+      <CartCourse programName="Generalist to Specialist" />
 
       <Footer />
     </motion.div>

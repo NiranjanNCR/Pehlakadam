@@ -1,15 +1,36 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { Check, X, Play, ShieldCheck, Sparkles, UserCheck } from "lucide-react";
 import YouTubeModal from "./YouTubeModal";
 import FormModal from "./FormModal";
 import PaymentModal from "./PaymentModal";
 import { motion } from "motion/react";
 
-export default function CartCourse() {
+interface CartCourseProps {
+  programName?: string;
+}
+
+export default function CartCourse({ programName }: CartCourseProps = {}) {
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [videoUrl, setVideoUrl] = useState("");
   const [configs, setConfigs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Intelligently determine the active program from prop or current page route
+  const getActiveProgram = (): string => {
+    if (programName && programName.trim()) return programName.trim();
+    const p = (location?.pathname || "").toLowerCase();
+    if (p.includes("program1") || p.includes("6-8")) return "6-8 Grade Student";
+    if (p.includes("program2") || p.includes("9-10") || p.includes("8-10")) return "8-10 Grade Student";
+    if (p.includes("program3") || p.includes("11-12")) return "11-12 Grade Student";
+    if (p.includes("program4") || p.includes("graduate") || p.includes("ug")) return "UG/Graduate/PG";
+    if (p.includes("program5") || p.includes("kudos")) return "Primary Kudos";
+    if (p.includes("program6") || p.includes("generalist")) return "Generalist to Specialist";
+    return "6-8 Grade Student";
+  };
+
+  const activeProgram = getActiveProgram();
 
   const openModal = (url: string) => {
     setVideoUrl(url);
@@ -295,7 +316,7 @@ export default function CartCourse() {
                 <PaymentModal 
                   planName={basicCard.title} 
                   planPrice={basicCard.currentPrice} 
-                  defaultProgram="6-8 Grade Student" 
+                  defaultProgram={activeProgram} 
                   defaultPlan="Basic"
                   buttonText="Pay & Enroll"
                 />
@@ -361,7 +382,7 @@ export default function CartCourse() {
                 <PaymentModal 
                   planName={standardCard.title} 
                   planPrice={standardCard.currentPrice} 
-                  defaultProgram="11-12 Grade Student" 
+                  defaultProgram={activeProgram} 
                   defaultPlan="Standard"
                   buttonText="Pay & Enroll"
                 />
@@ -423,7 +444,7 @@ export default function CartCourse() {
                 <PaymentModal 
                   planName={premiumCard.title} 
                   planPrice={premiumCard.currentPrice} 
-                  defaultProgram="Generalist to Specialist" 
+                  defaultProgram={activeProgram} 
                   defaultPlan="Premium Pro"
                   buttonText="Pay & Enroll"
                 />

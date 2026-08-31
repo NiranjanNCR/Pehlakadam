@@ -120,7 +120,7 @@ export default function ProgramGraduate() {
       </section>
 
       {/* Plans list */}
-      <CartCourse />
+      <CartCourse programName="UG/Graduate/PG" />
 
       <Footer />
     </motion.div>

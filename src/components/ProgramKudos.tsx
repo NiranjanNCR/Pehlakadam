@@ -120,7 +120,7 @@ export default function ProgramKudos() {
       </section>
 
       {/* Pricing courses */}
-      <CartCourse />
+      <CartCourse programName="Primary Kudos" />
 
       <Footer />
     </motion.div>
