@@ -3454,7 +3454,7 @@ app.get("/api/programs-config", async (req, res) => {
 
     const rawConfigs = (await safeMongoQuery(
       async () => {
-        const docs = await ProgramConfigModel.find().lean();
+        const docs = await ProgramConfigModel.find({}, { brochureFileData: 0 }).lean();
         return docs || [];
       },
       () => {
@@ -3479,7 +3479,9 @@ app.get("/api/programs-config", async (req, res) => {
       } else {
         resultConfigs.push({
           ...defaults[key],
-          ...found
+          ...found,
+          brochureFileData: "",
+          brochureUrl: found.brochureUrl || (found.brochureFileName ? `/api/programs/brochure/view/${key}` : defaults[key]?.brochureUrl || "")
         });
       }
     });
@@ -5256,12 +5258,10 @@ app.get("/api/resources", async (req, res) => {
       return res.status(200).json(cached.data);
     }
 
-    let resources: any[] = [];
-    let mongoQueried = false;
-    if (isMongoLive()) {
-      try {
-        const docs = await ResourceModel.find().sort({ createdAt: -1 });
-        resources = docs.map((doc: any) => ({
+    const resources = (await safeMongoQuery(
+      async () => {
+        const docs = await ResourceModel.find({}, { fileData: 0 }).sort({ createdAt: -1 }).lean();
+        const mapped = (docs || []).map((doc: any) => ({
           id: doc._id.toString(),
           title: doc.title,
           category: doc.category,
@@ -5269,43 +5269,49 @@ app.get("/api/resources", async (req, res) => {
           type: doc.type,
           format: doc.format,
           videoUrl: doc.videoUrl,
-          fileUrl: doc.fileUrl,
-          fileData: doc.fileData,
+          fileUrl: doc.fileUrl || `/api/resources/view/${doc._id.toString()}`,
+          fileData: "",
           isPaid: !!doc.isPaid,
-          createdAt: doc.createdAt ? doc.createdAt.toISOString() : new Date().toISOString()
+          hasFile: true,
+          createdAt: doc.createdAt ? (doc.createdAt.toISOString ? doc.createdAt.toISOString() : doc.createdAt) : new Date().toISOString()
         }));
-        mongoQueried = true;
+        // Update local cache asynchronously without blocking
         try {
-          fs.writeFileSync(RESOURCES_FILE, JSON.stringify(resources, null, 2));
+          fs.writeFileSync(RESOURCES_FILE, JSON.stringify(mapped, null, 2));
         } catch (e) {}
-      } catch (err: any) {
-        console.warn("⚠️ [Pehlakadam API] Mongo error reading resources, using JSON fallback:", err?.message);
-      }
-    }
-
-    if (!mongoQueried && fs.existsSync(RESOURCES_FILE)) {
-      try {
-        const data = fs.readFileSync(RESOURCES_FILE, "utf-8");
-        resources = JSON.parse(data).map((r: any) => ({
+        return mapped;
+      },
+      () => {
+        if (fs.existsSync(RESOURCES_FILE)) {
+          try {
+            const data = fs.readFileSync(RESOURCES_FILE, "utf-8");
+            return JSON.parse(data).map((r: any) => ({
+              ...r,
+              fileUrl: r.fileUrl || `/api/resources/view/${r.id || r._id}`,
+              fileData: "",
+              isPaid: !!r.isPaid,
+              hasFile: true
+            }));
+          } catch (e) {
+            return [];
+          }
+        }
+        return defaultResources.map((r: any) => ({
           ...r,
-          fileData: r.fileData,
-          isPaid: !!r.isPaid
+          fileUrl: r.fileUrl || `/api/resources/view/${r.id}`,
+          fileData: "",
+          isPaid: !!r.isPaid,
+          hasFile: true
         }));
-      } catch (e) {
-        resources = [];
-      }
-    }
+      },
+      2500
+    )) || [];
 
-    if (!mongoQueried && resources.length === 0) {
-      resources = defaultResources.map((r: any) => ({
-        ...r,
-        fileData: r.fileData,
-        isPaid: !!r.isPaid
-      }));
-    }
-
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    return res.status(200).json(resources);
+    const finalResources = resources.length > 0 ? resources : defaultResources;
+    const etag = apiCache.set("resources", finalResources, 60);
+    res.setHeader("ETag", etag);
+    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
+    return res.status(200).json(finalResources);
   } catch (error) {
     console.error("[Pehlakadam API] Error reading resources:", error);
     return res.status(200).json(defaultResources);
@@ -5576,20 +5582,35 @@ app.get("/api/resources/download/:id", async (req, res) => {
 app.get("/api/resources/view/:id", async (req, res) => {
   try {
     const { id } = req.params;
+
+    // 0. Instant disk check (fastest, zero network overhead)
+    const diskPdfPath = path.join(UPLOADS_DIR, `resource_${id}.pdf`);
+    if (fs.existsSync(diskPdfPath)) {
+      const fileContent = fs.readFileSync(diskPdfPath);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="resource_${id}.pdf"`);
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      return res.send(fileContent);
+    }
+
     let resourceItem: any = null;
 
     if (isMongoLive()) {
-      if (mongoose.Types.ObjectId.isValid(id)) {
-        resourceItem = await ResourceModel.findById(id).exec();
-      }
-      if (!resourceItem) {
-        resourceItem = await ResourceModel.findOne({ $or: [{ id: id }, { _id: id }] }).exec();
-      }
+      try {
+        if (mongoose.Types.ObjectId.isValid(id)) {
+          resourceItem = await ResourceModel.findById(id).maxTimeMS(2500).lean();
+        }
+        if (!resourceItem) {
+          resourceItem = await ResourceModel.findOne({ $or: [{ id: id }, { _id: id }] }).maxTimeMS(2500).lean();
+        }
+      } catch (e) {}
     }
 
     if (!resourceItem && fs.existsSync(RESOURCES_FILE)) {
-      const allResources = JSON.parse(fs.readFileSync(RESOURCES_FILE, "utf-8"));
-      resourceItem = allResources.find((r: any) => r.id === id || r._id === id);
+      try {
+        const allResources = JSON.parse(fs.readFileSync(RESOURCES_FILE, "utf-8"));
+        resourceItem = allResources.find((r: any) => r.id === id || r._id === id);
+      } catch (e) {}
     }
 
     if (!resourceItem) {
@@ -5609,8 +5630,9 @@ app.get("/api/resources/view/:id", async (req, res) => {
     }
 
     // 2. Physical file in UPLOADS_DIR
-    if (fileUrl) {
-      const uploadPath = path.join(UPLOADS_DIR, fileUrl);
+    const targetFileName = fileUrl || `resource_${id}.pdf`;
+    if (targetFileName) {
+      const uploadPath = path.join(UPLOADS_DIR, targetFileName);
       if (fs.existsSync(uploadPath)) {
         const fileContent = fs.readFileSync(uploadPath);
         // If file is already a valid PDF binary buffer
@@ -5631,7 +5653,7 @@ app.get("/api/resources/view/:id", async (req, res) => {
       }
 
       // 3. Public folder static path fallback
-      const publicPath = path.join(process.cwd(), "public", fileUrl.startsWith("/") ? fileUrl.slice(1) : fileUrl);
+      const publicPath = path.join(process.cwd(), "public", targetFileName.startsWith("/") ? targetFileName.slice(1) : targetFileName);
       if (fs.existsSync(publicPath)) {
         res.setHeader("Content-Type", "application/pdf");
         res.setHeader("Content-Disposition", `inline; filename="document.pdf"`);
@@ -5804,15 +5826,30 @@ app.get("/api/pdf-proxy", async (req, res) => {
 app.get("/api/programs/brochure/view/:programKey", async (req, res) => {
   try {
     const { programKey } = req.params;
+
+    // 0. Instant physical file check in UPLOADS_DIR (fastest, zero network overhead)
+    const brochureUploadPath = path.join(UPLOADS_DIR, `brochure_${programKey}.pdf`);
+    if (fs.existsSync(brochureUploadPath)) {
+      const pdfBuffer = fs.readFileSync(brochureUploadPath);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="brochure_${programKey}.pdf"`);
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      return res.send(pdfBuffer);
+    }
+
     let config: any = null;
 
     if (isMongoLive()) {
-      config = await ProgramConfigModel.findOne({ programKey }).exec();
+      try {
+        config = await ProgramConfigModel.findOne({ programKey }).maxTimeMS(2500).lean();
+      } catch (e) {}
     }
 
     if (!config && fs.existsSync(PROGRAMS_CONFIG_FILE)) {
-      const allConfigs = JSON.parse(fs.readFileSync(PROGRAMS_CONFIG_FILE, "utf-8"));
-      config = allConfigs.find((c: any) => c.programKey === programKey);
+      try {
+        const allConfigs = JSON.parse(fs.readFileSync(PROGRAMS_CONFIG_FILE, "utf-8"));
+        config = allConfigs.find((c: any) => c.programKey === programKey);
+      } catch (e) {}
     }
 
     // 1. Direct Base64 brochure file data
@@ -7697,7 +7734,7 @@ app.get("/api/student/dashboard-data", async (req, res) => {
     // Load Payments
     if (isMongoLive()) {
       try {
-        payments = await PaymentModel.find().lean();
+        payments = await PaymentModel.find({}, { fileData: 0 }).lean();
       } catch (e) {
         console.warn("[Pehlakadam API] Mongo error on PaymentModel:", (e as any)?.message);
       }
@@ -7711,7 +7748,7 @@ app.get("/api/student/dashboard-data", async (req, res) => {
     // Load Submissions
     if (isMongoLive()) {
       try {
-        submissions = await SubmissionModel.find().lean();
+        submissions = await SubmissionModel.find({}, { fileData: 0 }).lean();
       } catch (e) {
         console.warn("[Pehlakadam API] Mongo error on SubmissionModel:", (e as any)?.message);
       }
