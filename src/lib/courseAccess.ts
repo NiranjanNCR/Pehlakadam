@@ -94,9 +94,13 @@ export function canUserAccessCourse(params: {
 
   if (!isAuthorized) return false;
 
-  // 1. Explicit direct enrollment
-  if (courseId && enrolledCourses.length > 0 && enrolledCourses.includes(courseId)) {
-    return true;
+  // 1. Explicit direct enrollment in this specific course
+  if (courseId && enrolledCourses && enrolledCourses.length > 0) {
+    const cleanCid = String(courseId).trim();
+    const isDirectlyEnrolled = enrolledCourses.some(id => String(id).trim() === cleanCid);
+    if (isDirectlyEnrolled) {
+      return true;
+    }
   }
 
   const normUserTier = normalizeTier(userTier);

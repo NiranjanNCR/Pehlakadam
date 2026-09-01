@@ -2593,10 +2593,24 @@ async function reconcileAllStudentEnrollments(): Promise<{ reconciledCount: numb
         if (sub) {
           student.studentName = `${sub.firstName || ""} ${sub.lastName || ""}`.trim() || student.studentName;
           if (!student.email) student.email = (sub.email || "").trim().toLowerCase();
-          if (sub.role && (!student.enrolledPrograms || student.enrolledPrograms.length === 0)) {
+          if (sub.role && !sub.role.startsWith("Course:") && (!student.enrolledPrograms || student.enrolledPrograms.length === 0)) {
             student.enrolledPrograms = [sub.role];
           }
         }
+      }
+
+      // Check if user has ANY real program payments or program submissions
+      const userPayments = allPayments.filter((p: any) => cleanPhoneDigits(p.number) === cleanNum);
+      const userSubmissions = allSubmissions.filter((s: any) => cleanPhoneDigits(s.number) === cleanNum);
+      const hasProgramPaymentOrSub = userPayments.some((p: any) => p.role && !p.role.startsWith("Course:")) ||
+                                     userSubmissions.some((s: any) => s.role && !s.role.startsWith("Course:"));
+      const hasOnlyCoursePayments = userPayments.length > 0 && userPayments.every((p: any) => p.role && p.role.startsWith("Course:"));
+
+      // If user only has course payments and no program purchases, ensure enrolledPrograms is empty
+      if (hasOnlyCoursePayments && !hasProgramPaymentOrSub && !ADMIN_PHONES.includes(cleanNum)) {
+        student.enrolledPrograms = [];
+        // Keep only explicitly enrolled course IDs
+        student.enrolledCourses = [];
       }
 
       // Special handling for admin phone numbers
@@ -2611,7 +2625,6 @@ async function reconcileAllStudentEnrollments(): Promise<{ reconciledCount: numb
       student.tier = finalTier;
 
       // Handle course specific payment if any (e.g. "Course: Modern Masterclass")
-      const userPayments = allPayments.filter((p: any) => cleanPhoneDigits(p.number) === cleanNum);
       userPayments.forEach((p: any) => {
         if (p.role && p.role.startsWith("Course:")) {
           const cTitle = p.role.replace("Course:", "").trim();
@@ -2620,9 +2633,6 @@ async function reconcileAllStudentEnrollments(): Promise<{ reconciledCount: numb
             const cid = String(matchedCourse.id || matchedCourse._id);
             if (!student.enrolledCourses.includes(cid)) {
               student.enrolledCourses.push(cid);
-            }
-            if (matchedCourse.category && (!student.enrolledPrograms || student.enrolledPrograms.length === 0)) {
-              student.enrolledPrograms = [matchedCourse.category];
             }
           }
         }
@@ -2804,16 +2814,18 @@ app.post("/api/payment-submit", async (req, res) => {
 
     // If Auto-Approval is active, automatically whitelist student phone for Instant Access with all category and tier courses!
     if (autoApprovalActive) {
-      let assignedPrograms = role ? [role] : [];
+      let assignedPrograms: string[] = [];
       let assignedCourses: string[] = [];
       if (role && role.startsWith("Course:")) {
         const cTitle = role.replace("Course:", "").trim();
         const allSystemCourses = await getSystemCoursesList();
         const targetCourse = allSystemCourses.find((c: any) => doCategoriesMatch(c.title, cTitle) || c.title.toLowerCase().includes(cTitle.toLowerCase()));
         if (targetCourse) {
-          assignedPrograms = targetCourse.category ? [targetCourse.category] : [];
           assignedCourses = [String(targetCourse.id || targetCourse._id)];
         }
+        assignedPrograms = []; // Direct course purchase: grant only this specific course
+      } else if (role) {
+        assignedPrograms = [role]; // Cart / Program track purchase: grant full program category
       }
       await grantStudentAccess(
         cleanNum,
@@ -3023,8 +3035,26 @@ app.post("/api/razorpay/verify-payment", async (req, res) => {
     else if (plan.toLowerCase().includes("standard") || plan.toLowerCase().includes("advance")) studentTier = "advance";
     else studentTier = "pro";
 
-    const assignedPrograms: string[] = role ? [role] : [];
-    const assignedCourses: string[] = courseId ? [courseId] : courseTitle ? [courseTitle] : [];
+    const isSingleCourseCheckout = Boolean(courseId || (role && role.startsWith("Course:")));
+    let assignedPrograms: string[] = [];
+    let assignedCourses: string[] = [];
+
+    if (isSingleCourseCheckout) {
+      if (courseId) {
+        assignedCourses = [courseId];
+      } else if (courseTitle || (role && role.startsWith("Course:"))) {
+        const cTitle = courseTitle || role.replace("Course:", "").trim();
+        const allSystemCourses = await getSystemCoursesList();
+        const targetCourse = allSystemCourses.find((c: any) => c.title.toLowerCase().includes(cTitle.toLowerCase()) || cTitle.toLowerCase().includes(c.title.toLowerCase()));
+        if (targetCourse) {
+          assignedCourses = [String(targetCourse.id || targetCourse._id)];
+        }
+      }
+      assignedPrograms = []; // Direct course purchase: only grant this specific course
+    } else if (role) {
+      // Cart / Academic program purchase: grant the program track
+      assignedPrograms = [role];
+    }
 
     // 1. Grant instant whitelist access
     if (cleanNum) {
@@ -3285,10 +3315,22 @@ app.post("/api/admin/payments/approve", verifyAdmin, async (req, res) => {
       } catch (e) {}
     }
 
-    // 2. Grant Access with Enrolled Program
+    // 2. Grant Access with Enrolled Program or Course
     if (cleanNum) {
-      const assignedPrograms = studentRole ? [studentRole] : [];
-      await grantStudentAccess(cleanNum, studentName, studentTier, assignedPrograms, [], studentEmail);
+      let assignedPrograms: string[] = [];
+      let assignedCourses: string[] = [];
+      if (studentRole && studentRole.startsWith("Course:")) {
+        const cTitle = studentRole.replace("Course:", "").trim();
+        const allSystemCourses = await getSystemCoursesList();
+        const targetCourse = allSystemCourses.find((c: any) => doCategoriesMatch(c.title, cTitle) || c.title.toLowerCase().includes(cTitle.toLowerCase()));
+        if (targetCourse) {
+          assignedCourses = [String(targetCourse.id || targetCourse._id)];
+        }
+        assignedPrograms = []; // Direct course purchase: grant only specific course
+      } else if (studentRole) {
+        assignedPrograms = [studentRole]; // Cart / Program purchase: grant program track
+      }
+      await grantStudentAccess(cleanNum, studentName, studentTier, assignedPrograms, assignedCourses, studentEmail);
     }
 
     return res.status(200).json({
@@ -7063,9 +7105,9 @@ app.post("/api/courses/enroll", async (req, res) => {
     if (autoApprovalActive) {
       const allSystemCourses = await getSystemCoursesList();
       const targetCourse = allSystemCourses.find((c: any) => (courseId && (c.id === courseId || c._id === courseId)) || (courseTitle && c.title.toLowerCase().includes(courseTitle.toLowerCase())));
-      const progList = targetCourse?.category ? [targetCourse.category] : [];
       const courseList = courseId ? [courseId] : targetCourse ? [String(targetCourse.id || targetCourse._id)] : [];
-      await grantStudentAccess(cleanPhone, studentFullName, courseTier, progList, courseList, cleanEmail);
+      // Direct LMS course enrollment: grants ONLY this specific course (programs is empty)
+      await grantStudentAccess(cleanPhone, studentFullName, courseTier, [], courseList, cleanEmail);
     }
 
     // 3. Initialize Course Progress Entry if courseId is available
@@ -7910,12 +7952,8 @@ app.get("/api/student/dashboard-data", async (req, res) => {
         const pPhone = p.number?.replace(/[^0-9]/g, "");
         const matchesUser = (cleanEmail && pEmail === cleanEmail) || (cleanPhone && (pPhone === cleanPhone || pPhone?.endsWith(cleanPhone)));
         if (!matchesUser) return false;
-        if (p.role === prog.title || p.plan?.includes(prog.title) || p.role?.includes(prog.key)) return true;
-        if (p.role && p.role.startsWith("Course:")) {
-          const courseTitle = p.role.replace("Course:", "").trim().toLowerCase();
-          const matchedCrs = allCoursesList.find((c: any) => c.title.toLowerCase().includes(courseTitle) || courseTitle.includes(c.title.toLowerCase()));
-          if (matchedCrs && doCategoriesMatch(matchedCrs.category, prog.title)) return true;
-        }
+        // Academic program track enrollment matches from Cart / Program pages
+        if (p.role && !p.role.startsWith("Course:") && (p.role === prog.title || p.plan?.includes(prog.title) || p.role?.includes(prog.key))) return true;
         return false;
       });
 
