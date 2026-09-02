@@ -149,19 +149,32 @@ export default function StudentDashboard() {
 
     const stPhone = localStorage.getItem("pehlakadam_student_phone");
     const prPhone = localStorage.getItem("pehlakadam_premium_phone");
+    const stEmail = localStorage.getItem("pehlakadam_student_email");
     
     let userObjPhone = "";
     let userObjEmail = "";
     try {
       const u = JSON.parse(localStorage.getItem("pehlakadam_user") || "{}");
-      if (u.phone) userObjPhone = u.phone;
-      if (u.email) userObjEmail = u.email;
+      if (u.phone) userObjPhone = (u.phone || "").replace(/[^0-9]/g, "");
+      if (u.email) userObjEmail = (u.email || "").trim().toLowerCase();
     } catch (e) {}
 
     const phone = urlPhone || stPhone || prPhone || userObjPhone || "";
-    const email = urlEmail || userObjEmail || "";
+    const cleanPhone = phone ? phone.replace(/[^0-9]/g, "") : "";
 
-    return { phone, email };
+    // Only inherit email if it was explicitly passed or belongs to this exact phone number
+    let email = urlEmail ? urlEmail.trim().toLowerCase() : "";
+    if (!email && cleanPhone) {
+      if (userObjPhone && (userObjPhone === cleanPhone || userObjPhone.endsWith(cleanPhone) || cleanPhone.endsWith(userObjPhone))) {
+        email = userObjEmail;
+      } else if (stPhone && (stPhone === cleanPhone || stPhone.endsWith(cleanPhone) || cleanPhone.endsWith(stPhone))) {
+        email = stEmail ? stEmail.trim().toLowerCase() : "";
+      }
+    } else if (!email && !cleanPhone) {
+      email = userObjEmail || (stEmail ? stEmail.trim().toLowerCase() : "");
+    }
+
+    return { phone: cleanPhone, email };
   };
 
   const fetchDashboard = async (phone: string, email: string) => {
@@ -461,12 +474,22 @@ export default function StudentDashboard() {
                     Email: <span className="text-zinc-200 font-bold">{dashboardData.student.email}</span>
                   </span>
                 )}
-                {dashboardData.student.role && (
+                {dashboardData.student.role?.startsWith("Course:") ? (
+                  <span className="flex items-center gap-1.5 bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-800">
+                    <BookOpen className="h-3.5 w-3.5 text-emerald-400" />
+                    Enrolled Course: <span className="text-zinc-200 font-bold">{dashboardData.student.role.replace("Course:", "").trim()}</span>
+                  </span>
+                ) : (!dashboardData.enrolledPrograms || dashboardData.enrolledPrograms.length === 0) ? (
+                  <span className="flex items-center gap-1.5 bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-800">
+                    <BookOpen className="h-3.5 w-3.5 text-emerald-400" />
+                    Enrolled Courses: <span className="text-zinc-200 font-bold">{dashboardData.enrolledCourses?.length || 1} Active</span>
+                  </span>
+                ) : dashboardData.student.role ? (
                   <span className="flex items-center gap-1.5 bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-800">
                     <User className="h-3.5 w-3.5 text-emerald-400" />
                     Academic Track: <span className="text-zinc-200 font-bold">{dashboardData.student.role}</span>
                   </span>
-                )}
+                ) : null}
               </div>
             )}
           </div>

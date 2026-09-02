@@ -209,8 +209,15 @@ export default function CourseCheckoutModal({
 
       if (result.success && result.data) {
         const authedNumber = result.data.studentNumber || cleanNum.slice(-10);
+        const authedEmail = formData.email.trim().toLowerCase();
         localStorage.setItem("pehlakadam_student_phone", authedNumber);
-        localStorage.setItem("pehlakadam_student_email", formData.email.trim().toLowerCase());
+        localStorage.setItem("pehlakadam_student_email", authedEmail);
+        localStorage.setItem("pehlakadam_user", JSON.stringify({
+          name: `${formData.firstName} ${formData.lastName}`.trim(),
+          phone: authedNumber,
+          email: authedEmail,
+          role: "Student"
+        }));
 
         setEnrollSuccessData({
           success: true,
@@ -276,7 +283,15 @@ export default function CourseCheckoutModal({
       const data = await res.json();
       if (res.ok && data.success) {
         const authedNumber = data.studentNumber || cleanNum.slice(-10);
+        const authedEmail = formData.email.trim().toLowerCase();
         localStorage.setItem("pehlakadam_student_phone", authedNumber);
+        localStorage.setItem("pehlakadam_student_email", authedEmail);
+        localStorage.setItem("pehlakadam_user", JSON.stringify({
+          name: `${formData.firstName} ${formData.lastName}`.trim(),
+          phone: authedNumber,
+          email: authedEmail,
+          role: "Student"
+        }));
 
         setEnrollSuccessData({
           success: true,
